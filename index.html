@@ -2256,12 +2256,14 @@ async function _saveThresholdToCloud(){
 async function checkSupabase(){
   var timeout = new Promise(function(resolve){ setTimeout(function(){ resolve(null); }, 8000); });
   var hdCheck = {'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY};
-  var fetchPr = fetch(SUPA_URL+'/rest/v1/settings?select=key&limit=1', {headers: hdCheck})
+  // Kiểm tra online bằng bảng `units` (luôn có ở schema đa tỉnh). Bản cũ dùng `settings`,
+  // nhưng schema mới không có bảng đó nên phải đổi sang units.
+  var fetchPr = fetch(SUPA_URL+'/rest/v1/units?select=id&limit=1', {headers: hdCheck})
     .then(function(r){ return r; }).catch(function(){ return null; });
   var result = await Promise.race([fetchPr, timeout]);
   _supaOnline = !!(result && result.status >= 200 && result.status < 300);
   _updateCloudStatus();
-  if(_supaOnline){ try{ loadCapPhat(); }catch(e){} try{ _loadThresholdFromCloud(); }catch(e){} try{ _loadAccountsFromCloud().then(function(){ if(!currentUser){ try{ fillLoginUnits(); }catch(e){} } }); }catch(e){} }  // tải/di trú cấp phát + ngưỡng + tài khoản khi đã online
+  if(_supaOnline){ try{ _loadUnitsTree(); }catch(e){} try{ loadCapPhat(); }catch(e){} try{ _loadThresholdFromCloud(); }catch(e){} try{ _loadAccountsFromCloud().then(function(){ if(!currentUser){ try{ fillLoginUnits(); }catch(e){} } }); }catch(e){} }  // tải cây tổ chức + cấp phát + ngưỡng + tài khoản khi online
   if(_supaOnline && currentUser && currentUser.role==='donvi'){
     setTimeout(checkPendingTransfers, 500);
   }
@@ -2725,7 +2727,6 @@ async function loadFromSupabase(periodKey, silent){
     if(!silent) toast('Đang tải từ cloud...','#1a5276');
 
     var role = currentUser ? currentUser.role : 'admin';
-    var unit = currentUser ? currentUser.unit : '';
 
     // Xử lý "Cả năm" — query theo pattern
     var p = getSelectedPeriod();
@@ -2736,23 +2737,30 @@ async function loadFromSupabase(periodKey, silent){
       filterPart = 'period=eq.' + encodeURIComponent(periodKey);
     }
 
-    var url = SUPA_URL+'/rest/v1/reports?'+filterPart+'&order=unit,drug,lot';
+    var url = SUPA_URL+'/rest/v1/reports?'+filterPart+'&order=drug,lot';
 
-    // Đơn vị tuyến: chỉ tải data của mình
-    if(role === 'donvi'){
-      url += '&unit=eq.'+encodeURIComponent(unit);
-    }
-    // BVPH: chỉ tải data unit bvph
-    else if(role === 'bvph'){
-      url += '&unit=eq.bvph';
-    } else {
-      var selUnit = document.getElementById('filter-unit-bc');
-      var unitVal = selUnit ? selUnit.value : '__all__';
-      if (unitVal !== '__all__' && unitVal !== 'bvph') {
-         url += '&unit=eq.'+encodeURIComponent(unitVal);
-      } else if (unitVal === 'bvph') {
-         url += '&unit=eq.bvph';
+    // ── LỌC THEO PHẠM VI (unit_id) ──
+    // Đơn vị được chọn ở dropdown; '__all__' = toàn bộ trong phạm vi người đăng nhập.
+    var selUnit = document.getElementById('filter-unit-bc');
+    var unitVal = selUnit ? selUnit.value : '__all__';
+    if(unitVal && unitVal !== '__all__'){
+      // Một đơn vị cụ thể — kiểm tra quyền xem
+      if(canViewUnit(unitVal)){
+        url += '&unit_id=eq.'+encodeURIComponent(unitVal);
+      } else {
+        url += '&unit_id=eq.__none__';   // ngoài phạm vi → không trả gì
       }
+    } else {
+      // Tổng hợp: giới hạn theo danh sách id trong phạm vi (admin = tất cả)
+      if(role !== 'admin'){
+        var ids = _visibleUnitIds();
+        if(ids.length){
+          url += '&unit_id=in.('+ ids.map(function(x){return '"'+x+'"';}).join(',') +')';
+        } else {
+          url += '&unit_id=eq.__none__';
+        }
+      }
+      // admin + __all__ → không thêm điều kiện, lấy hết
     }
 
     // ── Tải SONG SONG mọi request độc lập với nhau để giảm tổng thời gian load ──
@@ -2790,51 +2798,20 @@ async function loadFromSupabase(periodKey, silent){
       return;
     }
 
-    // Phân loại
-    var newBvph = rows.filter(function(r){return r.unit==='bvph';}).map(_mapRow);
-    var newBc   = rows.filter(function(r){return r.unit!=='bvph';}).map(_mapRow);
-
-    // dc2 — đã fetch song song ở trên, giờ chỉ xử lý kết quả (KHÔNG fetch lại)
-    if(role === 'bvph' && newBvph.length && _dc2RParallel){
-      try{
-        if(_dc2RParallel.ok){
-          var _dc2Rows = await _dc2RParallel.json();
-          var _sumDc2 = {};
-          _dc2Rows.forEach(function(x){
-            if(x.unit==='bvph'||x.unit===BVPH) return;
-            var _k = _normStr(x.drug)+'||'+_normStr(x.lot)+'||'+_normExp(x.exp||'');
-            _sumDc2[_k] = (_sumDc2[_k]||0) + (x.tinh||0);
-          });
-          newBvph.forEach(function(x){
-            var _k = _normStr(x.drug)+'||'+_normStr(x.lot)+'||'+_normExp(x.exp||'');
-            x.dc2 = _sumDc2[_k] || 0;
-          });
-        }
-      }catch(e){ console.warn('[loadFromSupabase] dc2 prefetch lỗi', e); }
-    }
+    // Cấu trúc mới: KHÔNG tách bvph/đơn vị — mọi dòng vào chung một kho (bcData).
+    // (Các mảng sau sẽ hợp nhất render triệt để; mảng này để admin thấy được dữ liệu.)
+    var newBc = (rows||[]).map(_mapRow);
+    var newBvph = [];
 
     // Hash data TRƯỚC KHI merge (để so sánh sau)
     var _hashBefore = _quickDataHash(bvphData, bcData);
 
-    // Merge vào data hiện tại theo role
-    if(role === 'donvi'){
-      bcData = bcData.filter(function(x){ return !(x.bcMonth&&(p.type==='year'?x.bcMonth.startsWith(p.year+'-'):x.bcMonth===periodKey)&&x.unit===unit); })
-               .concat(newBc);
-    } else if(role === 'bvph'){
-      bvphData = bvphData.filter(function(x){ return !(x.bcMonth&&(p.type==='year'?x.bcMonth.startsWith(p.year+'-'):x.bcMonth===periodKey)); })
-                 .concat(newBvph);
-    } else {
-      var selUnit2 = document.getElementById('filter-unit-bc');
-      var unitVal2 = selUnit2 ? selUnit2.value : '__all__';
-      if (unitVal2 === '__all__') {
-        bvphData = bvphData.filter(function(x){ return !(x.bcMonth&&(p.type==='year'?x.bcMonth.startsWith(p.year+'-'):x.bcMonth===periodKey)); }).concat(newBvph);
-        bcData   = bcData.filter(function(x){ return !(x.bcMonth&&(p.type==='year'?x.bcMonth.startsWith(p.year+'-'):x.bcMonth===periodKey)); }).concat(newBc);
-      } else if (unitVal2 === 'bvph') {
-        bvphData = bvphData.filter(function(x){ return !(x.bcMonth&&(p.type==='year'?x.bcMonth.startsWith(p.year+'-'):x.bcMonth===periodKey)); }).concat(newBvph);
-      } else {
-        bcData = bcData.filter(function(x){ return !(x.bcMonth&&(p.type==='year'?x.bcMonth.startsWith(p.year+'-'):x.bcMonth===periodKey)&&x.unit===unitVal2); }).concat(newBc);
-      }
-    }
+    // Merge theo kỳ: bỏ các dòng cùng kỳ đang có rồi nạp lại từ cloud (nguồn chân lý)
+    var _keep = function(x){
+      if(!x.bcMonth) return true;
+      return p.type==='year' ? !x.bcMonth.startsWith(p.year+'-') : x.bcMonth!==periodKey;
+    };
+    bcData = bcData.filter(_keep).concat(newBc);
 
     // ─── ROLLOVER SAU MERGE — bù các đơn vị chưa có data (vd BVPH khi admin xem) ───
     if(p.type !== 'year'){
@@ -2909,12 +2886,15 @@ async function loadFromSupabase(periodKey, silent){
 }
 
 function _mapRow(r){
-  var unitVal = (r.unit==='bvph'||r.unit===BVPH) ? BVPH : r.unit;
+  // Nguồn cloud giờ dùng unit_id. Dịch ra tên để render/logic hiển thị chạy tiếp.
+  var uid = r.unit_id || null;
+  var unitVal = uid ? unitNameById(uid) : (r.unit||'');
   return {
-    unit:unitVal, drug:r.drug, lot:r.lot, exp:r.exp||'',
+    unitId: uid, unit:unitVal, drug:r.drug, lot:r.lot, exp:r.exp||'',
+    phanLoai: r.phan_loai || 'h2', periodType: r.period_type || 'month',
     open:r.open||0, tinh:r.tinh||0, ntk:r.ntk||0, dc:r.dc||0, sd:r.sd||0,
     dc2:r.dc2||0, dc3:r.dc3||0, hh:r.hh||0,
-    locked:!!r.locked, editing:false, bcMonth:r.bc_month||r.period,
+    locked:!!r.locked, editing:false, bcMonth:r.period||r.bc_month,
     openLocked:!!r.locked
   };
 }
@@ -2933,6 +2913,102 @@ var DRUGS=[
 ];
 
 var BVPH="Bệnh viện Phổi Hải Phòng";
+
+// ══════════════════════════════════════════════════════════════
+// CÂY TỔ CHỨC ĐA TỈNH (bảng public.units) — nạp 1 lần khi online.
+// UNIT_BY_ID: id → {id,slug,name,parent_id,level,utype,path,...}
+// UNIT_BY_NAME: name → node (để code cũ dùng tên tra ra id)
+// currentUser.unitId / currentUser.path : node & phạm vi của người đăng nhập.
+// Quyền xem = mọi node có path bắt đầu bằng path của mình.
+// ══════════════════════════════════════════════════════════════
+var UNITS_TREE = [];           // mảng phẳng mọi node
+var UNIT_BY_ID = {};           // id → node
+var UNIT_BY_NAME = {};         // name (đã chuẩn hoá) → node
+var _unitsLoaded = false;
+
+function _normName(s){ return String(s||'').replace(/\u00A0/g,' ').replace(/\s+/g,' ').trim(); }
+
+// Tải toàn bộ cây tổ chức từ cloud
+async function _loadUnitsTree(){
+  if(!_supaOnline) return false;
+  try{
+    var r = await fetch(SUPA_URL+'/rest/v1/units?select=id,slug,name,parent_id,level,utype,path,sort_order,active&order=path',
+      {headers:_supaHdr, cache:'no-store'});
+    if(!r.ok) return false;
+    var rows = await r.json();
+    UNITS_TREE = rows||[];
+    UNIT_BY_ID = {}; UNIT_BY_NAME = {};
+    UNITS_TREE.forEach(function(u){
+      UNIT_BY_ID[u.id] = u;
+      UNIT_BY_NAME[_normName(u.name)] = u;
+    });
+    _unitsLoaded = true;
+    return true;
+  }catch(e){ console.warn('[_loadUnitsTree] lỗi:', e); return false; }
+}
+
+// Tên đơn vị từ id (để hiển thị/nhóm trong code cũ)
+function unitNameById(id){ var u = UNIT_BY_ID[id]; return u ? u.name : ''; }
+// id từ tên (để chuyển dữ liệu cũ / code dùng tên)
+function unitIdByName(name){ var u = UNIT_BY_NAME[_normName(name)]; return u ? u.id : null; }
+// path của một node
+function unitPathById(id){ var u = UNIT_BY_ID[id]; return u ? u.path : ''; }
+
+// Người đang đăng nhập có quyền xem node này không (mình + nhánh con)
+function canViewUnit(id){
+  if(!currentUser) return false;
+  if(currentUser.role === 'admin') return true;
+  var me = currentUser.path || '';
+  var target = unitPathById(id);
+  if(!me || !target) return false;
+  return target.indexOf(me) === 0;   // target nằm trong nhánh của mình
+}
+// Người đang đăng nhập có quyền GHI node này không (chỉ chính đơn vị mình; admin toàn quyền)
+function canWriteUnit(id){
+  if(!currentUser) return false;
+  if(currentUser.role === 'admin') return true;
+  return id && currentUser.unitId && id === currentUser.unitId;
+}
+// Danh sách id thuộc phạm vi xem của người đăng nhập
+function _visibleUnitIds(){
+  if(!currentUser) return [];
+  if(currentUser.role === 'admin') return UNITS_TREE.map(function(u){return u.id;});
+  var me = currentUser.path || '';
+  return UNITS_TREE.filter(function(u){ return u.path.indexOf(me)===0; }).map(function(u){return u.id;});
+}
+
+// Đổ cây tổ chức (trong phạm vi người đăng nhập) vào một <select>.
+// Giá trị option = unit_id; nhãn thụt lề theo cấp cho dễ đọc.
+// opts.includeAll=true → thêm mục "Tất cả (trong phạm vi)" value='__all__'.
+function _fillUnitScopeSelect(sel, opts){
+  if(!sel) return;
+  opts = opts||{};
+  var prev = sel.value;
+  sel.innerHTML = '';
+  if(opts.includeAll){
+    var oa=document.createElement('option'); oa.value='__all__';
+    oa.textContent='-- Tổng hợp toàn bộ (trong phạm vi) --';
+    sel.appendChild(oa);
+  }
+  // Lọc theo phạm vi rồi sắp theo path để cây hiện đúng thứ tự cha→con
+  var me = (currentUser && currentUser.role!=='admin') ? (currentUser.path||'') : '';
+  var nodes = UNITS_TREE.filter(function(u){
+    if(u.active===false) return false;
+    return me ? (u.path.indexOf(me)===0) : true;
+  }).slice().sort(function(a,b){ return a.path.localeCompare(b.path,'vi'); });
+  // Cấp gốc để tính thụt lề tương đối
+  var baseDepth = me ? (me.split('/').length) : 1;
+  nodes.forEach(function(u){
+    var depth = u.path.split('/').length - baseDepth;
+    if(depth < 0) depth = 0;
+    var o=document.createElement('option');
+    o.value=u.id;
+    o.textContent = (depth>0 ? ('\u00A0\u00A0\u00A0\u00A0'.repeat(depth) + '└ ') : '') + u.name;
+    sel.appendChild(o);
+  });
+  if(prev) sel.value = prev;
+}
+
 
 // ── ĐỔI TÊN HIỂN THỊ (KHÔNG đổi giá trị thật trong DB/rollover) ──
 // "Bệnh viện Phổi Hải Phòng" / 'bvph'        → hiển thị "Kho chính"
@@ -4822,27 +4898,23 @@ function initApp(){
     if(tbody) tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px;color:#94a3b8">⏳ Đang tải dữ liệu từ cloud...</td></tr>';
   }
 
-  // Fill bộ lọc đơn vị trong bảng báo cáo 22 đơn vị
+  // Fill bộ lọc đơn vị trong bảng báo cáo — ĐỔ TỪ CÂY TỔ CHỨC (theo unit_id + phạm vi)
   var fubc=document.getElementById('filter-unit-bc');
   var fubcFixed=document.getElementById('filter-unit-bc-fixed');
   if(fubc){
-    if(role==='donvi'){
-      fubc.innerHTML='<option value="'+currentUser.unit+'">'+_displayUnit(currentUser.unit)+'</option>';
-      fubc.value = currentUser.unit;
-      document.querySelector('.admin-only-filter').style.display='none';
-      if(fubcFixed){ fubcFixed.style.display='block'; fubcFixed.textContent=_displayUnit(currentUser.unit); }
-    } else if(role==='admin') {
-      document.querySelector('.admin-only-filter').style.display='flex';
-      fubc.style.display='';
+    if(role!=='admin' && currentUser && currentUser.unitId){
+      // Cấp dưới: mặc định là chính mình, nhưng vẫn cho chọn các đơn vị trong nhánh mình
+      _fillUnitScopeSelect(fubc, {includeAll:true});
+      fubc.value = currentUser.unitId;
+      var _af = document.querySelector('.admin-only-filter'); if(_af) _af.style.display='flex';
       if(fubcFixed) fubcFixed.style.display='none';
-      fubc.disabled = false;
-      fubc.innerHTML='<option value="__all__">-- Tổng hợp tất cả đơn vị --</option>';
-      fubc.innerHTML+='<option value="bvph">Kho chính</option>';
-      UNITS.filter(function(u){return u!==BVPH;}).forEach(function(u){
-        var o=document.createElement('option');o.value=u;o.textContent=_displayUnit(u);fubc.appendChild(o);
-      });
+    } else if(role==='admin') {
+      var _af2 = document.querySelector('.admin-only-filter'); if(_af2) _af2.style.display='flex';
+      fubc.style.display=''; fubc.disabled=false;
+      if(fubcFixed) fubcFixed.style.display='none';
+      _fillUnitScopeSelect(fubc, {includeAll:true});
     } else {
-      document.querySelector('.admin-only-filter').style.display='none';
+      var _af3 = document.querySelector('.admin-only-filter'); if(_af3) _af3.style.display='none';
     }
   }
   // Đảm bảo bc-unit cũng được fill đúng
@@ -5029,7 +5101,7 @@ function renderAccounts(){
       '<div class="acc-unit" style="'+vars+'">'
       + '<div class="acc-av">'+_initials(a)+'</div>'
       + '<div class="acc-unit-txt">'
-        + '<div class="acc-unit-nm">'+ (a.role==='admin' ? 'Phòng Chỉ đạo tuyến' : _displayUnit(a.unit))
+        + '<div class="acc-unit-nm">'+ (a.role==='admin' ? 'Quản trị viên' : _displayUnit(a.unit))
           + (isSelf ? '<span class="acc-you">bạn</span>' : '') + '</div>'
         + '<div class="acc-unit-id">'+ (a.user||'') +'</div>'
       + '</div>'
@@ -8024,13 +8096,12 @@ function renderBVPH(){
   try{renderCapPhat();}catch(e){}
 }
 function renderBC(){
-  _syncBVPHDc2FromUnits();
   var selUnit = document.getElementById('filter-unit-bc');
   var unitVal = selUnit ? selUnit.value : '__all__';
 
-  // Lọc theo đơn vị VÀ kỳ báo cáo (năm hoặc tháng cụ thể)
+  // Lọc theo đơn vị (unit_id) VÀ kỳ báo cáo
   var filtered = _sortByDrugLot(bcData.filter(function(r){
-    var unitOk = (unitVal==='__all__' || r.unit===unitVal);
+    var unitOk = (unitVal==='__all__' || r.unitId===unitVal);
     var monOk  = matchPeriod(r);
     return unitOk && monOk;
   }));
@@ -8039,27 +8110,12 @@ function renderBC(){
   var titleEl=document.getElementById('bc-table-title');
   var noteEl=document.getElementById('bc-filter-note');
   if(titleEl){
-    if(unitVal==='__all__') titleEl.textContent='Báo cáo tổng hợp — 22 đơn vị tuyến';
-    else titleEl.textContent='Báo cáo — '+_displayUnit(unitVal);
+    if(unitVal==='__all__') titleEl.textContent='Báo cáo tổng hợp (trong phạm vi)';
+    else titleEl.textContent='Báo cáo — '+unitNameById(unitVal);
   }
   if(noteEl){
-    if(unitVal==='__all__'){
-      noteEl.textContent='Xem tổng: '+filtered.length+' dòng | Chú ý: tồn cuối tính theo từng thuốc riêng';
-    } else if(unitVal==='bvph'){
-      // Kho chính dùng bvphData riêng, không có trong bcData
-      var _bvphRows = bvphData.filter(function(r){ return matchPeriod(r); });
-      var _bvphDrugs = {};
-      _bvphRows.forEach(function(r){ _bvphDrugs[r.drug] = true; });
-      var _nDrug = Object.keys(_bvphDrugs).length;
-      var _nLo = _bvphRows.length;
-      noteEl.textContent=_nDrug+' thuốc — '+_nLo+' lô';
-    } else {
-      // Đơn vị tuyến: đếm thuốc và lô
-      var _unitDrugs = {};
-      filtered.forEach(function(r){ _unitDrugs[r.drug] = true; });
-      var _uDrug = Object.keys(_unitDrugs).length;
-      noteEl.textContent=_uDrug+' thuốc — '+filtered.length+' lô';
-    }
+    var _d={}; filtered.forEach(function(r){ _d[r.drug]=true; });
+    noteEl.textContent=Object.keys(_d).length+' thuốc — '+filtered.length+' lô';
   }
 
   buildTbl(filtered,'bc-body','other');
@@ -10754,7 +10810,7 @@ function updateLockedUI(){
         if(role === 'admin'){
           msgEl.innerHTML = '🔒 Báo cáo '+_keyToLabel(_currentPeriodKey())+' đã được chốt và khóa trên hệ thống Cloud. Bấm "Mở lại để sửa" để chỉnh sửa.';
         } else {
-          msgEl.innerHTML = '🔒 Báo cáo kỳ '+_keyToLabel(_currentPeriodKey())+' đã được <b style="color:#dc2626;font-size:1.12em">KHÓA</b>. Bạn không thể sửa được nữa. Liên hệ Phòng Chỉ đạo tuyến nếu có nhu cầu sửa báo cáo.';
+          msgEl.innerHTML = '🔒 Báo cáo kỳ '+_keyToLabel(_currentPeriodKey())+' đã được <b style="color:#dc2626;font-size:1.12em">KHÓA</b>. Bạn không thể sửa được nữa. Liên hệ cấp quản lý nếu có nhu cầu sửa báo cáo.';
         }
       }
       var bannerBtn = banner.querySelector('button');
@@ -15714,38 +15770,23 @@ document.addEventListener('keydown', function(e){
 function onAdminUnitFilterChange() {
   var selUnit = document.getElementById('filter-unit-bc');
   var unitVal = selUnit ? selUnit.value : '__all__';
-  var role = currentUser ? currentUser.role : '';
-  if (role !== 'admin') return;
-
-  // Đồng bộ selector "Chọn đơn vị" trong form thêm dòng
-  var bcUnitSel = document.getElementById('bc-unit');
-  if(bcUnitSel && unitVal && unitVal !== '__all__' && unitVal !== 'bvph'){
-    for(var _i=0;_i<bcUnitSel.options.length;_i++){
-      if(bcUnitSel.options[_i].value === unitVal){ bcUnitSel.selectedIndex=_i; break; }
-    }
-  } else if(bcUnitSel && (unitVal==='__all__'||unitVal==='bvph')){
-    bcUnitSel.selectedIndex=0; // reset về "-- Chọn đơn vị --"
-  }
 
   var tpZone   = document.getElementById('tp-zone');
-  var bvphZone = document.getElementById('bvph-zone');
   var bcZone   = document.getElementById('bc-zone');
-  var fB       = document.getElementById('form-bvph');
-  var fD       = document.getElementById('form-donvi');
 
   if (unitVal === '__all__') {
       if(tpZone) tpZone.style.display = 'block';
-      if(bvphZone) bvphZone.style.display = 'block';
       if(bcZone) bcZone.style.display = 'block';
-  } else if (unitVal === 'bvph') {
-      if(tpZone) tpZone.style.display = 'none';
-      if(bvphZone) bvphZone.style.display = 'block';
-      if(bcZone) bcZone.style.display = 'none';
   } else {
       if(tpZone) tpZone.style.display = 'none';
-      if(bvphZone) bvphZone.style.display = 'none';
       if(bcZone) bcZone.style.display = 'block';
   }
+
+  // Nạp lại dữ liệu theo đơn vị vừa chọn (trong phạm vi) rồi render
+  try{
+    var pk = _currentPeriodKey ? _currentPeriodKey() : null;
+    if(pk){ loadFromSupabase(pk, true).then(function(){ renderBC(); updateLockedUI(); }); return; }
+  }catch(e){}
   renderBC();
   updateLockedUI();
 }
