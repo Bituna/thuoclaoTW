@@ -2950,7 +2950,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 
 <script>
 // ═══ PHIÊN BẢN — kiểm tra bản đang chạy ═══
-window.APP_VERSION = 'v2026.09.18-tk-data-7';
+window.APP_VERSION = 'v2026.09.18-tk-data-8';
 console.log('%c[PM Thuốc Lao] Phiên bản: ' + window.APP_VERSION, 'background:#1d4ed8;color:white;padding:3px 8px;border-radius:4px;font-weight:bold');
 console.log('%c✓ Tồn đầu khóa cứng khi kỳ trước đã chốt (mọi ngõ)', 'color:#16a34a;font-weight:bold');
 // ============================================================
@@ -21354,15 +21354,23 @@ function _tkRenderOnly(){
   window.tkLoadFromCloud = async function(){
     if(!window._supaOnline){ if(window.showToast) showToast('⚠ Offline — không tải được tài khoản'); return; }
     try{
-      try{ if(!window._unitsLoaded) await window._loadUnitsTree(); }catch(e0){ console.warn('[tk] tải cây lỗi', e0); }
+      // LUÔN đảm bảo cây có dữ liệu (không tin cờ _unitsLoaded — có thể true nhưng mảng rỗng)
+      if(!window.UNITS_TREE || !window.UNITS_TREE.length){
+        try{ await window._loadUnitsTree(); }catch(e0){ console.warn('[tk] tải cây lỗi', e0); }
+      }
       var accs = await window._rpcListAccounts();   // [{user,name,role,unit,unitId,path,...}]
-      // node_id → account (để biết node nào đã có tài khoản)
       var accByUnit = {}; accs.forEach(function(a){ if(a.unitId) accByUnit[a.unitId]=a; });
 
-      // Dựng accounts[] theo format NTP từ CÂY units (mỗi node = 1 dòng)
-      var arr = []; var idseq = 1; var idmap = {}; // unit_id → id số NTP
-      // sort theo path để cha trước con
-      var nodes = window.UNITS_TREE.slice().sort(function(a,b){ return a.path.localeCompare(b.path,'vi'); });
+      var arr = []; var idseq = 1; var idmap = {};
+      var tree = (window.UNITS_TREE && window.UNITS_TREE.length) ? window.UNITS_TREE : [];
+      // Nếu VẪN không có cây (lỗi tải) nhưng CÓ tài khoản → dựng tối thiểu từ chính accs
+      if(!tree.length && accs.length){
+        tree = accs.filter(function(a){return a.unitId;}).map(function(a){
+          return {id:a.unitId, name:a.unit||a.user, parent_id:null, utype:'dvcs', path:'/'+a.user, mien:'',tinh:'',tinh_cu:''};
+        });
+        console.warn('[tk] cây rỗng — dựng tạm từ tài khoản:', tree.length);
+      }
+      var nodes = tree.slice().sort(function(a,b){ return String(a.path).localeCompare(String(b.path),'vi'); });
       nodes.forEach(function(u){ idmap[u.id] = idseq++; });
       nodes.forEach(function(u){
         var a = accByUnit[u.id];
