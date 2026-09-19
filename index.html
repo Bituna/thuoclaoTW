@@ -2950,7 +2950,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 
 <script>
 // ═══ PHIÊN BẢN — kiểm tra bản đang chạy ═══
-window.APP_VERSION = 'v2026.09.18-tk-data-4';
+window.APP_VERSION = 'v2026.09.18-tk-data-5';
 console.log('%c[PM Thuốc Lao] Phiên bản: ' + window.APP_VERSION, 'background:#1d4ed8;color:white;padding:3px 8px;border-radius:4px;font-weight:bold');
 console.log('%c✓ Tồn đầu khóa cứng khi kỳ trước đã chốt (mọi ngõ)', 'color:#16a34a;font-weight:bold');
 // ============================================================
@@ -21343,7 +21343,7 @@ function renderAccounts(){
   window.tkLoadFromCloud = async function(){
     if(!window._supaOnline){ if(window.showToast) showToast('⚠ Offline — không tải được tài khoản'); return; }
     try{
-      if(!window._unitsLoaded) await window._loadUnitsTree();
+      try{ if(!window._unitsLoaded) await window._loadUnitsTree(); }catch(e0){ console.warn('[tk] tải cây lỗi', e0); }
       var accs = await window._rpcListAccounts();   // [{user,name,role,unit,unitId,path,...}]
       // node_id → account (để biết node nào đã có tài khoản)
       var accByUnit = {}; accs.forEach(function(a){ if(a.unitId) accByUnit[a.unitId]=a; });
