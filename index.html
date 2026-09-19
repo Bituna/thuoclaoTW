@@ -2950,7 +2950,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 
 <script>
 // ═══ PHIÊN BẢN — kiểm tra bản đang chạy ═══
-window.APP_VERSION = 'v2026.09.18-tk-data-5';
+window.APP_VERSION = 'v2026.09.18-tk-data-7';
 console.log('%c[PM Thuốc Lao] Phiên bản: ' + window.APP_VERSION, 'background:#1d4ed8;color:white;padding:3px 8px;border-radius:4px;font-weight:bold');
 console.log('%c✓ Tồn đầu khóa cứng khi kỳ trước đã chốt (mọi ngõ)', 'color:#16a34a;font-weight:bold');
 // ============================================================
@@ -3984,9 +3984,20 @@ function _displayUnitForTuyen(name){
   return _displayUnit(name);
 }
 
-var UNITS=["Bệnh viện Phổi Hải Phòng","Kho lẻ Bệnh viện Phổi Hải Phòng","Trung tâm Y tế Hồng Bàng","Trung tâm Y tế Lê Chân","Trung tâm Y tế Ngô Quyền","Trung tâm Y tế Kiến An","Trung tâm Y tế Đồ Sơn","Trung tâm Y tế Tiên Lãng","Trung tâm Y tế Vĩnh Bảo","Trung tâm Y tế Cát Hải","Trung tâm Y tế Hải An","Trung tâm Y tế An Lão","Trung tâm Y tế Kiến Thụy","Trung tâm Y tế Thủy Nguyên","Trung tâm Y tế An Dương","Trung tâm Y tế Dương Kinh","Cơ sở cai nghiện số 1","Cơ sở cai nghiện số 2","Trại giam Xuân Nguyên","PK 33 Lê Đại Hành","Bệnh viện Đại học Y Hải Phòng","Bệnh viện Đa khoa Đôn Lương","Trung tâm Y tế Bạch Long Vỹ"];
+// UNITS: KHÔNG cứng nữa — tự sinh từ cây units trong phạm vi node đang xem.
+// Đảm bảo mọi nơi dùng UNITS chỉ thấy đơn vị CÓ THẬT trên Supabase.
+Object.defineProperty(window,'UNITS',{configurable:true,get:function(){
+  try{
+    if(!window.UNITS_TREE || !UNITS_TREE.length) return [];
+    var rid = (typeof _currentRootId==='function') ? _currentRootId() : null;
+    var root = rid ? UNIT_BY_ID[rid] : null;
+    if(!root) return UNITS_TREE.map(function(u){return u.name;});
+    // đơn vị trong nhánh gốc (gồm cả gốc) — dùng cho tính %, dò tên...
+    return UNITS_TREE.filter(function(u){ return u.path.indexOf(root.path)===0; }).map(function(u){return u.name;});
+  }catch(e){ return []; }
+}});
 
-var SUBMITTED=["Bệnh viện Phổi Hải Phòng","Kho lẻ Bệnh viện Phổi Hải Phòng","Trung tâm Y tế Hồng Bàng","Trung tâm Y tế Lê Chân","Trung tâm Y tế Ngô Quyền","Trung tâm Y tế Kiến An","Trung tâm Y tế Vĩnh Bảo","Trung tâm Y tế Cát Hải","Trung tâm Y tế Hải An","Trung tâm Y tế An Lão","Trung tâm Y tế Kiến Thụy","Trung tâm Y tế Thủy Nguyên","Trung tâm Y tế An Dương","Trung tâm Y tế Dương Kinh","Cơ sở cai nghiện số 1","Trại giam Xuân Nguyên","PK 33 Lê Đại Hành","Bệnh viện Đại học Y Hải Phòng","Bệnh viện Đa khoa Đôn Lương","Trung tâm Y tế Bạch Long Vỹ"];
+var SUBMITTED=[];  // không cứng — trạng thái nộp tính từ dữ liệu thật
 
 // Tài khoản hệ thống
 var ACCOUNTS=[
@@ -21315,8 +21326,8 @@ loadUnitStructure();                 // nạp gom/hợp nhất đơn vị (RAM; 
 updateStats();renderTree();renderTable();
 
 
-// ── Cầu nối với index: nav('tk') → renderAccounts() → làm mới giao diện NTP ──
-function renderAccounts(){
+// ── Cầu nối với index: chỉ VẼ LẠI từ accounts đã có (không nạp cloud) ──
+function _tkRenderOnly(){
   try{ updateStats(); renderTree(); renderTable(); }catch(e){ console.warn('[tk] render lỗi', e); }
 }
 // ══════════════════════════════════════════════════════════════════════════
@@ -21484,8 +21495,10 @@ function renderAccounts(){
   };
 
   // Khi mở trang Quản lý tài khoản → nạp từ cloud
-  var _oldRenderAccounts = window.renderAccounts;
-  window.renderAccounts = function(){ if(window.tkLoadFromCloud) window.tkLoadFromCloud(); };
+  window.renderAccounts = function(){
+    if(window.tkLoadFromCloud) window.tkLoadFromCloud();
+    else if(typeof _tkRenderOnly==='function') _tkRenderOnly();
+  };
 })();
 // ══════════════════════════════════════════════════════════════════════════
 //  SỬA FORM TẠO TÀI KHOẢN — đấu "đơn vị quản lý" vào NODE THẬT trong cây units
