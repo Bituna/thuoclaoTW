@@ -1417,10 +1417,14 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 
     <!-- BẢNG TỔNG HỢP MIỀN — chỉ hiện khi đang xem node cấp Miền (giống mẫu Tổng hợp toàn tỉnh/TP) -->
     <div id="mien-zone" class="no-print" style="margin-bottom:18px;display:none">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:12px;flex-wrap:wrap">
         <div>
           <h3 id="mien-title" style="font-size:14px;font-weight:700;color:#1d6f42">🗺 Tổng hợp Miền</h3>
           <div id="mien-status" style="font-size:11.5px;color:#6b7280;margin-top:2px"></div>
+        </div>
+        <div class="fg" style="margin:0">
+          <label for="mien-picker" style="font-size:11px;color:#1d6f42;font-weight:700;display:block">Chọn miền</label>
+          <select id="mien-picker" style="min-width:200px" onchange="_renderMienBody(this.value)"></select>
         </div>
       </div>
       <div class="tbl-wrap" style="margin-bottom:0;max-height:480px;position:relative">
@@ -3025,7 +3029,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 
 <script>
 // ═══ PHIÊN BẢN — kiểm tra bản đang chạy ═══
-window.APP_VERSION = 'v2026.09.21-mien-tq-1';
+window.APP_VERSION = 'v2026.09.21-mien-tq-2';
 console.log('%c[PM Thuốc Lao] Phiên bản: ' + window.APP_VERSION, 'background:#1d4ed8;color:white;padding:3px 8px;border-radius:4px;font-weight:bold');
 console.log('%c✓ Tồn đầu khóa cứng khi kỳ trước đã chốt (mọi ngõ)', 'color:#16a34a;font-weight:bold');
 // ============================================================
@@ -15661,6 +15665,19 @@ function _aggTableBody(agg, opts){
 // Miền: khi node đang xem là cấp Miền (kho_mien) → gom toàn miền đó.
 // Toàn quốc: khi node đang xem là cấp TW (kho_tq) → gom cả nước, BỎ cột "Xuất nơi khác".
 // Điều chuyển nội bộ triệt tiêu theo từng phạm vi (dùng lại _aggScopeTotals).
+// Vẽ thân bảng Miền cho MỘT miền cụ thể (gọi khi đổi dropdown chọn miền).
+function _renderMienBody(mienId){
+  var u = mienId ? UNIT_BY_ID[mienId] : null;
+  var body=document.getElementById('mien-body');
+  var tt=document.getElementById('mien-title');
+  var st=document.getElementById('mien-status');
+  if(!u){ if(body) body.innerHTML=_aggTableBody({rows:[],tot:{}},{noXn:false}); return; }
+  var agg=_aggScopeTotals(mienId);
+  if(body) body.innerHTML=_aggTableBody(agg,{noXn:false});
+  if(tt) tt.textContent='🗺 Tổng hợp Miền — '+u.name;
+  if(st) st.textContent='Phạm vi: toàn '+u.name+' · '+agg.rows.length+' lô · điều chuyển trong nội miền đã triệt tiêu.';
+}
+
 function _renderMienTQ(){
   var mz=document.getElementById('mien-zone'), tz=document.getElementById('tq-zone');
   if(mz) mz.style.display='none';
@@ -15669,19 +15686,31 @@ function _renderMienTQ(){
   var root=rid?UNIT_BY_ID[rid]:null;
   if(!root) return;
   try{
-    if(root.utype==='kho_mien' && mz){
-      var agg=_aggScopeTotals(rid);
-      var body=document.getElementById('mien-body'); if(body) body.innerHTML=_aggTableBody(agg,{noXn:false});
-      var tt=document.getElementById('mien-title'); if(tt) tt.textContent='🗺 Tổng hợp Miền — '+root.name;
-      var st=document.getElementById('mien-status'); if(st) st.textContent='Phạm vi: toàn '+root.name+' · '+agg.rows.length+' lô · điều chuyển trong nội miền đã triệt tiêu.';
-      mz.style.display='block';
-    }
+    // ── Bảng TOÀN QUỐC: khi đang xem node cấp TW (bỏ cột "Xuất nơi khác") ──
     if(root.utype==='kho_tq' && tz){
       var agg2=_aggScopeTotals(rid);
       var body2=document.getElementById('tq-body'); if(body2) body2.innerHTML=_aggTableBody(agg2,{noXn:true});
       var tt2=document.getElementById('tq-title'); if(tt2) tt2.textContent='🇻🇳 Tổng hợp Toàn quốc — '+root.name;
       var st2=document.getElementById('tq-status'); if(st2) st2.textContent='Phạm vi: toàn quốc · '+agg2.rows.length+' lô · điều chuyển giữa các miền đã triệt tiêu.';
       tz.style.display='block';
+    }
+    // ── Bảng TỔNG HỢP MIỀN: 1 bảng + dropdown chọn miền, gồm mọi miền trong phạm vi node đang xem ──
+    if(mz){
+      var rootPath=root.path;
+      var miens=(UNITS_TREE||[]).filter(function(u){ return u.utype==='kho_mien' && u.active!==false && u.path.indexOf(rootPath)===0; })
+                 .sort(function(a,b){ return String(a.name).localeCompare(String(b.name),'vi'); });
+      if(miens.length){
+        var picker=document.getElementById('mien-picker');
+        var prev = picker ? picker.value : '';
+        if(picker){
+          picker.innerHTML = miens.map(function(m){ return '<option value="'+m.id+'">'+escH(m.name)+'</option>'; }).join('');
+          var chosen = (prev && miens.some(function(m){return m.id===prev;})) ? prev : miens[0].id;
+          picker.value = chosen;
+          picker.parentNode.style.display = (miens.length>1) ? '' : 'none';   // 1 miền → ẩn dropdown
+          _renderMienBody(chosen);
+        }
+        mz.style.display='block';
+      }
     }
   }catch(e){ console.warn('[mien-tq]', e); }
 }
