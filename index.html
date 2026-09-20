@@ -21466,7 +21466,7 @@ function _tkRenderOnly(){
 
   // Sửa: đổi tên/email/phone/status + (admin) cấp
   window.saveEdit = async function(){
-    var a = window.accounts.find(function(x){return x.id===window.editId;}); if(!a) return;
+    var a = window.accounts.find(function(x){return x.id===editId;}); if(!a) return;  // FIX: đọc editId lexical (openEdit set biến này), không phải window.editId (luôn undefined)
     var ten=document.getElementById('edit-ten').value.trim();
     if(!ten){ document.getElementById('edit-hint').textContent='⚠ Nhập tên'; return; }
     var email=document.getElementById('edit-email').value.trim();
