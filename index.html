@@ -15275,6 +15275,7 @@ function renderTP(){
   var tbody = document.getElementById('tp-body');
   if(!tbody) return;
   _tpDetail = [];   // reset chi tiết popup mỗi lần vẽ lại
+  var _tpcHost0=document.getElementById('tp-children'); if(_tpcHost0) _tpcHost0.innerHTML='';   // GĐ2: dọn khối con
 
   // ── Node gốc + nhánh con: một công thức cho mọi cấp (Toàn quốc / Miền / Tỉnh / Khu vực) ──
   var rootId = _currentRootId();
@@ -15423,6 +15424,94 @@ function renderTP(){
   });
 
   // (Đã bỏ dòng "Tổng (X lô)" theo yêu cầu)
+  try{ renderChildBreakdown(rootId); }catch(e){ if(window.console)console.warn('[tpChildren]',e); }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// GĐ2: TỔNG HỢP THEO TỪNG CẤP CON TRỰC TIẾP
+// _aggScopeTotals: tổng NETTED cho một phạm vi bất kỳ (triệt tiêu điều chuyển
+// nội bộ theo from/to ∈ cây con). Dùng lại cho từng đơn vị con để hiện breakdown.
+// ════════════════════════════════════════════════════════════════════
+function _aggScopeTotals(scopeRootId){
+  var root = scopeRootId ? UNIT_BY_ID[scopeRootId] : null;
+  if(!root) return {rows:[], tot:{open:0,tin:0,sd:0,xn:0,hh:0,tout:0,fin:0}};
+  var rootPath = root.path;
+  var _inScope = function(r){ if(!r.unitId) return false; var u=UNIT_BY_ID[r.unitId]; return !!(u && u.path.indexOf(rootPath)===0); };
+  var KEY = function(r){ return r.drug+'|'+r.lot+'|'+(r.exp||''); };
+  var map = {};
+  bvphData.filter(matchPeriod).filter(_inScope).concat(bcData.filter(matchPeriod).filter(_inScope)).forEach(function(r){
+    var k=KEY(r);
+    if(!map[k]) map[k]={drug:r.drug,lot:r.lot,exp:r.exp,open:0,sd:0,dc2:0,dc3:0,hh:0,tinh:0,ntk:0,dc:0};
+    var M=map[k];
+    M.open+=(r.open||0);M.sd+=(r.sd||0);M.dc2+=(r.dc2||0);M.dc3+=(r.dc3||0);M.hh+=(r.hh||0);M.tinh+=(r.tinh||0);M.ntk+=(r.ntk||0);M.dc+=(r.dc||0);
+  });
+  var _subIds=_subtreeIds(scopeRootId), _subSet={}, _rootNames={};
+  _subIds.forEach(function(id){ _subSet[id]=1; var u=UNIT_BY_ID[id]; if(u&&u.name)_rootNames[u.name]=1; });
+  var _nameInScope=function(nm){ if(!nm||nm==='admin')return false; var id=(typeof unitIdByName==='function')?unitIdByName(nm):null; return !!((id&&_subSet[id])||_rootNames[nm]); };
+  var _ek=function(dr,lo,ex){ return (dr||'')+'|'+(lo||'')+'|'+((typeof _normExp==='function')?_normExp(ex):(ex||'')); };
+  var ic={}, icT={}, icD={};
+  (window._printTransfers||[]).forEach(function(t){
+    if(_nameInScope(t.from_unit) && _nameInScope(t.to_unit)){
+      var kk=_ek(t.drug,t.lot,t.exp), q=Number(t.qty||0);
+      ic[kk]=(ic[kk]||0)+q;
+      if(t.type==='dc3_to_tinh') icT[kk]=(icT[kk]||0)+q; else icD[kk]=(icD[kk]||0)+q;
+    }
+  });
+  var rows=[], tot={open:0,tin:0,sd:0,xn:0,hh:0,tout:0,fin:0};
+  Object.keys(map).forEach(function(k){
+    var m=map[k], _k2=_ek(m.drug,m.lot,m.exp);
+    var _ic=ic[_k2]||0,_icT=icT[_k2]||0,_icD=icD[_k2]||0;
+    var tin=Math.max(0,m.tinh-_icT)+Math.max(0,m.ntk+(m.dc-_icD));
+    var xn=Math.max(0,m.dc2+m.dc3-_ic);
+    var tout=m.sd+xn+m.hh, fin=m.open+tin-tout;
+    rows.push({drug:m.drug,lot:m.lot,exp:m.exp,open:m.open,tin:tin,sd:m.sd,xn:xn,hh:m.hh,tout:tout,fin:fin});
+    tot.open+=m.open;tot.tin+=tin;tot.sd+=m.sd;tot.xn+=xn;tot.hh+=m.hh;tot.tout+=tout;tot.fin+=fin;
+  });
+  rows.sort(function(a,b){ var c=(a.drug||'').localeCompare(b.drug||'','vi'); return c||String(a.lot||'').localeCompare(String(b.lot||''),'vi'); });
+  return {rows:rows, tot:tot};
+}
+
+function _tpcTable(agg){
+  if(!agg.rows.length) return '<div style="padding:10px 12px;color:#94a3b8;font-size:12px">Chưa có dữ liệu kỳ này.</div>';
+  var h='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f1f5f9;color:#475569">'
+    +'<th style="padding:5px 8px;text-align:left">Thuốc</th><th>Lô</th><th>Tồn đầu</th><th>Tổng nhập</th><th>Sử dụng</th><th>Xuất ngoài</th><th>Hỏng/HH</th><th>Tổng xuất</th><th>Tồn cuối</th></tr></thead><tbody>';
+  agg.rows.forEach(function(r){
+    h+='<tr style="border-top:1px solid #eef2f7">'
+      +'<td style="padding:4px 8px;text-align:left">'+r.drug+'</td><td style="text-align:center">'+r.lot+'</td>'
+      +'<td style="text-align:center">'+fmtNum(r.open)+'</td><td style="text-align:center;color:#1e7e44">'+fmtNum(r.tin)+'</td>'
+      +'<td style="text-align:center">'+fmtNum(r.sd)+'</td><td style="text-align:center">'+fmtNum(r.xn)+'</td>'
+      +'<td style="text-align:center">'+fmtNum(r.hh)+'</td><td style="text-align:center;color:#c0392b">'+fmtNum(r.tout)+'</td>'
+      +'<td style="text-align:center;font-weight:600;color:#1d4ed8">'+fmtNum(r.fin)+'</td></tr>';
+  });
+  h+='</tbody></table>';
+  return h;
+}
+
+function renderChildBreakdown(rootId){
+  var zone=document.getElementById('tp-zone'); if(!zone) return;
+  var host=document.getElementById('tp-children');
+  if(!host){ host=document.createElement('div'); host.id='tp-children'; zone.parentNode.insertBefore(host, zone.nextSibling); }
+  host.innerHTML='';
+  var root=rootId?UNIT_BY_ID[rootId]:null; if(!root) return;
+  // Con TRỰC TIẾP là cấp tổng hợp (không phải lá): Miền→từng Tỉnh, Tỉnh→từng Khu vực, TW→từng Miền.
+  var kids=(UNITS_TREE||[]).filter(function(u){ return u.parent_id===rootId && u.active!==false && !_isLeafLevel(u) && _hasChildren(u.id); })
+    .sort(function(a,b){ return String(a.name).localeCompare(String(b.name),'vi'); });
+  if(!kids.length) return;   // con toàn là cơ sở → đã nằm ở bảng đơn vị
+  var h='<div class="tpc-wrap" style="margin-top:14px">'
+       +'<div style="font-size:13px;font-weight:700;color:#243040;margin-bottom:8px">📊 Tổng hợp theo từng cấp con trực tiếp ('+kids.length+')</div>';
+  kids.forEach(function(u, idx){
+    var agg=_aggScopeTotals(u.id), cid='tpc-body-'+idx;
+    h+='<div style="border:1px solid #E9EEF3;border-radius:10px;margin-bottom:8px;overflow:hidden">'
+      +'<div onclick="var d=document.getElementById(\''+cid+'\');var open=d.style.display===\'none\';d.style.display=open?\'block\':\'none\';this.querySelector(\'.tpc-chev\').textContent=open?\'▾\':\'▸\';" style="cursor:pointer;display:flex;align-items:center;gap:8px;padding:9px 12px;background:#FBFCFD">'
+        +'<span class="tpc-chev" style="font-size:9px;color:#888">▸</span>'
+        +'<span style="font-weight:650;font-size:12.5px;flex:1">'+_levelLabel(u.utype)+' · '+u.name+'</span>'
+        +'<span style="font-size:11px;color:#64748b">Tồn cuối <b style="color:#1d4ed8">'+fmtNum(agg.tot.fin)+'</b> · Nhập '+fmtNum(agg.tot.tin)+' · Xuất '+fmtNum(agg.tot.tout)+'</span>'
+      +'</div>'
+      +'<div id="'+cid+'" style="display:none">'+_tpcTable(agg)+'</div>'
+    +'</div>';
+  });
+  h+='</div>';
+  host.innerHTML=h;
 }
 
 // ════════════════════════════════════════════════════════════════════
