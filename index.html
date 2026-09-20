@@ -15309,27 +15309,35 @@ function renderTP(){
     if(!c) c = contrib[k][unitName] = {open:0,tw:0,ntk:0,dc:0,sd:0,dc3:0,hh:0,fin:0,isBvph:!!isRoot};
     c.open += (r.open||0); c.sd += (r.sd||0); c.dc += (r.dc||0);
     try{ c.fin += calcRow(r).final; }catch(e){}
-    if(isRoot){ c.tw += (r.tinh||0); c.ntk += (r.ntk||0); c.dc3 += (r.dc3||0); c.hh += (r.hh||0); }
+    c.tw += (r.tinh||0); c.ntk += (r.ntk||0); c.dc3 += (r.dc3||0); c.hh += (r.hh||0);   // GĐ1: mọi đơn vị, không chỉ root
   }
   var _inScope = function(r){
     if(!r.unitId) return false;
     var u = UNIT_BY_ID[r.unitId]; return !!(u && u.path.indexOf(rootPath)===0);
   };
-  // Kho của CHÍNH node gốc: đóng vai "kho chính" (nhập tuyến trên, nguồn khác, xuất ngoài, hỏng)
-  bvphData.filter(matchPeriod).concat(bcData.filter(matchPeriod).filter(function(r){ return r.unitId===rootId; })).forEach(function(r){
+  // GĐ1: gom TẤT CẢ trường của MỌI đơn vị trong phạm vi (kho gốc + mọi cấp dưới),
+  // sau đó triệt tiêu điều chuyển NỘI BỘ (from & to cùng trong cây con) qua InternalCirc.
+  bvphData.filter(matchPeriod).concat(bcData.filter(matchPeriod).filter(_inScope)).forEach(function(r){
     var k=KEY(r);
-    if(!map[k]) map[k]={drug:r.drug,lot:r.lot,exp:r.exp,open:0,sdAll:0,bvphDC2:0,bvphDC3:0,bvphHH:0,twBvph:0,ntkBvph:0,dcAll:0};
-    map[k].open+=(r.open||0); map[k].sdAll+=(r.sd||0); map[k].bvphDC2+=(r.dc2||0);
-    map[k].bvphDC3+=(r.dc3||0); map[k].bvphHH+=(r.hh||0); map[k].twBvph+=(r.tinh||0);
-    map[k].ntkBvph+=(r.ntk||0); map[k].dcAll+=(r.dc||0);
-    _addContrib(k, 'Kho '+root.name, r, true);
+    if(!map[k]) map[k]={drug:r.drug,lot:r.lot,exp:r.exp,open:0,sdAll:0,dc2All:0,dc3All:0,hhAll:0,tinhAll:0,ntkAll:0,dcAll:0};
+    map[k].open+=(r.open||0); map[k].sdAll+=(r.sd||0); map[k].dc2All+=(r.dc2||0);
+    map[k].dc3All+=(r.dc3||0); map[k].hhAll+=(r.hh||0); map[k].tinhAll+=(r.tinh||0);
+    map[k].ntkAll+=(r.ntk||0); map[k].dcAll+=(r.dc||0);
+    var _isR=(r.unitId===rootId);
+    _addContrib(k, _isR ? ('Kho '+root.name) : (r.unit||'(Không rõ đơn vị)'), r, _isR);
   });
-  // Toàn bộ đơn vị trực thuộc (mọi cấp dưới): tồn đầu + sử dụng + nhập ĐC nội bộ
-  bcData.filter(matchPeriod).filter(function(r){ return r.unitId!==rootId && _inScope(r); }).forEach(function(r){
-    var k=KEY(r);
-    if(!map[k]) map[k]={drug:r.drug,lot:r.lot,exp:r.exp,open:0,sdAll:0,bvphDC2:0,bvphDC3:0,bvphHH:0,twBvph:0,ntkBvph:0,dcAll:0};
-    map[k].open+=(r.open||0); map[k].sdAll+=(r.sd||0); map[k].dcAll+=(r.dc||0);
-    _addContrib(k, r.unit||'(Không rõ đơn vị)', r, false);
+  // InternalCirc: phiếu điều chuyển có CẢ nơi gửi và nơi nhận trong phạm vi → luân chuyển nội bộ (triệt tiêu).
+  var _subIds=_subtreeIds(rootId), _subSet={}, _rootNames={};
+  _subIds.forEach(function(id){ _subSet[id]=1; var u=UNIT_BY_ID[id]; if(u&&u.name)_rootNames[u.name]=1; });
+  var _nameInScope=function(nm){ if(!nm||nm==='admin')return false; var id=(typeof unitIdByName==='function')?unitIdByName(nm):null; return !!((id&&_subSet[id])||_rootNames[nm]); };
+  var _ek=function(dr,lo,ex){ return (dr||'')+'|'+(lo||'')+'|'+((typeof _normExp==='function')?_normExp(ex):(ex||'')); };
+  var internalCirc={}, icTinh={}, icDc={};
+  (window._printTransfers||[]).forEach(function(t){
+    if(_nameInScope(t.from_unit) && _nameInScope(t.to_unit)){
+      var kk=_ek(t.drug,t.lot,t.exp), q=Number(t.qty||0);
+      internalCirc[kk]=(internalCirc[kk]||0)+q;
+      if(t.type==='dc3_to_tinh') icTinh[kk]=(icTinh[kk]||0)+q; else icDc[kk]=(icDc[kk]||0)+q;
+    }
   });
 
   var keys = Object.keys(map);
@@ -15361,14 +15369,17 @@ function renderTP(){
     var _dn = m.drug;
     var _isFirstOfDrug = !_drugSeen[_dn];
     _drugSeen[_dn] = true;
-    var tw  = m.twBvph || 0;    // Nhập TW (chỉ kho chính BVPH)
-    var ntk = m.ntkBvph || 0;   // Nhập tỉnh khác (chỉ BVPH)
-    var dc  = m.dcAll || 0;     // Nhập ĐC nội bộ (hiển thị, KHÔNG cộng vào tổng)
-    var dc3 = m.bvphDC3 || 0;   // Xuất tỉnh khác (chỉ BVPH)
-    var hh  = m.bvphHH || 0;    // Hỏng/HH (chỉ BVPH)
-    var sd  = m.sdAll || 0;     // SD toàn TP
-    // Tổng nhập toàn TP = Nhập TW + Nhập tỉnh khác (nguồn từ ngoài TP).
-    // Nhập ĐC nội bộ KHÔNG cộng vì là luân chuyển trong TP (tự triệt tiêu với xuất ĐC).
+    // GĐ1: net điều chuyển NỘI BỘ theo phạm vi (InternalCirc), gom mọi đơn vị.
+    var _k2 = _ek(m.drug, m.lot, m.exp);
+    var _ic = internalCirc[_k2]||0, _icT = icTinh[_k2]||0, _icD = icDc[_k2]||0;
+    var _dcIn = m.dcAll||0;
+    var tw  = Math.max(0, (m.tinhAll||0) - _icT);              // Nhập tuyến trên từ NGOÀI phạm vi
+    var ntk = Math.max(0, (m.ntkAll||0) + (_dcIn - _icD));     // Nguồn khác + ĐC nhận từ NGOÀI phạm vi
+    var dc  = _ic;                                             // Điều chuyển nội bộ (đã triệt tiêu; chỉ để popup)
+    var sd  = m.sdAll || 0;                                    // Sử dụng toàn phạm vi
+    var hh  = m.hhAll || 0;                                    // Hỏng/HH toàn phạm vi
+    var dc3 = Math.max(0, (m.dc2All||0) + (m.dc3All||0) - _ic);// Xuất RA NGOÀI phạm vi
+    // Tổng nhập = Σ(tinh+ntk+dc) − InternalCirc; Tổng xuất = SD + Hỏng + Xuất-ngoài.
     var tin  = tw + ntk;
     var tout = sd + dc3 + hh;
     var fin  = m.open + tin - tout;
