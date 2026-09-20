@@ -13886,7 +13886,8 @@ function _showPrintUnitPicker(periodKey){
     if(unit==='__tinh__'){
       var aggRows = _buildToanTinhRows(printBvphData, printBcData, printPeriod);
       if(!aggRows.length){ toast('Chưa có dữ liệu kỳ '+printPeriod+'.','var(--warning)'); return; }
-      _doPrint('Thành phố Hải Phòng', aggRows, printPeriod, hideTCL);
+      var _rnTinh=(function(){ var id=(typeof _currentRootId==='function')?_currentRootId():null; var u=id&&UNIT_BY_ID[id]; return u?u.name:'Toàn tỉnh'; })();
+      _doPrint(_rnTinh, aggRows, printPeriod, hideTCL);
       return;
     }
 
@@ -13974,32 +13975,41 @@ function _showPrintUnitPicker(periodKey){
 //  - Xuất tỉnh khác (dc3), Hỏng/HH (hh) = của BVPH
 //  - Nhập ĐC nội bộ + Xuất ĐC nội bộ = KHÔNG tính (luân chuyển trong TP, tự triệt tiêu)
 function _buildToanTinhRows(bvphArr, bcArr, periodKey){
+  // GĐ3: gom MỌI đơn vị trong phạm vi in + triệt tiêu điều chuyển nội bộ theo phạm vi
+  // (phạm vi = tập đơn vị xuất hiện trong dữ liệu in → đúng ở Tỉnh/Miền/TW).
   var KEY=function(r){ return r.drug+'|'+r.lot+'|'+(r.exp||''); };
-  var map={};
-  bvphArr.filter(function(r){return r.bcMonth===periodKey;}).forEach(function(r){
+  var map={}, scopeNames={};
+  var _add=function(r){
     var k=KEY(r);
     if(!map[k]) map[k]={drug:r.drug,lot:r.lot,exp:r.exp,note:r.note,open:0,tinh:0,ntk:0,dc:0,sd:0,dc2:0,dc3:0,hh:0};
-    map[k].open += (r.open||0);
-    map[k].tinh += (r.tinh||0);   // Nhập TW: chỉ BVPH
-    map[k].ntk  += (r.ntk||0);    // Nhập tỉnh khác: chỉ BVPH
-    map[k].sd   += (r.sd||0);     // SD BVPH
-    map[k].dc3  += (r.dc3||0);    // Xuất tỉnh khác: chỉ BVPH
-    map[k].hh   += (r.hh||0);     // Hỏng/HH: chỉ BVPH
-  });
-  bcArr.filter(function(r){return r.bcMonth===periodKey;}).forEach(function(r){
-    var k=KEY(r);
-    if(!map[k]) map[k]={drug:r.drug,lot:r.lot,exp:r.exp,note:r.note,open:0,tinh:0,ntk:0,dc:0,sd:0,dc2:0,dc3:0,hh:0};
-    map[k].open += (r.open||0);   // tồn đầu 22ĐV
-    map[k].sd   += (r.sd||0);     // SD 22ĐV
-    // TW/tỉnh khác/dc3/hh của đơn vị không tính vào báo cáo toàn tỉnh
+    var M=map[k];
+    M.open+=(r.open||0);M.tinh+=(r.tinh||0);M.ntk+=(r.ntk||0);M.dc+=(r.dc||0);
+    M.sd+=(r.sd||0);M.dc2+=(r.dc2||0);M.dc3+=(r.dc3||0);M.hh+=(r.hh||0);
+    if(r.unit) scopeNames[r.unit]=1;
+    if(r.unitId && UNIT_BY_ID[r.unitId] && UNIT_BY_ID[r.unitId].name) scopeNames[UNIT_BY_ID[r.unitId].name]=1;
+  };
+  bvphArr.filter(function(r){return r.bcMonth===periodKey;}).forEach(_add);
+  bcArr.filter(function(r){return r.bcMonth===periodKey;}).forEach(_add);
+  var _ek=function(dr,lo,ex){ return (dr||'')+'|'+(lo||'')+'|'+((typeof _normExp==='function')?_normExp(ex):(ex||'')); };
+  var _inS=function(nm){ return !!(nm && nm!=='admin' && scopeNames[nm]); };
+  var ic={},icT={},icD={};
+  (window._printTransfers||[]).forEach(function(t){
+    if(_inS(t.from_unit)&&_inS(t.to_unit)){ var kk=_ek(t.drug,t.lot,t.exp),q=Number(t.qty||0);
+      ic[kk]=(ic[kk]||0)+q; if(t.type==='dc3_to_tinh')icT[kk]=(icT[kk]||0)+q; else icD[kk]=(icD[kk]||0)+q; }
   });
   return Object.keys(map).sort(function(a,b){
     return map[a].drug.localeCompare(map[b].drug,'vi');
   }).map(function(k){
-    var m=map[k];
+    var m=map[k], _k2=_ek(m.drug,m.lot,m.exp);
+    var _ic=ic[_k2]||0,_icT=icT[_k2]||0,_icD=icD[_k2]||0;
     return {unit:'__tinh__', drug:m.drug, lot:m.lot, exp:m.exp, note:m.note,
-      open:m.open, tinh:m.tinh, ntk:m.ntk, dc:m.dc, sd:m.sd, dc2:m.dc2, dc3:m.dc3, hh:m.hh,
-      bcMonth:periodKey};
+      open:m.open,
+      tinh:Math.max(0,m.tinh-_icT),                 // Nhập tuyến trên từ NGOÀI phạm vi
+      ntk:m.ntk,                                    // Nguồn khác (ngoài phạm vi)
+      dc:Math.max(0,m.dc-_icD),                     // Nhập điều chuyển từ NGOÀI phạm vi
+      sd:m.sd, dc2:0,                               // Xuất nội bộ đã triệt tiêu
+      dc3:Math.max(0,m.dc2+m.dc3-_ic),              // Xuất RA NGOÀI phạm vi
+      hh:m.hh, bcMonth:periodKey};
   });
 }
 
