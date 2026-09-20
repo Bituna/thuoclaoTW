@@ -1415,6 +1415,77 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
       </div>
     </div><!-- /tp-zone -->
 
+    <!-- BẢNG TỔNG HỢP MIỀN — chỉ hiện khi đang xem node cấp Miền (giống mẫu Tổng hợp toàn tỉnh/TP) -->
+    <div id="mien-zone" class="no-print" style="margin-bottom:18px;display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div>
+          <h3 id="mien-title" style="font-size:14px;font-weight:700;color:#1d6f42">🗺 Tổng hợp Miền</h3>
+          <div id="mien-status" style="font-size:11.5px;color:#6b7280;margin-top:2px"></div>
+        </div>
+      </div>
+      <div class="tbl-wrap" style="margin-bottom:0;max-height:480px;position:relative">
+        <table>
+          <thead>
+            <tr>
+              <th class="hdr-name" style="min-width:34px;width:34px" rowspan="2">TT</th>
+              <th class="left hdr-name" style="min-width:220px" rowspan="2">Tên thuốc</th>
+              <th class="hdr-lot" rowspan="2" style="min-width:100px">Số lô</th>
+              <th class="hdr-exp" rowspan="2" style="min-width:90px">Hạn dùng</th>
+              <th class="hdr-open" rowspan="2" style="min-width:75px">Tồn đầu</th>
+              <th class="hdr-in" colspan="3">Nhập trong kỳ</th>
+              <th class="hdr-out" colspan="4">Xuất trong kỳ</th>
+              <th class="hdr-end" rowspan="2" style="min-width:85px">Tồn cuối</th>
+            </tr>
+            <tr>
+              <th class="hdr-in-sub" title="Nhập từ tuyến trên (TW→Miền) — từ ngoài phạm vi Miền" style="min-width:72px">Nhập tuyến trên</th>
+              <th class="hdr-in-sub" title="Nhập nguồn khác / điều chuyển từ ngoài Miền" style="min-width:78px">Nhập nguồn khác</th>
+              <th class="hdr-in-sub" style="min-width:80px">Tổng nhập</th>
+              <th class="hdr-out-sub" title="Sử dụng toàn Miền (tự động)" style="min-width:80px">Sử dụng</th>
+              <th class="hdr-out-sub" title="Xuất ra ngoài Miền (tự động)" style="min-width:80px">Xuất nơi khác</th>
+              <th class="hdr-out-sub" style="min-width:75px">Hỏng/HH</th>
+              <th class="hdr-out-sub" style="min-width:80px">Tổng xuất</th>
+            </tr>
+          </thead>
+          <tbody id="mien-body"></tbody>
+        </table>
+      </div>
+    </div><!-- /mien-zone -->
+
+    <!-- BẢNG TOÀN QUỐC — chỉ hiện khi đang xem node cấp TW (giống mẫu tỉnh nhưng BỎ cột Xuất nơi khác) -->
+    <div id="tq-zone" class="no-print" style="margin-bottom:18px;display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div>
+          <h3 id="tq-title" style="font-size:14px;font-weight:700;color:#8a4b1d">🇻🇳 Tổng hợp Toàn quốc</h3>
+          <div id="tq-status" style="font-size:11.5px;color:#6b7280;margin-top:2px"></div>
+        </div>
+      </div>
+      <div class="tbl-wrap" style="margin-bottom:0;max-height:480px;position:relative">
+        <table>
+          <thead>
+            <tr>
+              <th class="hdr-name" style="min-width:34px;width:34px" rowspan="2">TT</th>
+              <th class="left hdr-name" style="min-width:220px" rowspan="2">Tên thuốc</th>
+              <th class="hdr-lot" rowspan="2" style="min-width:100px">Số lô</th>
+              <th class="hdr-exp" rowspan="2" style="min-width:90px">Hạn dùng</th>
+              <th class="hdr-open" rowspan="2" style="min-width:75px">Tồn đầu</th>
+              <th class="hdr-in" colspan="3">Nhập trong kỳ</th>
+              <th class="hdr-out" colspan="3">Xuất trong kỳ</th>
+              <th class="hdr-end" rowspan="2" style="min-width:85px">Tồn cuối</th>
+            </tr>
+            <tr>
+              <th class="hdr-in-sub" title="Nhập từ nguồn ngoài nước / sản xuất — tuyến trên của TW" style="min-width:72px">Nhập tuyến trên</th>
+              <th class="hdr-in-sub" title="Nhập nguồn khác" style="min-width:78px">Nhập nguồn khác</th>
+              <th class="hdr-in-sub" style="min-width:80px">Tổng nhập</th>
+              <th class="hdr-out-sub" title="Sử dụng toàn quốc (tự động)" style="min-width:80px">Sử dụng</th>
+              <th class="hdr-out-sub" style="min-width:75px">Hỏng/HH</th>
+              <th class="hdr-out-sub" style="min-width:80px">Tổng xuất</th>
+            </tr>
+          </thead>
+          <tbody id="tq-body"></tbody>
+        </table>
+      </div>
+    </div><!-- /tq-zone -->
+
     <div class="input-section" id="form-bvph" style="border-color:#1a5276;background:#f0f7ff;padding:12px 14px" onkeydown="if(event.key==='Enter'){event.preventDefault();addBVPHRow();}">
       <div class="input-section-title" style="color:#1a5276;margin-bottom:10px">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1a5276" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
@@ -2954,7 +3025,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 
 <script>
 // ═══ PHIÊN BẢN — kiểm tra bản đang chạy ═══
-window.APP_VERSION = 'v2026.09.21-c5-leaf-1';
+window.APP_VERSION = 'v2026.09.21-mien-tq-1';
 console.log('%c[PM Thuốc Lao] Phiên bản: ' + window.APP_VERSION, 'background:#1d4ed8;color:white;padding:3px 8px;border-radius:4px;font-weight:bold');
 console.log('%c✓ Tồn đầu khóa cứng khi kỳ trước đã chốt (mọi ngõ)', 'color:#16a34a;font-weight:bold');
 // ============================================================
@@ -15301,6 +15372,7 @@ function renderTP(){
   var tbody = document.getElementById('tp-body');
   if(!tbody) return;
   _tpDetail = [];   // reset chi tiết popup mỗi lần vẽ lại
+  try{ _renderMienTQ(); }catch(e){ console.warn('[mien-tq]', e); }   // bảng 4 & 5: Miền / Toàn quốc (tùy cấp)
   var _tpcHost0=document.getElementById('tp-children'); if(_tpcHost0) _tpcHost0.innerHTML='';   // GĐ2: dọn khối con
 
   // ── Node gốc + nhánh con: một công thức cho mọi cấp (Toàn quốc / Miền / Tỉnh / Khu vực) ──
@@ -15483,15 +15555,17 @@ function _aggScopeTotals(scopeRootId){
       if(t.type==='dc3_to_tinh') icT[kk]=(icT[kk]||0)+q; else icD[kk]=(icD[kk]||0)+q;
     }
   });
-  var rows=[], tot={open:0,tin:0,sd:0,xn:0,hh:0,tout:0,fin:0};
+  var rows=[], tot={open:0,tw:0,ntk:0,tin:0,sd:0,xn:0,hh:0,tout:0,fin:0};
   Object.keys(map).forEach(function(k){
     var m=map[k], _k2=_ek(m.drug,m.lot,m.exp);
     var _ic=ic[_k2]||0,_icT=icT[_k2]||0,_icD=icD[_k2]||0;
-    var tin=Math.max(0,m.tinh-_icT)+Math.max(0,m.ntk+(m.dc-_icD));
+    var tw=Math.max(0,m.tinh-_icT);              // Nhập tuyến trên (từ ngoài phạm vi)
+    var ntk=Math.max(0,m.ntk+(m.dc-_icD));       // Nhập nguồn khác + ĐC nhận từ ngoài phạm vi
+    var tin=tw+ntk;
     var xn=Math.max(0,m.dc2+m.dc3-_ic);
     var tout=m.sd+xn+m.hh, fin=m.open+tin-tout;
-    rows.push({drug:m.drug,lot:m.lot,exp:m.exp,open:m.open,tin:tin,sd:m.sd,xn:xn,hh:m.hh,tout:tout,fin:fin});
-    tot.open+=m.open;tot.tin+=tin;tot.sd+=m.sd;tot.xn+=xn;tot.hh+=m.hh;tot.tout+=tout;tot.fin+=fin;
+    rows.push({drug:m.drug,lot:m.lot,exp:m.exp,open:m.open,tw:tw,ntk:ntk,tin:tin,sd:m.sd,xn:xn,hh:m.hh,tout:tout,fin:fin});
+    tot.open+=m.open;tot.tw+=tw;tot.ntk+=ntk;tot.tin+=tin;tot.sd+=m.sd;tot.xn+=xn;tot.hh+=m.hh;tot.tout+=tout;tot.fin+=fin;
   });
   rows.sort(function(a,b){ var c=(a.drug||'').localeCompare(b.drug||'','vi'); return c||String(a.lot||'').localeCompare(String(b.lot||''),'vi'); });
   return {rows:rows, tot:tot};
@@ -15538,6 +15612,78 @@ function renderChildBreakdown(rootId){
   });
   h+='</div>';
   host.innerHTML=h;
+}
+
+// ── Dựng thân bảng tổng hợp (Miền / Toàn quốc) từ _aggScopeTotals ──
+// opts.noXn=true → BỎ cột "Xuất nơi khác" (dùng cho bảng Toàn quốc).
+function _aggTableBody(agg, opts){
+  opts = opts||{};
+  var noXn = !!opts.noXn;
+  var colEmpty = noXn ? 12 : 13;
+  if(!agg || !agg.rows || !agg.rows.length){
+    return '<tr><td colspan="'+colEmpty+'" style="text-align:center;color:var(--muted);padding:12px">Chưa có dữ liệu trong kỳ này ở phạm vi này.</td></tr>';
+  }
+  var rows = agg.rows;
+  var cnt={}, ttMap={}, c=0;
+  rows.forEach(function(r){ cnt[r.drug]=(cnt[r.drug]||0)+1; if(ttMap[r.drug]===undefined){ c++; ttMap[r.drug]=c; } });
+  var seen={}, h='';
+  rows.forEach(function(r){
+    var first=!seen[r.drug]; seen[r.drug]=true;
+    var fcls = r.fin<0 ? 'final-neg' : (r.fin<threshold.low ? 'final-low' : 'final-ok');
+    var exp_ = isExpiredStr(r.exp), expD = expToMMYYYY(r.exp);
+    h+='<tr>';
+    if(first){
+      h+='<td style="text-align:center;color:#888;vertical-align:middle" rowspan="'+cnt[r.drug]+'">'+ttMap[r.drug]+'</td>';
+      h+='<td class="left" style="vertical-align:middle;font-weight:600" rowspan="'+cnt[r.drug]+'">'+escH(r.drug)+'</td>';
+    }
+    h+='<td>'+escH(r.lot)+'</td>';
+    h+='<td style="'+(exp_?'color:var(--danger)':'')+'">'+(exp_?'&#9888; ':'')+expD+'</td>';
+    h+='<td>'+fmtNum(r.open)+'</td>';
+    h+='<td>'+fmtNum(r.tw)+'</td><td>'+fmtNum(r.ntk)+'</td><td class="calc-in"><strong>'+fmtNum(r.tin)+'</strong></td>';
+    h+='<td>'+fmtNum(r.sd)+'</td>';
+    if(!noXn) h+='<td>'+fmtNum(r.xn)+'</td>';
+    h+='<td>'+fmtNum(r.hh)+'</td><td class="calc-out"><strong>'+fmtNum(r.tout)+'</strong></td>';
+    h+='<td class="'+fcls+'">'+fmtNum(r.fin)+'</td>';
+    h+='</tr>';
+  });
+  var t=agg.tot||{};
+  h+='<tr style="background:#f8fafc;font-weight:700;border-top:2px solid #cbd5e0">';
+  h+='<td colspan="4" style="text-align:right">Tổng cộng</td>';
+  h+='<td>'+fmtNum(t.open||0)+'</td><td>'+fmtNum(t.tw||0)+'</td><td>'+fmtNum(t.ntk||0)+'</td><td class="calc-in">'+fmtNum(t.tin||0)+'</td>';
+  h+='<td>'+fmtNum(t.sd||0)+'</td>';
+  if(!noXn) h+='<td>'+fmtNum(t.xn||0)+'</td>';
+  h+='<td>'+fmtNum(t.hh||0)+'</td><td class="calc-out">'+fmtNum(t.tout||0)+'</td><td>'+fmtNum(t.fin||0)+'</td>';
+  h+='</tr>';
+  return h;
+}
+
+// ── Bảng thứ 4 & 5: Tổng hợp Miền + Toàn quốc — hiện TÙY CẤP đang xem ──
+// Miền: khi node đang xem là cấp Miền (kho_mien) → gom toàn miền đó.
+// Toàn quốc: khi node đang xem là cấp TW (kho_tq) → gom cả nước, BỎ cột "Xuất nơi khác".
+// Điều chuyển nội bộ triệt tiêu theo từng phạm vi (dùng lại _aggScopeTotals).
+function _renderMienTQ(){
+  var mz=document.getElementById('mien-zone'), tz=document.getElementById('tq-zone');
+  if(mz) mz.style.display='none';
+  if(tz) tz.style.display='none';
+  var rid=(typeof _currentRootId==='function')?_currentRootId():null;
+  var root=rid?UNIT_BY_ID[rid]:null;
+  if(!root) return;
+  try{
+    if(root.utype==='kho_mien' && mz){
+      var agg=_aggScopeTotals(rid);
+      var body=document.getElementById('mien-body'); if(body) body.innerHTML=_aggTableBody(agg,{noXn:false});
+      var tt=document.getElementById('mien-title'); if(tt) tt.textContent='🗺 Tổng hợp Miền — '+root.name;
+      var st=document.getElementById('mien-status'); if(st) st.textContent='Phạm vi: toàn '+root.name+' · '+agg.rows.length+' lô · điều chuyển trong nội miền đã triệt tiêu.';
+      mz.style.display='block';
+    }
+    if(root.utype==='kho_tq' && tz){
+      var agg2=_aggScopeTotals(rid);
+      var body2=document.getElementById('tq-body'); if(body2) body2.innerHTML=_aggTableBody(agg2,{noXn:true});
+      var tt2=document.getElementById('tq-title'); if(tt2) tt2.textContent='🇻🇳 Tổng hợp Toàn quốc — '+root.name;
+      var st2=document.getElementById('tq-status'); if(st2) st2.textContent='Phạm vi: toàn quốc · '+agg2.rows.length+' lô · điều chuyển giữa các miền đã triệt tiêu.';
+      tz.style.display='block';
+    }
+  }catch(e){ console.warn('[mien-tq]', e); }
 }
 
 // ════════════════════════════════════════════════════════════════════
