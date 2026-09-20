@@ -331,6 +331,8 @@ td input[type=number]{border-radius:7px}
 /* Ô bấm được trong bảng Kho chính / Đơn vị */
 .bvph-cc{cursor:pointer;transition:box-shadow .12s}
 .bvph-cc:hover{box-shadow:inset 0 0 0 2px rgba(41,128,185,.55);border-radius:4px}
+/* Bảng cấp C5 (đơn vị cơ sở/kho nội trú): ẩn cột "Nhập tỉnh khác" và "Xuất Tổ CL" — không có ở mẫu cơ sở */
+table.bvph-leaf .col-ntk, table.bvph-leaf .col-dc2{display:none!important}
 /* Ô bấm được trong bảng tổng hợp Tổng quan */
 .tq-drug-cc{cursor:pointer;transition:box-shadow .12s}
 .tq-drug-cc:hover{box-shadow:inset 0 0 0 2px rgba(41,128,185,.55);border-radius:4px}
@@ -1508,14 +1510,14 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
               <th class="hdr-lot" rowspan="2" style="min-width:80px">Số lô</th>
               <th class="hdr-exp" rowspan="2" style="min-width:72px">Hạn dùng</th>
               <th class="hdr-open" rowspan="2" style="min-width:62px">Tồn đầu</th>
-              <th class="hdr-in" colspan="4">Nhập trong kỳ</th>
-              <th class="hdr-out" colspan="5">Xuất trong kỳ</th>
+              <th class="hdr-in" id="bvph-grp-in" colspan="4">Nhập trong kỳ</th>
+              <th class="hdr-out" id="bvph-grp-out" colspan="5">Xuất trong kỳ</th>
               <th class="hdr-end" rowspan="2" style="min-width:65px">Tồn cuối</th>
               <th class="hdr-act no-print" rowspan="2" style="min-width:56px">Thao tác</th>
             </tr>
             <tr>
-              <th class="hdr-in-sub" style="min-width:58px">Nhập TW</th><th class="hdr-in-sub" title="Nhập điều chuyển từ tỉnh/TP khác" style="min-width:68px">Nhập tỉnh khác</th><th class="hdr-in-sub" title="Nhập điều chuyển từ đơn vị tuyến về" style="min-width:60px">Nhập ĐC</th><th class="hdr-in-sub" style="min-width:62px">Tổng nhập</th>
-              <th class="hdr-out-sub" style="min-width:60px">Sử dụng</th><th class="hdr-out-sub" title="Tự tính = tổng Tỉnh cấp của các đơn vị tuyến (không nhập tay)" style="min-width:66px">Xuất Tổ CL</th><th class="hdr-out-sub" style="min-width:68px">Xuất tỉnh khác</th><th class="hdr-out-sub" style="min-width:58px">Hỏng/HH</th><th class="hdr-out-sub" style="min-width:62px">Tổng xuất</th>
+              <th class="hdr-in-sub" id="bvph-th-tinh" style="min-width:58px">Nhập TW</th><th class="hdr-in-sub col-ntk" title="Nhập điều chuyển từ tỉnh/TP khác" style="min-width:68px">Nhập tỉnh khác</th><th class="hdr-in-sub" id="bvph-th-dc" title="Nhập điều chuyển từ đơn vị tuyến về" style="min-width:60px">Nhập ĐC</th><th class="hdr-in-sub" style="min-width:62px">Tổng nhập</th>
+              <th class="hdr-out-sub" style="min-width:60px">Sử dụng</th><th class="hdr-out-sub col-dc2" title="Tự tính = tổng Tỉnh cấp của các đơn vị tuyến (không nhập tay)" style="min-width:66px">Xuất Tổ CL</th><th class="hdr-out-sub" id="bvph-th-dc3" style="min-width:68px">Xuất tỉnh khác</th><th class="hdr-out-sub" style="min-width:58px">Hỏng/HH</th><th class="hdr-out-sub" style="min-width:62px">Tổng xuất</th>
             </tr>
           </thead>
           <tbody id="bvph-body"></tbody>
@@ -2952,7 +2954,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 
 <script>
 // ═══ PHIÊN BẢN — kiểm tra bản đang chạy ═══
-window.APP_VERSION = 'v2026.09.18-tk-data-8';
+window.APP_VERSION = 'v2026.09.21-c5-leaf-1';
 console.log('%c[PM Thuốc Lao] Phiên bản: ' + window.APP_VERSION, 'background:#1d4ed8;color:white;padding:3px 8px;border-radius:4px;font-weight:bold');
 console.log('%c✓ Tồn đầu khóa cứng khi kỳ trước đã chốt (mọi ngõ)', 'color:#16a34a;font-weight:bold');
 // ============================================================
@@ -7802,7 +7804,7 @@ function buildTbl(data, bodyId, prefix){
     tr += clickCell('open', row.open, 'open-stock', openRO);
     tr += clickCell('tinh', row.tinh||0, '');
     if(isBVPH){
-      tr += clickCell('ntk', row.ntk||0, '');
+      tr += clickCell('ntk', row.ntk||0, 'col-ntk');
     }
     // dc = Nhập điều chuyển: luôn bấm được xem chi tiết
     var dcVal = row.dc||0;
@@ -7819,11 +7821,11 @@ function buildTbl(data, bodyId, prefix){
       (function(){
         var _dc2 = isAdmin() ? _cpDc2Cell(row, rowIdx) : null;
         if(_dc2 && _dc2.tdStyle){
-          tr += '<td style="'+_dc2.tdStyle+';text-align:center;cursor:pointer" onclick="showXuatTCLDetail(\'bvph\','+rowIdx+')" title="'+_dc2.title+'">'+_dc2.inner+'</td>';
+          tr += '<td class="col-dc2" style="'+_dc2.tdStyle+';text-align:center;cursor:pointer" onclick="showXuatTCLDetail(\'bvph\','+rowIdx+')" title="'+_dc2.title+'">'+_dc2.inner+'</td>';
         } else if(_dc2 && typeof _dc2 === 'string'){
-          tr += '<td>'+_dc2+'</td>';
+          tr += '<td class="col-dc2">'+_dc2+'</td>';
         } else {
-          tr += '<td>'+makeCell('dc2', row.dc2||0, false)+'</td>';
+          tr += '<td class="col-dc2">'+makeCell('dc2', row.dc2||0, false)+'</td>';
         }
       })();
       tr += clickCell('dc3', row.dc3||0, '');
@@ -9041,6 +9043,20 @@ function renderBVPH(){
   var _pg = document.getElementById('bc-page-sub'); if(_pg) _pg.textContent = _T.page;
   var filtered = _sortByDrugLot(bvphData.filter(matchPeriod));
   buildTbl(filtered,'bvph-body','bvph');
+  // ── C5 (đơn vị cơ sở / kho nội trú / BV ngoài) = BẢNG CUỐI CÙNG theo mẫu dvcs ──
+  // Ẩn 2 cột chỉ có ở cấp kho/tỉnh: "Nhập tỉnh khác" (ntk) và "Xuất Tổ CL" (dc2);
+  // đổi nhãn cột giữ lại cho khớp mẫu cơ sở. Chỉ đổi HIỂN THỊ, không đụng dữ liệu.
+  try{
+    var _leafC5 = _isLeafLevel(_r);
+    var _bd = document.getElementById('bvph-body');
+    var _tbl = _bd ? _bd.closest('table') : null;
+    if(_tbl) _tbl.classList.toggle('bvph-leaf', !!_leafC5);
+    var _gi=document.getElementById('bvph-grp-in');  if(_gi) _gi.setAttribute('colspan', _leafC5?'3':'4');
+    var _go=document.getElementById('bvph-grp-out'); if(_go) _go.setAttribute('colspan', _leafC5?'4':'5');
+    var _thT=document.getElementById('bvph-th-tinh'); if(_thT) _thT.textContent = _leafC5?'Tính cấp':'Nhập TW';
+    var _thD=document.getElementById('bvph-th-dc');   if(_thD) _thD.textContent = _leafC5?'Điều chuyển':'Nhập ĐC';
+    var _thD3=document.getElementById('bvph-th-dc3'); if(_thD3) _thD3.textContent = _leafC5?'Xuất ĐC':'Xuất tỉnh khác';
+  }catch(e){ console.warn('[bvph-leaf]', e); }
   checkMismatch();
   updateLockedUI();
   try{ _updateOpenInputState('bvph'); }catch(e){}
