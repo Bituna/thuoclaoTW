@@ -2950,7 +2950,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 
 <script>
 // ═══ PHIÊN BẢN — kiểm tra bản đang chạy ═══
-window.APP_VERSION = 'v2026.09.18-tk-data-9';
+window.APP_VERSION = 'v2026.09.18-tk-data-8';
 console.log('%c[PM Thuốc Lao] Phiên bản: ' + window.APP_VERSION, 'background:#1d4ed8;color:white;padding:3px 8px;border-radius:4px;font-weight:bold');
 console.log('%c✓ Tồn đầu khóa cứng khi kỳ trước đã chốt (mọi ngõ)', 'color:#16a34a;font-weight:bold');
 // ============================================================
@@ -3758,7 +3758,7 @@ function _normName(s){ return String(s||'').replace(/\u00A0/g,' ').replace(/\s+/
 async function _loadUnitsTree(){
   if(!_supaOnline) return false;
   try{
-    var r = await fetch(SUPA_URL+'/rest/v1/units?select=id,slug,name,parent_id,level,utype,path,sort_order,active&order=path',
+    var r = await fetch(SUPA_URL+'/rest/v1/units?select=id,slug,name,parent_id,level,utype,path,sort_order,active,mien,tinh,tinh_cu,status&order=path',
       {headers:_supaHdr, cache:'no-store'});
     if(!r.ok){ toast('❌ Không đọc được bảng units (HTTP '+r.status+'). '+(await r.text()).slice(0,120),'var(--danger)'); return false; }
     var rows = await r.json();
@@ -21352,49 +21352,49 @@ function _tkRenderOnly(){
 
   // Nạp cây + tài khoản thật → dựng lại mảng accounts của NTP
   window.tkLoadFromCloud = async function(){
-    if(!window._supaOnline){ try{showToast('⚠ Offline — không tải được tài khoản');}catch(_){} return; }
-    // B1: đảm bảo cây (bọc riêng)
-    try{ if(!window.UNITS_TREE || !window.UNITS_TREE.length) await window._loadUnitsTree(); }
-    catch(e0){ console.warn('[tk] tải cây lỗi', e0); }
-    // B2: lấy tài khoản (bọc riêng)
-    var accs = [];
-    try{ accs = await window._rpcListAccounts() || []; }
-    catch(e1){ console.error('[tk] _rpcListAccounts lỗi', e1); try{showToast('❌ Lỗi tải tài khoản: '+(e1.message||e1));}catch(_){} return; }
-    // B3: dựng danh sách (thuần tính toán, không gọi hàm ngoài)
-    var arr = [];
+    if(!window._supaOnline){ if(window.showToast) showToast('⚠ Offline — không tải được tài khoản'); return; }
     try{
+      // LUÔN đảm bảo cây có dữ liệu (không tin cờ _unitsLoaded — có thể true nhưng mảng rỗng)
+      if(!window.UNITS_TREE || !window.UNITS_TREE.length){
+        try{ await window._loadUnitsTree(); }catch(e0){ console.warn('[tk] tải cây lỗi', e0); }
+      }
+      var accs = await window._rpcListAccounts();   // [{user,name,role,unit,unitId,path,...}]
       var accByUnit = {}; accs.forEach(function(a){ if(a.unitId) accByUnit[a.unitId]=a; });
-      var idseq = 1, idmap = {};
+
+      var arr = []; var idseq = 1; var idmap = {};
       var tree = (window.UNITS_TREE && window.UNITS_TREE.length) ? window.UNITS_TREE : [];
+      // Nếu VẪN không có cây (lỗi tải) nhưng CÓ tài khoản → dựng tối thiểu từ chính accs
       if(!tree.length && accs.length){
         tree = accs.filter(function(a){return a.unitId;}).map(function(a){
           return {id:a.unitId, name:a.unit||a.user, parent_id:null, utype:'dvcs', path:'/'+a.user, mien:'',tinh:'',tinh_cu:''};
         });
+        console.warn('[tk] cây rỗng — dựng tạm từ tài khoản:', tree.length);
       }
-      var nodes = tree.slice().sort(function(a,b){ return String(a.path||'').localeCompare(String(b.path||''),'vi'); });
+      var nodes = tree.slice().sort(function(a,b){ return String(a.path).localeCompare(String(b.path),'vi'); });
       nodes.forEach(function(u){ idmap[u.id] = idseq++; });
       nodes.forEach(function(u){
         var a = accByUnit[u.id];
         arr.push({
-          id: idmap[u.id], node_id: u.id,
+          id: idmap[u.id],
+          node_id: u.id,                       // GẮN unit_id thật để ghi RPC
           puid: u.parent_id ? String(idmap[u.parent_id]||'') : '',
-          ten: u.name, username: a ? a.user : '',
-          email:(a&&a.email)||'', phone:(a&&a.phone)||'',
-          cap: u.utype, mien:u.mien||'', tinh:u.tinh||'', tinhCu:u.tinh_cu||'',
-          parent: u.parent_id ? ((window.UNIT_BY_ID[u.parent_id]||{}).name||'') : '',
-          status: (a? (a.status||'active') : 'no_account'), createdAt:''
+          ten: u.name,
+          username: a ? a.user : '',           // node chưa có tài khoản → rỗng
+          email: (a&&a.email)||'', phone:(a&&a.phone)||'',
+          cap: u.utype,
+          mien: u.mien||'', tinh: u.tinh||'', tinhCu: u.tinh_cu||'',
+          parent: u.parent_id ? (window.UNIT_BY_ID[u.parent_id]||{}).name||'' : '',
+          status: (a? (a.status||'active') : 'no_account'),
+          createdAt: ''
         });
       });
-    }catch(e2){ console.error('[tk] dựng danh sách lỗi', e2); }
-    // B4: GÁN NGAY (dù render có lỗi thì dữ liệu vẫn có)
-    window.accounts = arr;
-    window.nextId = arr.length + 1;
-    try{ window.usedNames = new Set(accs.map(function(a){return a.user;})); }catch(_){}
-    console.log('[tk] đã nạp', arr.length, 'dòng');
-    // B5: render — mỗi hàm bọc riêng
-    try{ if(window.updateStats) updateStats(); }catch(e){ console.warn('[tk] updateStats', e); }
-    try{ if(window.renderTree) renderTree(); }catch(e){ console.warn('[tk] renderTree', e); }
-    try{ if(window.renderTable) renderTable(); }catch(e){ console.warn('[tk] renderTable', e); }
+      window.accounts = arr;
+      window.nextId = idseq;
+      window.usedNames = new Set(accs.map(function(a){return a.user;}));
+      if(window.updateStats) updateStats();
+      if(window.renderTree) renderTree();
+      if(window.renderTable) renderTable();
+    }catch(e){ console.error('[tkLoadFromCloud]', e); if(window.showToast) showToast('❌ Lỗi tải tài khoản: '+(e.message||e)); }
   };
 
   // Tạo node + tài khoản THẬT
