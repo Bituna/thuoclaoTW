@@ -3083,7 +3083,7 @@ async function checkSupabase(){
   var result = await Promise.race([fetchPr, timeout]);
   _supaOnline = !!(result && result.status >= 200 && result.status < 300);
   _updateCloudStatus();
-  if(_supaOnline){ try{ _loadUnitsTree(); }catch(e){} try{ loadCapPhat(); }catch(e){} try{ _loadThresholdFromCloud(); }catch(e){} try{ _loadAccountsFromCloud().then(function(){ if(!currentUser){ try{ fillLoginUnits(); }catch(e){} } else { try{ renderAccounts(); }catch(e){} } }); }catch(e){} }  // tải cây tổ chức + cấp phát + ngưỡng + tài khoản khi online
+  if(_supaOnline){ try{ _loadUnitsTree(); }catch(e){} try{ loadCapPhat(); }catch(e){} try{ _loadThresholdFromCloud(); }catch(e){} try{ _loadAccountsFromCloud().then(function(){ if(!currentUser){ try{ fillLoginUnits(); }catch(e){} } }); }catch(e){} }  // tải cây tổ chức + cấp phát + ngưỡng + tài khoản khi online
   if(_supaOnline && currentUser && currentUser.role==='donvi'){
     setTimeout(checkPendingTransfers, 500);
   }
@@ -21388,9 +21388,12 @@ function _tkRenderOnly(){
           createdAt: ''
         });
       });
+      accounts = arr;           // FIX: cập nhật biến 'accounts' lexical mà renderTable/getFiltered/updateStats/renderTree đọc
+      nextId = idseq;
+      usedNames = new Set(accs.map(function(a){return a.user;}));
       window.accounts = arr;
       window.nextId = idseq;
-      window.usedNames = new Set(accs.map(function(a){return a.user;}));
+      window.usedNames = usedNames;
       if(window.updateStats) updateStats();
       if(window.renderTree) renderTree();
       if(window.renderTable) renderTable();
