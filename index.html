@@ -21475,8 +21475,22 @@ function _tkRenderOnly(){
     var status=document.getElementById('edit-sts-tog').checked?'active':'locked';
     var newU=(document.getElementById('edit-uname').value||'').trim();
     var doRename = (a.username && newU && newU !== a.username);
+    var doCreate = (!a.username && newU);   // đơn vị CHƯA có tài khoản + admin nhập username → TẠO mới
     try{
-      // 0) Đổi tên đăng nhập (nếu có) — qua RPC rename_account: đổi user_id tại chỗ, GIỮ mật khẩu & dữ liệu
+      // 0a) Tạo tài khoản mới cho đơn vị chưa có (bắt buộc đặt mật khẩu)
+      if(doCreate){
+        if(!/^[a-z0-9_]+$/.test(newU)){ if(window.showToast)showToast('❌ Username chỉ gồm chữ thường, số, gạch dưới'); return; }
+        var _pw = window.prompt('Đơn vị này chưa có tài khoản.\nĐặt mật khẩu cho tài khoản mới "'+newU+'" (tối thiểu 4 ký tự):', '');
+        if(_pw === null) return;   // người dùng bấm Hủy
+        _pw = (''+_pw).trim();
+        if(_pw.length < 4){ if(window.showToast)showToast('❌ Mật khẩu tối thiểu 4 ký tự'); return; }
+        var rc = await window._rpc('upsert_account', { p_actor:window._authUser, p_actor_pass:window._authPass,
+          p_user:newU, p_name:ten, p_unit_id:a.node_id, p_role:'don_vi',
+          p_new_pass:_pw, p_email:email, p_phone:phone, p_status:status });
+        if(rc !== 'OK'){ throw new Error('Tạo tài khoản: '+rc); }
+        a.username = newU;   // đã có tài khoản → các bước sau cập nhật đúng
+      }
+      // 0b) Đổi tên đăng nhập (nếu có) — qua RPC rename_account: đổi user_id tại chỗ, GIỮ mật khẩu & dữ liệu
       if(doRename){
         var rr = await window._rpc('rename_account', { p_actor:window._authUser, p_actor_pass:window._authPass,
           p_old_user:a.username, p_new_user:newU });
