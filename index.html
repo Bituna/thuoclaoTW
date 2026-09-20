@@ -5474,7 +5474,8 @@ async function _rpcListAccounts(){
     var _r = a.role || 'don_vi';
     if(_r === 'don_vi') _r = 'donvi';   // tương thích code cũ (Phần 1)
     var o = { user:a.user_id, name:a.name||'', unit:a.unit||'', role:_r,
-              unitId:a.unit_id||null, path:a.u_path||'', active:(a.active!==false) };
+              unitId:a.unit_id||null, path:a.u_path||'', active:(a.active!==false),
+              email:a.email||'', phone:a.phone||'', status:a.status||'active' };  // FIX: giữ email/phone/status để đọc lại được sau khi lưu
     if(a.display_unit) o.displayUnit = a.display_unit;
     return o;   // KHÔNG có field `pass`
   });
@@ -21473,20 +21474,26 @@ function _tkRenderOnly(){
     var phone=document.getElementById('edit-phone').value.trim();
     var status=document.getElementById('edit-sts-tog').checked?'active':'locked';
     var newU=(document.getElementById('edit-uname').value||'').trim();
+    // upsert_account khóa theo user_id → KHÔNG đổi được tên đăng nhập (sẽ tạo mới, cần mật khẩu).
+    // Giữ nguyên username để các trường khác vẫn lưu, và báo rõ cho người dùng.
+    var renameBlocked = (a.username && newU && newU !== a.username);
     try{
       // cập nhật node (tên/cấp)
       var cap = document.getElementById('edit-cap') ? document.getElementById('edit-cap').value : a.cap;
-      await window._rpc('update_unit', { p_actor:window._authUser, p_actor_pass:window._authPass,
+      var r1 = await window._rpc('update_unit', { p_actor:window._authUser, p_actor_pass:window._authPass,
         p_id:a.node_id, p_name:ten, p_utype:cap, p_mien:null, p_tinh:null, p_tinh_cu:null, p_status:status });
+      if(typeof r1==='string' && r1.indexOf('ERR')===0) throw new Error('update_unit: '+r1);
       // cập nhật tài khoản (nếu node có tài khoản)
       if(a.username){
-        await window._rpc('upsert_account', { p_actor:window._authUser, p_actor_pass:window._authPass,
-          p_user: newU||a.username, p_name:ten, p_unit_id:a.node_id, p_role:'don_vi',
+        var r2 = await window._rpc('upsert_account', { p_actor:window._authUser, p_actor_pass:window._authPass,
+          p_user: a.username, p_name:ten, p_unit_id:a.node_id, p_role:'don_vi',
           p_new_pass:'', p_email:email, p_phone:phone, p_status:status });
+        if(typeof r2==='string' && r2.indexOf('ERR')===0) throw new Error('upsert_account: '+r2);
       }
-      if(window.showToast)showToast('✅ Đã cập nhật: '+ten);
       if(window.closeEdit) closeEdit();
       await window._loadUnitsTree(); await window.tkLoadFromCloud();
+      if(renameBlocked){ if(window.showToast)showToast('✅ Đã lưu (trừ Tên đăng nhập — đổi username chưa được hỗ trợ)'); }
+      else { if(window.showToast)showToast('✅ Đã cập nhật: '+ten); }
     }catch(e){ console.error('[saveEdit]',e); if(window.showToast)showToast('❌ Lỗi cập nhật: '+(e.message||e)); }
   };
 
