@@ -21474,16 +21474,26 @@ function _tkRenderOnly(){
     var phone=document.getElementById('edit-phone').value.trim();
     var status=document.getElementById('edit-sts-tog').checked?'active':'locked';
     var newU=(document.getElementById('edit-uname').value||'').trim();
-    // upsert_account khóa theo user_id → KHÔNG đổi được tên đăng nhập (sẽ tạo mới, cần mật khẩu).
-    // Giữ nguyên username để các trường khác vẫn lưu, và báo rõ cho người dùng.
-    var renameBlocked = (a.username && newU && newU !== a.username);
+    var doRename = (a.username && newU && newU !== a.username);
     try{
-      // cập nhật node (tên/cấp)
+      // 0) Đổi tên đăng nhập (nếu có) — qua RPC rename_account: đổi user_id tại chỗ, GIỮ mật khẩu & dữ liệu
+      if(doRename){
+        var rr = await window._rpc('rename_account', { p_actor:window._authUser, p_actor_pass:window._authPass,
+          p_old_user:a.username, p_new_user:newU });
+        if(rr !== 'OK'){
+          var _m = { ERR_AUTH:'Sai quyền hoặc mật khẩu admin', ERR_DUP:'Tên đăng nhập đã tồn tại',
+            ERR_FORMAT:'Username chỉ gồm chữ thường, số và gạch dưới', ERR_EMPTY:'Username trống',
+            ERR_NOT_FOUND:'Không tìm thấy tài khoản' }[rr] || rr;
+          throw new Error('Đổi tên đăng nhập: '+_m);
+        }
+        a.username = newU;   // dùng username mới cho các bước sau
+      }
+      // 1) cập nhật node (tên/cấp)
       var cap = document.getElementById('edit-cap') ? document.getElementById('edit-cap').value : a.cap;
       var r1 = await window._rpc('update_unit', { p_actor:window._authUser, p_actor_pass:window._authPass,
         p_id:a.node_id, p_name:ten, p_utype:cap, p_mien:null, p_tinh:null, p_tinh_cu:null, p_status:status });
       if(typeof r1==='string' && r1.indexOf('ERR')===0) throw new Error('update_unit: '+r1);
-      // cập nhật tài khoản (nếu node có tài khoản)
+      // 2) cập nhật tài khoản (nếu node có tài khoản)
       if(a.username){
         var r2 = await window._rpc('upsert_account', { p_actor:window._authUser, p_actor_pass:window._authPass,
           p_user: a.username, p_name:ten, p_unit_id:a.node_id, p_role:'don_vi',
@@ -21492,8 +21502,7 @@ function _tkRenderOnly(){
       }
       if(window.closeEdit) closeEdit();
       await window._loadUnitsTree(); await window.tkLoadFromCloud();
-      if(renameBlocked){ if(window.showToast)showToast('✅ Đã lưu (trừ Tên đăng nhập — đổi username chưa được hỗ trợ)'); }
-      else { if(window.showToast)showToast('✅ Đã cập nhật: '+ten); }
+      if(window.showToast)showToast('✅ Đã cập nhật: '+ten);
     }catch(e){ console.error('[saveEdit]',e); if(window.showToast)showToast('❌ Lỗi cập nhật: '+(e.message||e)); }
   };
 
