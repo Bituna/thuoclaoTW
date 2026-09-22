@@ -1904,11 +1904,11 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
       <button class="btn btn-ghost" id="nav-accounts" onclick="showPage('accounts')">👥 Tài khoản <span class="sb-badge" id="sb-cnt" style="margin-left:4px">0</span></button>
       <button class="btn btn-ghost" id="nav-guide" onclick="showPage('guide')">📖 Hướng dẫn</button>
     </div>
-      <button class="btn btn-ghost" onclick="downloadTemplate()">📄 File mẫu</button>
-      <button class="btn btn-ghost" onclick="document.getElementById('file-import').click()">📤 Nhập Excel</button>
-      <button class="btn btn-ghost" onclick="exportCSV()">📥 Xuất CSV</button>
-      <button class="btn btn-ghost" onclick="openProvinceEditor()">🏷️ Sửa tên tỉnh/TP & Miền</button>
-      <button class="btn btn-pri" onclick="openCreate()">＋ Tạo tài khoản mới</button>
+      <button class="btn btn-ghost tk-admin-btn" onclick="downloadTemplate()">📄 File mẫu</button>
+      <button class="btn btn-ghost tk-admin-btn" onclick="document.getElementById('file-import').click()">📤 Nhập Excel</button>
+      <button class="btn btn-ghost tk-admin-btn" onclick="exportCSV()">📥 Xuất CSV</button>
+      <button class="btn btn-ghost tk-admin-btn" onclick="openProvinceEditor()">🏷️ Sửa tên tỉnh/TP & Miền</button>
+      <button class="btn btn-pri tk-admin-btn" onclick="openCreate()">＋ Tạo tài khoản mới</button>
       <input type="file" id="file-import" accept=".xlsx,.xls" style="display:none" onchange="handleImport(this)">
     </div>
   </div>
@@ -3029,7 +3029,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 
 <script>
 // ═══ PHIÊN BẢN — kiểm tra bản đang chạy ═══
-window.APP_VERSION = 'v2026.09.22-scope-tabs-1';
+window.APP_VERSION = 'v2026.09.22-acct-scope-1';
 console.log('%c[PM Thuốc Lao] Phiên bản: ' + window.APP_VERSION, 'background:#1d4ed8;color:white;padding:3px 8px;border-radius:4px;font-weight:bold');
 console.log('%c✓ Tồn đầu khóa cứng khi kỳ trước đã chốt (mọi ngõ)', 'color:#16a34a;font-weight:bold');
 // ============================================================
@@ -20192,13 +20192,46 @@ Object.defineProperty(window,'IS_ADMIN',{get:function(){ return !!(window.curren
 
 // ══ STATS ══
 // ══ STATS ══
+// ── PHẠM VI TÀI KHOẢN theo vai trò (module NTP dùng mảng `accounts`) ──
+// admin: tất cả · hub C3/C4 (không phải cấp lá): chính mình + cây con ·
+// cấp lá dvcs/kho nội trú: CHỈ chính mình + tổ tiên (để biết ai quản lý).
+function _acctVisible(a){
+  var cu = window.currentUser;
+  if(!cu || cu.role==='admin') return true;
+  if(!a) return false;
+  var myId = cu.unitId || '';
+  if(myId && a.node_id && a.node_id===myId) return true;             // chính mình (theo node)
+  if(cu.user && a.username && a.username===cu.user) return true;     // hoặc theo username
+  var me = cu.path || (myId && UNIT_BY_ID[myId] ? UNIT_BY_ID[myId].path : '');
+  if(!me) return false;
+  var au = a.node_id ? UNIT_BY_ID[a.node_id] : null;
+  var ap = au ? au.path : '';
+  if(!ap) return false;
+  var selfOrDesc = (ap===me || ap.indexOf(me+'/')===0);
+  var myNode = myId ? UNIT_BY_ID[myId] : null;
+  var isLeaf = !!(myNode && typeof _isLeafLevel==='function' && _isLeafLevel(myNode));
+  if(!isLeaf) return selfOrDesc;                                     // hub: chính mình + cây con
+  var ancestor = (me===ap || me.indexOf(ap+'/')===0);               // a là tổ tiên của mình
+  return (ap===me) || ancestor;                                     // lá: chính mình + tổ tiên
+}
+function _acctIsOwn(a){
+  var cu = window.currentUser; if(!cu||!a) return false;
+  if(cu.role==='admin') return true;
+  return (cu.unitId && a.node_id===cu.unitId) || (cu.user && a.username===cu.user);
+}
+function _tkGateButtons(){
+  var isAdmin = !!(window.currentUser && window.currentUser.role==='admin');
+  document.querySelectorAll('.tk-admin-btn').forEach(function(b){ b.style.display = isAdmin ? '' : 'none'; });
+}
 function updateStats(){
-  document.getElementById('s-total').textContent=accounts.length;
-  document.getElementById('s-active').textContent=accounts.filter(a=>a.status==='active').length;
-  document.getElementById('s-locked').textContent=accounts.filter(a=>a.status==='locked').length;
-  document.getElementById('s-pending').textContent=accounts.filter(a=>a.status==='pending').length;
-  document.getElementById('s-units').textContent=new Set(accounts.map(a=>a.mien+'_'+a.cap)).size;
-  document.getElementById('sb-cnt').textContent=accounts.length;
+  var _L = accounts.filter(_acctVisible);
+  document.getElementById('s-total').textContent=_L.length;
+  document.getElementById('s-active').textContent=_L.filter(a=>a.status==='active').length;
+  document.getElementById('s-locked').textContent=_L.filter(a=>a.status==='locked').length;
+  document.getElementById('s-pending').textContent=_L.filter(a=>a.status==='pending').length;
+  document.getElementById('s-units').textContent=new Set(_L.map(a=>a.mien+'_'+a.cap)).size;
+  document.getElementById('sb-cnt').textContent=_L.length;
+  try{ _tkGateButtons(); }catch(e){}
 }
 
 
@@ -20371,7 +20404,7 @@ function renderTree(){
   const renderRegions=()=>{
     let s='';
     displayRegions().forEach(rg=>{
-      const list=accounts.filter(a=>rg.members.includes(a.mien) && a.cap!=='kho_tq' && a.status!=='merged');
+      const list=accounts.filter(a=>rg.members.includes(a.mien) && a.cap!=='kho_tq' && a.status!=='merged' && _acctVisible(a));
       if(!list.length)return;
       s+=`<div class="tr-children"><div class="tr-row ${filterMien===rg.key?'sel':''}" onclick="setFilter('${rg.key}')">
         <div class="tr-dot" style="background:var(--t2)"></div>
@@ -20477,6 +20510,7 @@ function getFiltered(){
   const cap=document.getElementById('f-cap').value;
   const sts=document.getElementById('f-sts').value;
   return accounts.filter(a=>{
+    if(!_acctVisible(a))return false;   // chỉ hiện tài khoản trong phạm vi vai trò
     if(filterMien && !regionMembers(filterMien).includes(a.mien))return false;
     if(cap&&a.cap!==cap)return false;
     if(sts&&a.status!==sts)return false;
@@ -20530,6 +20564,22 @@ function renderTable(){
       const contact = (a.email||a.phone)
         ? `${a.email?`<div class="ct-row" title="Email">${IC.mail}<span>${a.email}</span></div>`:''}${a.phone?`<div class="ct-row" title="Số điện thoại">${IC.phone}<span>${a.phone}</span></div>`:''}`
         : `<span class="ct-empty">— chưa có —</span>`;
+      // Quyền thao tác: admin làm mọi thứ · cấp dưới CHỈ sửa/đổi mật khẩu tài khoản CHÍNH MÌNH ·
+      // tài khoản quản lý mình (tổ tiên) chỉ để xem.
+      const _isAdminRow = !window.currentUser || window.currentUser.role==='admin';
+      const _ownRow = _acctIsOwn(a);
+      let _acts;
+      if(_isAdminRow){
+        _acts = `<button class="ib ib-edit" title="Sửa thông tin" onclick="openEdit(${a.id})">${IC.edit}</button>
+          <button class="ib ib-reset" title="Reset mật khẩu" onclick="openRM(${a.id})">${IC.key}</button>
+          ${actToggle}
+          <button class="ib ib-del" title="Xóa tài khoản" onclick="confirmDelete(${a.id})">${IC.trash}</button>`;
+      } else if(_ownRow){
+        _acts = `<button class="ib ib-edit" title="Sửa thông tin" onclick="openEdit(${a.id})">${IC.edit}</button>
+          <button class="ib ib-reset" title="Đổi mật khẩu" onclick="openRM(${a.id})">${IC.key}</button>`;
+      } else {
+        _acts = `<span style="color:var(--muted);font-size:11px" title="Tài khoản quản lý bạn — chỉ xem">quản lý bạn</span>`;
+      }
       return `<tr>
         <td><div style="font-weight:600">${a.ten}</div><div style="font-size:11px;color:var(--muted)">@${a.username}</div></td>
         <td><span class="rb" style="color:${rc.color};border-color:${rc.color};background:${rc.bg}"><span class="rd" style="background:${rc.color}"></span>${a.cap}</span></td>
@@ -20537,12 +20587,7 @@ function renderTable(){
         <td><div class="ct">${contact}</div></td>
         <td><span class="sts ${sc}"><span class="sts-dot"></span>${sl}</span></td>
         <td style="font-size:12px;color:var(--muted)">${a.createdAt}</td>
-        <td><div class="ar">
-          <button class="ib ib-edit" title="Sửa thông tin" onclick="openEdit(${a.id})">${IC.edit}</button>
-          <button class="ib ib-reset" title="Reset mật khẩu" onclick="openRM(${a.id})">${IC.key}</button>
-          ${actToggle}
-          <button class="ib ib-del" title="Xóa tài khoản" onclick="confirmDelete(${a.id})">${IC.trash}</button>
-        </div></td>
+        <td><div class="ar">${_acts}</div></td>
       </tr>`;
     }).join('');
   }
@@ -20557,6 +20602,7 @@ function renderTable(){
 
 function goPage(p){curPage=p;renderTable();}
 function toggleLock(id){
+  if(!(window.currentUser&&window.currentUser.role==='admin')){ if(typeof toast==='function') toast('Chỉ quản trị viên mới khóa/mở tài khoản.','var(--warning)'); return; }
   const a=accounts.find(x=>x.id===id);if(!a)return;
   a.status=a.status==='active'?'locked':a.status==='locked'?'active':'active';
   updateStats();renderTree();renderTable();
@@ -20564,7 +20610,7 @@ function toggleLock(id){
 
 
 // ══ CREATE MODAL ══
-function openCreate(){fillRegions();document.getElementById('create-overlay').style.display='flex';}
+function openCreate(){ if(!(window.currentUser&&window.currentUser.role==='admin')){ if(typeof toast==='function') toast('Chỉ quản trị viên mới tạo tài khoản.','var(--warning)'); return; } fillRegions();document.getElementById('create-overlay').style.display='flex';}
 function closeCreate(){document.getElementById('create-overlay').style.display='none';resetForm();}
 
 function onRegion(){
@@ -20931,6 +20977,10 @@ const RC_LABELS = {
 };
 
 function openEdit(id){
+  const _aGuard = accounts.find(x=>x.id===id);
+  if(window.currentUser && window.currentUser.role!=='admin' && !(_aGuard && _acctIsOwn(_aGuard))){
+    if(typeof toast==='function') toast('Bạn chỉ sửa được tài khoản của chính đơn vị mình.','var(--warning)'); return;
+  }
   editId = id;
   const a = accounts.find(x=>x.id===id); if(!a) return;
 
@@ -21030,6 +21080,7 @@ function saveEdit(){
 // ══ XÓA TÀI KHOẢN ══
 // ══ XÓA TÀI KHOẢN ══
 function confirmDelete(id){
+  if(!(window.currentUser&&window.currentUser.role==='admin')){ if(typeof toast==='function') toast('Chỉ quản trị viên mới xóa tài khoản.','var(--warning)'); return; }
   const a=accounts.find(x=>x.id===id);if(!a)return;
   // Mini confirm overlay
   const ov=document.createElement('div');
@@ -21062,6 +21113,10 @@ function genRandPass(){
   let p='';for(let i=0;i<10;i++)p+=c[Math.floor(Math.random()*c.length)];return p;
 }
 function openRM(id){
+  const _aRM = accounts.find(x=>x.id===id);
+  if(window.currentUser && window.currentUser.role!=='admin' && !(_aRM && _acctIsOwn(_aRM))){
+    if(typeof toast==='function') toast('Bạn chỉ đổi mật khẩu tài khoản của chính mình.','var(--warning)'); return;
+  }
   rmId=id;const a=accounts.find(x=>x.id===id);if(!a)return;
   document.getElementById('rm-name').textContent=a.ten;
   document.getElementById('rm-meta').textContent=`${a.cap} · ${REGIONS[a.mien]||a.mien}${a.parent?' › '+a.parent:''}`;
