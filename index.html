@@ -3029,7 +3029,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 
 <script>
 // ═══ PHIÊN BẢN — kiểm tra bản đang chạy ═══
-window.APP_VERSION = 'v2026.09.22-hub-donvi-2';
+window.APP_VERSION = 'v2026.09.22-scope-tabs-1';
 console.log('%c[PM Thuốc Lao] Phiên bản: ' + window.APP_VERSION, 'background:#1d4ed8;color:white;padding:3px 8px;border-radius:4px;font-weight:bold');
 console.log('%c✓ Tồn đầu khóa cứng khi kỳ trước đã chốt (mọi ngõ)', 'color:#16a34a;font-weight:bold');
 // ============================================================
@@ -3892,7 +3892,24 @@ function _visibleUnitIds(){
   if(!currentUser) return [];
   if(currentUser.role === 'admin') return UNITS_TREE.map(function(u){return u.id;});
   var me = currentUser.path || '';
+  if(!me){ return currentUser.unitId ? [currentUser.unitId] : []; }   // không có path → chỉ chính mình (an toàn)
   return UNITS_TREE.filter(function(u){ return u.path.indexOf(me)===0; }).map(function(u){return u.id;});
+}
+// Tập TÊN đơn vị trong phạm vi quản lý của người đăng nhập (chính nó + toàn bộ cây con).
+// Dùng để lọc các trang (tài khoản, bệnh nhân...) chỉ hiện dữ liệu trong phạm vi.
+function _normUnitName(x){
+  var s=String(x||'').replace(/ /g,' ').replace(/\s+/g,' ').trim().toLowerCase();
+  try{ s=s.normalize('NFD').replace(/\p{Diacritic}/gu,''); }catch(e){}
+  return s;
+}
+function _myScopeNameSet(){
+  var set={};
+  if(!currentUser) return set;
+  if(currentUser.role==='admin'){ (UNITS_TREE||[]).forEach(function(u){ if(u&&u.name) set[_normUnitName(u.name)]=1; }); return set; }
+  var me=currentUser.path||'';
+  (UNITS_TREE||[]).forEach(function(u){ if(u&&u.name && me && u.path.indexOf(me)===0) set[_normUnitName(u.name)]=1; });
+  if(currentUser.unit) set[_normUnitName(currentUser.unit)]=1;   // đảm bảo có chính mình
+  return set;
 }
 
 // ══ CHUẨN HOÁ DÒNG GHI LÊN reports (DB thuần unit_id — Hướng 2) ══
@@ -6123,7 +6140,9 @@ function renderAccounts(){
   var statsCards = document.querySelector('#page-tk .page-body > div:first-child');
   var addBtn = document.getElementById('add-account-btn');
   if (!isAdminView) {
-    accountsToRender = ACCOUNTS.filter(function(a){ return a.unit === currentUser.unit; });
+    // Chỉ hiện tài khoản trong phạm vi quản lý: chính đơn vị + toàn bộ cây con.
+    var _accScope = _myScopeNameSet();
+    accountsToRender = ACCOUNTS.filter(function(a){ return a && a.unit && _accScope[_normUnitName(a.unit)]; });
     if(statsCards) statsCards.style.display = 'none';
     if(addBtn) addBtn.style.display = 'none';
   } else {
@@ -17354,17 +17373,11 @@ async function _loadPatientsFromCloud(){
 function renderPatientPage(){
   // 1. Render ngay lập tức không chờ network
   _fillBnFilters();
-  if(currentUser && currentUser.role === 'donvi'){
+  // Tài khoản cấp dưới: mặc định xem "Tất cả đơn vị" TRONG PHẠM VI cây con của mình
+  // (không ép cứng về mỗi đơn vị mình nữa — để hub tỉnh thấy được cả tuyến dưới).
+  if(currentUser && (currentUser.role === 'donvi' || currentUser.role === 'bvph')){
     var uSel = document.getElementById('bn-filter-unit');
-    if(uSel){
-      var unitValue = currentUser.unit || '';
-      if(unitValue && !Array.from(uSel.options).some(function(o){ return normalizeUnit(o.value) === normalizeUnit(unitValue); })){
-        var o = document.createElement('option');
-        o.value = unitValue; o.textContent = unitValue;
-        uSel.appendChild(o);
-      }
-      uSel.value = unitValue;
-    }
+    if(uSel) uSel.value = '';
   }
   renderPatientTable();
 
@@ -17443,8 +17456,9 @@ function _fillBnFilters(){
     uSel.style.borderColor = '';
   }
 
-  var visibleData = isFixedUnit
-    ? BN_DATA.filter(function(b){ return normalizeUnit(b.unit||b.donVi||'') === myUnitNorm; })
+  var _bnScopeF = isFixedUnit ? _myScopeNameSet() : null;
+  var visibleData = _bnScopeF
+    ? BN_DATA.filter(function(b){ return !!_bnScopeF[normalizeUnit(b.unit||b.donVi||'')]; })
     : BN_DATA;
   // Gộp phác đồ trùng: chuẩn hóa (bỏ khoảng trắng thừa, không phân biệt hoa/thường)
   // để "6BdqLfx", "6Bdq Lfx", "6bdqlfx" chỉ hiện 1 lần, tránh nhầm lẫn.
@@ -17479,17 +17493,18 @@ function _filteredPatients(){
     var nm = b.name || b.hoTen || b.tenBN || '';
     return normalizeUnit(nm).indexOf(qNorm) >= 0;
   }
+  // Phạm vi cho tài khoản cấp dưới: chính đơn vị + toàn bộ cây con (hub tỉnh thấy cả tuyến dưới).
+  var _bnScope = (role === 'donvi' || role === 'bvph') ? _myScopeNameSet() : null;
   var result = BN_DATA.filter(function(b){
     var bUnit = (b.unit || b.donVi || '') || '';
     var bUnitNorm = normalizeUnit(bUnit);
     var bPd   = b.pd   || b.phacDo || '';
     var bPdNorm = bPd.replace(/\s+/g,'').toLowerCase();
-    // Donvi hoặc bvph: chỉ lọc theo đơn vị mình, ẨN bệnh nhân đã Hoàn thành
+    // Donvi hoặc bvph: chỉ trong phạm vi quản lý, ẨN bệnh nhân đã Hoàn thành, tôn trọng bộ lọc đơn vị
     if(role === 'donvi' || role === 'bvph'){
-      var match = bUnitNorm === myUnitNorm;
-      if(!match) return false;
+      if(!_bnScope[bUnitNorm]) return false;
       if(bnStatus(b).label === 'Hoàn thành') return false;
-      return (!pdNorm || bPdNorm === pdNorm) && matchName(b);
+      return (!unit || bUnitNorm === unitNorm) && (!pdNorm || bPdNorm === pdNorm) && matchName(b);
     }
     // Admin: lọc theo dropdown
     return (!unit || bUnitNorm === unitNorm) && (!pdNorm || bPdNorm === pdNorm) && matchName(b);
