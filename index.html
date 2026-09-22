@@ -3029,7 +3029,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 
 <script>
 // ═══ PHIÊN BẢN — kiểm tra bản đang chạy ═══
-window.APP_VERSION = 'v2026.09.22-khorieng-fix-1';
+window.APP_VERSION = 'v2026.09.22-hub-donvi-1';
 console.log('%c[PM Thuốc Lao] Phiên bản: ' + window.APP_VERSION, 'background:#1d4ed8;color:white;padding:3px 8px;border-radius:4px;font-weight:bold');
 console.log('%c✓ Tồn đầu khóa cứng khi kỳ trước đã chốt (mọi ngõ)', 'color:#16a34a;font-weight:bold');
 // ============================================================
@@ -3857,6 +3857,7 @@ async function _loadUnitsTree(){
       if(currentUser){
         var _f = document.getElementById('filter-unit-bc');
         if(_f){ _fillUnitScopeSelect(_f, {includeAll:true}); if(currentUser.role!=='admin' && currentUser.unitId) _f.value = currentUser.unitId; }
+        try{ _regateHubUI(); }catch(e3){}   // cây đã về → hub hoá lại tab + dropdown đơn vị con
         if(typeof fullRender==='function') fullRender();
       }
     }catch(e2){ console.warn('[_loadUnitsTree] vẽ lại lỗi:', e2); }
@@ -5837,6 +5838,55 @@ function doLogout(){
 }
 
 // ============================================================
+// HUB HOÁ TÀI KHOẢN CẤP DƯỚI CÓ ĐƠN VỊ CON
+// Một tài khoản role='donvi' nhưng node của nó CÓ đơn vị trực thuộc
+// (vd bệnh viện đầu mối tỉnh C3.4) = "hub": được xem thêm tab Tổng quan +
+// Danh sách thuốc, và dropdown "Đơn vị" liệt kê CHÍNH NÓ (Kho chính) + các đơn vị con.
+// Gọi ở initApp và LẶP LẠI sau khi cây tổ chức nạp xong (vì lúc initApp cây có thể chưa về).
+// ============================================================
+function _regateHubUI(){
+  if(!currentUser || currentUser.role==='admin') return;
+  var role = currentUser.role;
+  var node = currentUser.unitId ? UNIT_BY_ID[currentUser.unitId] : null;
+  var isHub = !!(node && typeof _hasChildren==='function' && _hasChildren(node.id));
+  function _sh(id,s){ var e=document.getElementById(id); if(e) e.style.display = s ? '' : 'none'; }
+  if(role==='donvi'){
+    // Hub → thấy thêm Tổng quan + Danh sách thuốc (như cấp quản lý)
+    _sh('sb-tq', isHub);
+    _sh('sb-thuoc', isHub);
+  }
+  // Dropdown chọn đơn vị để nhập báo cáo
+  var bcUnit=document.getElementById('bc-unit');
+  var bcFixed=document.getElementById('bc-unit-fixed');
+  if(!bcUnit) return;
+  if(role==='donvi' && !isHub){
+    // Đơn vị lá: khóa vào chính mình
+    bcUnit.innerHTML='<option value="'+currentUser.unit+'">'+_displayUnit(currentUser.unit)+'</option>';
+    bcUnit.value=currentUser.unit; bcUnit.style.display='none';
+    if(bcFixed){ bcFixed.style.display='block'; bcFixed.textContent=_displayUnit(currentUser.unit); }
+    return;
+  }
+  // Hub (hoặc role bvph): dropdown = CHÍNH NÓ (Kho chính) + các đơn vị con
+  if(bcFixed) bcFixed.style.display='none';
+  bcUnit.style.display=''; bcUnit.disabled=false; bcUnit.style.background=''; bcUnit.style.fontWeight='';
+  if(node && typeof UNITS_TREE!=='undefined' && UNITS_TREE.length){
+    var rootPath=node.path;
+    bcUnit.innerHTML='';
+    var o0=document.createElement('option'); o0.value=currentUser.unit; o0.textContent=_displayUnit(currentUser.unit); bcUnit.appendChild(o0);
+    UNITS_TREE.filter(function(u){ return u.id!==node.id && u.path.indexOf(rootPath)===0 && u.active!==false; })
+      .sort(function(a,b){ return a.path.localeCompare(b.path,'vi'); })
+      .forEach(function(u){
+        var depth=u.path.split('/').length-rootPath.split('/').length-1;
+        var o=document.createElement('option'); o.value=u.name;
+        o.textContent=(depth>0?'    '.repeat(depth)+'└ ':'')+u.name;
+        bcUnit.appendChild(o);
+      });
+  } else {
+    try{ _fillChildUnitSelect(bcUnit); }catch(e){}
+  }
+}
+
+// ============================================================
 // INIT SAU KHI ĐĂNG NHẬP
 // ============================================================
 function initApp(){
@@ -5962,6 +6012,8 @@ function initApp(){
       _fillChildUnitSelect(bcUnit);
     }
   }
+  // Hub hoá tài khoản đầu mối tỉnh (donvi có đơn vị con): tab + dropdown đơn vị con
+  try{ _regateHubUI(); }catch(e){ console.warn('[hubUI]', e); }
 
   // Đồng bộ thuoc-month với kỳ báo cáo mặc định khi khởi động
   var _initPeriod = getSelectedPeriod();
