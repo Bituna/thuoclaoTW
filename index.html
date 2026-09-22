@@ -3029,7 +3029,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 
 <script>
 // ═══ PHIÊN BẢN — kiểm tra bản đang chạy ═══
-window.APP_VERSION = 'v2026.09.22-tennhan-1';
+window.APP_VERSION = 'v2026.09.22-khorieng-fix-1';
 console.log('%c[PM Thuốc Lao] Phiên bản: ' + window.APP_VERSION, 'background:#1d4ed8;color:white;padding:3px 8px;border-radius:4px;font-weight:bold');
 console.log('%c✓ Tồn đầu khóa cứng khi kỳ trước đã chốt (mọi ngõ)', 'color:#16a34a;font-weight:bold');
 // ============================================================
@@ -9119,7 +9119,15 @@ function renderBVPH(){
   var _t = document.getElementById('bvph-zone-title-txt'); if(_t) _t.textContent = _T.kho;
   var _ft = document.getElementById('form-bvph-title-txt'); if(_ft) _ft.textContent = _T.form1;
   var _pg = document.getElementById('bc-page-sub'); if(_pg) _pg.textContent = _T.page;
-  var filtered = _sortByDrugLot(bvphData.filter(matchPeriod));
+  // KHO RIÊNG = các dòng của CHÍNH node đang xem (unitId===root), lấy từ CẢ HAI mảng
+  // để không bị sót khi dòng của node lỡ nằm trong bcData (do phân loại lúc nạp ở node khác).
+  var _seenKR={}, _krSrc=[];
+  bvphData.filter(matchPeriod).concat(bcData.filter(matchPeriod).filter(function(r){ return r.unitId && r.unitId===_rid; }))
+    .forEach(function(r){
+      var k=(r.unitId||'')+'|'+r.drug+'|'+r.lot+'|'+(r.exp||'')+'|'+(r.bcMonth||'');
+      if(_seenKR[k]) return; _seenKR[k]=1; _krSrc.push(r);
+    });
+  var filtered = _sortByDrugLot(_krSrc);
   buildTbl(filtered,'bvph-body','bvph');
   // ── C5 (đơn vị cơ sở / kho nội trú / BV ngoài) = BẢNG CUỐI CÙNG theo mẫu dvcs ──
   // Ẩn 2 cột chỉ có ở cấp kho/tỉnh: "Nhập tỉnh khác" (ntk) và "Xuất Tổ CL" (dc2);
@@ -9150,7 +9158,8 @@ function renderBC(){
   var _leaf = _isLeafLevel(_r2);
   if(_bz) _bz.style.display = _leaf ? 'none' : 'block';
   if(_fD) _fD.style.display = _leaf ? 'none' : 'block';
-  var filtered = _sortByDrugLot(bcData.filter(matchPeriod));
+  // ĐƠN VỊ TRỰC THUỘC = mọi dòng KHÔNG phải của chính node đang xem (loại dòng kho riêng ra).
+  var filtered = _sortByDrugLot(bcData.filter(matchPeriod).filter(function(r){ return !(r.unitId && r.unitId===_rid2); }));
 
   // Cập nhật tiêu đề bảng
   var titleEl=document.getElementById('bc-table-title');
