@@ -3029,7 +3029,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 
 <script>
 // ═══ PHIÊN BẢN — kiểm tra bản đang chạy ═══
-window.APP_VERSION = 'v2026.09.22-hub-donvi-1';
+window.APP_VERSION = 'v2026.09.22-hub-donvi-2';
 console.log('%c[PM Thuốc Lao] Phiên bản: ' + window.APP_VERSION, 'background:#1d4ed8;color:white;padding:3px 8px;border-radius:4px;font-weight:bold');
 console.log('%c✓ Tồn đầu khóa cứng khi kỳ trước đã chốt (mọi ngõ)', 'color:#16a34a;font-weight:bold');
 // ============================================================
@@ -5848,12 +5848,19 @@ function _regateHubUI(){
   if(!currentUser || currentUser.role==='admin') return;
   var role = currentUser.role;
   var node = currentUser.unitId ? UNIT_BY_ID[currentUser.unitId] : null;
-  var isHub = !!(node && typeof _hasChildren==='function' && _hasChildren(node.id));
+  // Hub = tài khoản ở cấp quản lý (KHÔNG phải cấp lá dvcs/kho_noitru/bv_ngoai),
+  // vd đầu mối tỉnh C3.4 / khu vực C4.1 — kể cả khi chưa có đơn vị con.
+  var isHub = !!(node && typeof _isLeafLevel==='function' && !_isLeafLevel(node));
   function _sh(id,s){ var e=document.getElementById(id); if(e) e.style.display = s ? '' : 'none'; }
   if(role==='donvi'){
-    // Hub → thấy thêm Tổng quan + Danh sách thuốc (như cấp quản lý)
+    // Hub (đầu mối tỉnh C3/C4 có đơn vị con) → thấy ĐỦ TẤT CẢ tab như admin.
+    // Dữ liệu vẫn tự giới hạn theo phạm vi mình quản lý (bvphData/bcData/UNITS đã lọc theo path).
     _sh('sb-tq', isHub);
     _sh('sb-thuoc', isHub);
+    _sh('sb-cd', isHub);
+    _sh('sb-tk', true);
+    _sh('sb-sec-system', true);
+    _sh('sb-sec-main', true);
   }
   // Dropdown chọn đơn vị để nhập báo cáo
   var bcUnit=document.getElementById('bc-unit');
@@ -6797,7 +6804,8 @@ function renderTQ(){
   var periodLabel = tqP.type==='year' ? 'Cả năm '+tqP.year :
     mNames[parseInt(tqP.val.split('-')[1]||'0')]+'/'+tqP.year;
   var subEl = document.getElementById('tq-sub');
-  if(subEl) subEl.textContent = periodLabel+' — TP. Hải Phòng';
+  var _rnTQ = (function(){ try{ var id=_currentRootId(); var u=id&&UNIT_BY_ID[id]; return u?u.name:''; }catch(e){ return ''; } })();
+  if(subEl) subEl.textContent = periodLabel + (_rnTQ ? ' — '+_rnTQ : '');
 
   var submitted = getSubmittedUnits();
   var notSub = UNITS.filter(function(u){ return submitted.indexOf(u)===-1; });
