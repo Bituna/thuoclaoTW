@@ -3029,7 +3029,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 
 <script>
 // ═══ PHIÊN BẢN — kiểm tra bản đang chạy ═══
-window.APP_VERSION = 'v2026.09.21-mien-tq-2';
+window.APP_VERSION = 'v2026.09.22-tennhan-1';
 console.log('%c[PM Thuốc Lao] Phiên bản: ' + window.APP_VERSION, 'background:#1d4ed8;color:white;padding:3px 8px;border-radius:4px;font-weight:bold');
 console.log('%c✓ Tồn đầu khóa cứng khi kỳ trước đã chốt (mọi ngõ)', 'color:#16a34a;font-weight:bold');
 // ============================================================
@@ -3985,12 +3985,15 @@ function _khoName(node){ if(!node) return 'Kho'; return /^kho\b/i.test(node.name
 function _reportTitles(node){
   if(!node) return {kho:'Kho', form1:'Thêm dòng — Kho', sub:'', truc:'Đơn vị trực thuộc', tong:'Tổng hợp theo cấp', page:''};
   var L=_levelLabel(node.utype), K=_khoName(node), n=_subtreeIds(node.id).length-1;
+  // Nhãn cấp C (vd "C3.4") để trong ngoặc ở CUỐI tên bảng cho dễ định vị theo sơ đồ.
+  var C = (typeof capCode==='function' && node.utype) ? capCode(node.utype) : '';
+  var cs = C ? ' ('+C+')' : '';
   return {
-    kho:  K+' — báo cáo kho riêng ('+L+')',
-    form1:'Thêm dòng — '+K,
-    truc: 'Đơn vị trực thuộc '+node.name+' ('+n+' đơn vị)',
-    tong: 'Tổng hợp '+L+' — '+node.name,
-    page: K+' — báo cáo riêng | '+n+' đơn vị trực thuộc — tổng hợp '+L
+    kho:  'KHO RIÊNG · '+node.name+cs,
+    form1:'Thêm dòng — KHO RIÊNG · '+node.name,
+    truc: 'CÁC ĐƠN VỊ TRỰC THUỘC · '+node.name+' ('+n+' ĐV)',
+    tong: 'TỔNG HỢP '+L+' · '+node.name+cs,
+    page: node.name+cs+' · báo cáo kho riêng + '+n+' đơn vị trực thuộc'
   };
 }
 
@@ -15401,7 +15404,7 @@ function renderTP(){
     tbody.innerHTML='<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:12px">Chưa có đơn vị trực thuộc.</td></tr>'; return;
   }
   var _nRows = bvphData.filter(matchPeriod).length + bcData.filter(matchPeriod).filter(function(r){ var u=r.unitId&&UNIT_BY_ID[r.unitId]; return !!(u&&u.path.indexOf(rootPath)===0); }).length;
-  if(stat) stat.textContent = 'Phạm vi: '+_khoName(root)+' + '+nSub+' đơn vị trực thuộc · '+_nRows+' dòng dữ liệu trong kỳ.';
+  if(stat) stat.textContent = '= Kho riêng + Các đơn vị trực thuộc · Phạm vi: '+_khoName(root)+' + '+nSub+' ĐV · '+_nRows+' dòng dữ liệu trong kỳ.';
 
   var KEY = function(r){ return r.drug+'|'+r.lot+'|'+(r.exp||''); };
   var map = {};
@@ -15674,8 +15677,8 @@ function _renderMienBody(mienId){
   if(!u){ if(body) body.innerHTML=_aggTableBody({rows:[],tot:{}},{noXn:false}); return; }
   var agg=_aggScopeTotals(mienId);
   if(body) body.innerHTML=_aggTableBody(agg,{noXn:false});
-  if(tt) tt.textContent='🗺 Tổng hợp Miền — '+u.name;
-  if(st) st.textContent='Phạm vi: toàn '+u.name+' · '+agg.rows.length+' lô · điều chuyển trong nội miền đã triệt tiêu.';
+  if(tt) tt.textContent='🗺 TỔNG HỢP MIỀN · '+u.name+' (C2)';
+  if(st) st.textContent='Tổng hợp toàn miền (= Σ các tỉnh trong miền) · '+agg.rows.length+' lô · điều chuyển trong nội miền đã triệt tiêu.';
 }
 
 function _renderMienTQ(){
@@ -15690,8 +15693,8 @@ function _renderMienTQ(){
     if(root.utype==='kho_tq' && tz){
       var agg2=_aggScopeTotals(rid);
       var body2=document.getElementById('tq-body'); if(body2) body2.innerHTML=_aggTableBody(agg2,{noXn:true});
-      var tt2=document.getElementById('tq-title'); if(tt2) tt2.textContent='🇻🇳 Tổng hợp Toàn quốc — '+root.name;
-      var st2=document.getElementById('tq-status'); if(st2) st2.textContent='Phạm vi: toàn quốc · '+agg2.rows.length+' lô · điều chuyển giữa các miền đã triệt tiêu.';
+      var tt2=document.getElementById('tq-title'); if(tt2) tt2.textContent='🇻🇳 TỔNG HỢP TOÀN QUỐC · '+root.name+' — mẫu chuẩn (C1)';
+      var st2=document.getElementById('tq-status'); if(st2) st2.textContent='Tổng hợp cả nước (= Σ các miền) · bỏ cột Xuất nơi khác · '+agg2.rows.length+' lô · điều chuyển giữa các miền đã triệt tiêu.';
       tz.style.display='block';
     }
     // ── Bảng TỔNG HỢP MIỀN: 1 bảng + dropdown chọn miền, gồm mọi miền trong phạm vi node đang xem ──
