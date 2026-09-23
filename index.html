@@ -3033,7 +3033,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 
 <script>
 // ═══ PHIÊN BẢN — kiểm tra bản đang chạy ═══
-window.APP_VERSION = 'v2026.09.23-huongA-1';
+window.APP_VERSION = 'v2026.09.23-huongA-2';
 console.log('%c[PM Thuốc Lao] Phiên bản: ' + window.APP_VERSION, 'background:#1d4ed8;color:white;padding:3px 8px;border-radius:4px;font-weight:bold');
 console.log('%c✓ Tồn đầu khóa cứng khi kỳ trước đã chốt (mọi ngõ)', 'color:#16a34a;font-weight:bold');
 // ============================================================
@@ -9248,15 +9248,22 @@ function renderBC(){
   var _rid2 = _currentRootId(); var _r2 = _rid2 ? UNIT_BY_ID[_rid2] : null;
   var _bz = document.getElementById('bc-zone'), _fD = document.getElementById('form-donvi');
   var _leaf = _isLeafLevel(_r2);
-  // Hướng A: cấp hub → bảng "đổ phẳng" thu gọn sau nút (đã có "Chia theo con"); cấp lá → ẩn hẳn.
+  // Con là ĐƠN VỊ TỔNG HỢP (miền/tỉnh) → có "Chia theo con" → bảng "đổ phẳng" thu gọn sau nút.
+  // Con toàn là CƠ SỞ (lá) → KHÔNG có "chia theo con" → hiện thẳng bảng "đơn vị trực thuộc".
+  var _aggKids = (UNITS_TREE||[]).some(function(u){ return u.parent_id===_rid2 && u.active!==false && !_isLeafLevel(u); });
   var _tog = document.getElementById('bc-flat-toggle');
   if(_leaf){
     if(_bz) _bz.style.display='none';
     if(_tog) _tog.style.display='none';
-  } else {
+  } else if(_aggKids){
+    // Có chia theo con (Miền/Tỉnh) → thu gọn bảng đổ phẳng sau nút
     if(_tog) _tog.style.display='';
     if(_bz) _bz.style.display = window._bcFlatOpen ? 'block' : 'none';
     var _chev0=document.getElementById('bc-flat-chev'); if(_chev0) _chev0.textContent = window._bcFlatOpen ? '▾' : '▸';
+  } else {
+    // Con toàn cơ sở → hiện thẳng bảng đơn vị trực thuộc, ẩn nút thu gọn
+    if(_tog) _tog.style.display='none';
+    if(_bz) _bz.style.display='block';
   }
   if(_fD) _fD.style.display = _leaf ? 'none' : 'block';
   // ĐƠN VỊ TRỰC THUỘC = mọi dòng KHÔNG phải của chính node đang xem (loại dòng kho riêng ra).
@@ -15716,9 +15723,11 @@ function renderChildBreakdown(rootId){
   host.innerHTML='';
   var root=rootId?UNIT_BY_ID[rootId]:null; if(!root) return;
   // Con TRỰC TIẾP là cấp tổng hợp (không phải lá): Miền→từng Tỉnh, Tỉnh→từng Khu vực, TW→từng Miền.
-  var kids=(UNITS_TREE||[]).filter(function(u){ return u.parent_id===rootId && u.active!==false; })
+  // Chỉ "chia theo con" khi con là ĐƠN VỊ TỔNG HỢP (Miền/Tỉnh/Khu vực) — vài khối, dễ nhìn.
+  // Con là CƠ SỞ (cấp lá) thì KHÔNG chia (sẽ rối mắt) — xem bằng bảng "đơn vị trực thuộc" + chọn đơn vị.
+  var kids=(UNITS_TREE||[]).filter(function(u){ return u.parent_id===rootId && u.active!==false && !_isLeafLevel(u); })
     .sort(function(a,b){ return String(a.name).localeCompare(String(b.name),'vi'); });
-  // Hướng A: chỉ hiện khi có TỪ 2 đơn vị con trở lên (1 con thì trùng với bảng Tổng hợp → ẩn).
+  // Chỉ hiện khi có TỪ 2 đơn vị con trở lên (1 con thì trùng với bảng Tổng hợp → ẩn).
   if(kids.length<=1) return;
   // Tiêu đề theo cấp con (nếu các con cùng cấp): "Chia theo Miền/Tỉnh/Cơ sở (N)".
   var _lbls={}; kids.forEach(function(u){ _lbls[_levelLabel(u.utype)]=1; });
