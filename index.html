@@ -1401,7 +1401,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
               <th class="hdr-end" rowspan="2" style="min-width:85px">Tồn cuối</th>
             </tr>
             <tr>
-              <th class="hdr-in-sub" title="Nhập từ tuyến trên (TW→Miền→Tỉnh) — của kho cấp này" style="min-width:72px">Nhập tuyến trên</th>
+              <th class="hdr-in-sub" id="tp-th-tuyentren" title="Nhập từ tuyến trên (TW→Miền→Tỉnh) — của kho cấp này" style="min-width:72px">Nhập tuyến trên</th>
               <th class="hdr-in-sub" title="Nhập điều chuyển ngang cấp từ nơi khác — của kho cấp này" style="min-width:78px">Nhập nguồn khác</th>
               <th class="hdr-in-sub" style="min-width:80px">Tổng nhập</th>
               <th class="hdr-out-sub" title="Sử dụng: kho cấp này + toàn bộ đơn vị trực thuộc (tự động)" style="min-width:80px">Sử dụng</th>
@@ -1663,6 +1663,10 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
       </div>
     </div>
 
+    <!-- Hướng A: ở cấp hub, bảng đổ phẳng được thu gọn sau nút này (admin/TW mở khi cần) -->
+    <div id="bc-flat-toggle" class="no-print" style="display:none;cursor:pointer;margin:6px 0;padding:9px 12px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;font-size:12.5px;font-weight:600;color:#334155" onclick="_toggleBcFlat()">
+      <span id="bc-flat-chev">▸</span> 📋 Xem toàn bộ dòng chi tiết (đổ phẳng)
+    </div>
     <div id="bc-zone">
       <div class="tbl-hd-bar">
         <h3 id="bc-table-title">Báo cáo tổng hợp — 22 đơn vị tuyến</h3>
@@ -3029,7 +3033,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 
 <script>
 // ═══ PHIÊN BẢN — kiểm tra bản đang chạy ═══
-window.APP_VERSION = 'v2026.09.22-acct-scope-1';
+window.APP_VERSION = 'v2026.09.23-huongA-1';
 console.log('%c[PM Thuốc Lao] Phiên bản: ' + window.APP_VERSION, 'background:#1d4ed8;color:white;padding:3px 8px;border-radius:4px;font-weight:bold');
 console.log('%c✓ Tồn đầu khóa cứng khi kỳ trước đã chốt (mọi ngõ)', 'color:#16a34a;font-weight:bold');
 // ============================================================
@@ -9192,8 +9196,11 @@ function renderBVPH(){
   _syncBVPHDc2FromUnits();
   var _rid = _currentRootId(); var _r = _rid ? UNIT_BY_ID[_rid] : null;
   var _z = document.getElementById('bvph-zone'), _fB = document.getElementById('form-bvph');
-  if(_z) _z.style.display = _r ? 'block' : 'none';
-  if(_fB) _fB.style.display = _r ? 'block' : 'none';
+  // Hướng A: cấp Toàn quốc (C1) & Miền (C2) KHÔNG có kho thật → ẩn bảng KHO RIÊNG + form nhập kho.
+  var _noOwnKho = !!(_r && (_r.utype==='kho_tq' || _r.utype==='kho_mien'));
+  if(_z) _z.style.display = (_r && !_noOwnKho) ? 'block' : 'none';
+  if(_fB) _fB.style.display = (_r && !_noOwnKho) ? 'block' : 'none';
+  if(_noOwnKho){ try{ updateLockedUI(); }catch(e){} return; }   // không có kho riêng → dừng, khỏi vẽ bảng
   var _T = _reportTitles(_r);
   var _t = document.getElementById('bvph-zone-title-txt'); if(_t) _t.textContent = _T.kho;
   var _ft = document.getElementById('form-bvph-title-txt'); if(_ft) _ft.textContent = _T.form1;
@@ -9227,6 +9234,12 @@ function renderBVPH(){
   try{ _updateOpenInputState('bvph'); }catch(e){}
   try{renderCapPhat();}catch(e){}
 }
+window._bcFlatOpen = false;   // trạng thái mở/gấp bảng đổ phẳng (mặc định gấp ở cấp hub)
+function _toggleBcFlat(){
+  window._bcFlatOpen = !window._bcFlatOpen;
+  var _bz=document.getElementById('bc-zone'); if(_bz) _bz.style.display = window._bcFlatOpen ? 'block' : 'none';
+  var _chev=document.getElementById('bc-flat-chev'); if(_chev) _chev.textContent = window._bcFlatOpen ? '▾' : '▸';
+}
 function renderBC(){
   var selUnit = document.getElementById('filter-unit-bc');
   var unitVal = selUnit ? selUnit.value : '__all__';
@@ -9235,7 +9248,16 @@ function renderBC(){
   var _rid2 = _currentRootId(); var _r2 = _rid2 ? UNIT_BY_ID[_rid2] : null;
   var _bz = document.getElementById('bc-zone'), _fD = document.getElementById('form-donvi');
   var _leaf = _isLeafLevel(_r2);
-  if(_bz) _bz.style.display = _leaf ? 'none' : 'block';
+  // Hướng A: cấp hub → bảng "đổ phẳng" thu gọn sau nút (đã có "Chia theo con"); cấp lá → ẩn hẳn.
+  var _tog = document.getElementById('bc-flat-toggle');
+  if(_leaf){
+    if(_bz) _bz.style.display='none';
+    if(_tog) _tog.style.display='none';
+  } else {
+    if(_tog) _tog.style.display='';
+    if(_bz) _bz.style.display = window._bcFlatOpen ? 'block' : 'none';
+    var _chev0=document.getElementById('bc-flat-chev'); if(_chev0) _chev0.textContent = window._bcFlatOpen ? '▾' : '▸';
+  }
   if(_fD) _fD.style.display = _leaf ? 'none' : 'block';
   // ĐƠN VỊ TRỰC THUỘC = mọi dòng KHÔNG phải của chính node đang xem (loại dòng kho riêng ra).
   var filtered = _sortByDrugLot(bcData.filter(matchPeriod).filter(function(r){ return !(r.unitId && r.unitId===_rid2); }));
@@ -11904,6 +11926,8 @@ function updateLockedUI(){
       if(fB){ fB.style.opacity='1'; fB.style.pointerEvents='auto'; fB.style.display = locked ? 'none' : (role==='bvph' ? 'block' : 'none'); }
       if(fD){ fD.style.opacity='1'; fD.style.pointerEvents='auto'; fD.style.display = locked ? 'none' : (role==='donvi' ? 'block' : 'none'); }
   }
+  // Hướng A: cấp Toàn quốc/Miền không có kho riêng → luôn ẩn form nhập kho (form-bvph).
+  try{ var _rk=_currentRootId(); var _ru=_rk&&UNIT_BY_ID[_rk]; if(_ru&&(_ru.utype==='kho_tq'||_ru.utype==='kho_mien')&&fB){ fB.style.display='none'; } }catch(e){}
 
   // Nút Xóa dữ liệu — ẩn hoàn toàn khi đã lưu
   document.querySelectorAll('.del-dd').forEach(function(el){
@@ -15487,6 +15511,9 @@ function renderTP(){
   var lvl = _levelLabel(root.utype);
   var nSub = _subtreeIds(rootId).length - 1;
   if(ttl) ttl.textContent = '🏙 '+_reportTitles(root).tong;
+  // Cột nhập đầu kỳ: cấp Toàn quốc (C1) không có tuyến trên → hàng vào là "Mua về"; các cấp dưới giữ "Nhập tuyến trên".
+  var _thTT=document.getElementById('tp-th-tuyentren');
+  if(_thTT){ var _isTop=(root.utype==='kho_tq'); _thTT.textContent=_isTop?'Mua về':'Nhập tuyến trên'; _thTT.title=_isTop?'Mua/nhập khẩu từ nhà cung cấp (cấp toàn quốc không có tuyến trên)':'Nhập từ tuyến trên (TW→Miền→Tỉnh)'; }
   if(!_hasChildren(rootId)){
     if(stat) stat.textContent = 'Phạm vi: '+_khoName(root)+' — chưa có đơn vị trực thuộc (tạo ở Quản lý tài khoản).';
     tbody.innerHTML='<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:12px">Chưa có đơn vị trực thuộc.</td></tr>'; return;
@@ -15689,11 +15716,16 @@ function renderChildBreakdown(rootId){
   host.innerHTML='';
   var root=rootId?UNIT_BY_ID[rootId]:null; if(!root) return;
   // Con TRỰC TIẾP là cấp tổng hợp (không phải lá): Miền→từng Tỉnh, Tỉnh→từng Khu vực, TW→từng Miền.
-  var kids=(UNITS_TREE||[]).filter(function(u){ return u.parent_id===rootId && u.active!==false && !_isLeafLevel(u) && _hasChildren(u.id); })
+  var kids=(UNITS_TREE||[]).filter(function(u){ return u.parent_id===rootId && u.active!==false; })
     .sort(function(a,b){ return String(a.name).localeCompare(String(b.name),'vi'); });
-  if(!kids.length) return;   // con toàn là cơ sở → đã nằm ở bảng đơn vị
+  // Hướng A: chỉ hiện khi có TỪ 2 đơn vị con trở lên (1 con thì trùng với bảng Tổng hợp → ẩn).
+  if(kids.length<=1) return;
+  // Tiêu đề theo cấp con (nếu các con cùng cấp): "Chia theo Miền/Tỉnh/Cơ sở (N)".
+  var _lbls={}; kids.forEach(function(u){ _lbls[_levelLabel(u.utype)]=1; });
+  var _lblKeys=Object.keys(_lbls);
+  var _childLbl = (_lblKeys.length===1) ? _lblKeys[0] : 'đơn vị con';
   var h='<div class="tpc-wrap" style="margin-top:14px">'
-       +'<div style="font-size:13px;font-weight:700;color:#243040;margin-bottom:8px">📊 Tổng hợp theo từng cấp con trực tiếp ('+kids.length+')</div>';
+       +'<div style="font-size:13px;font-weight:700;color:#243040;margin-bottom:8px">📊 Chia theo '+_childLbl+' ('+kids.length+') — bấm để xem chi tiết</div>';
   kids.forEach(function(u, idx){
     var agg=_aggScopeTotals(u.id), cid='tpc-body-'+idx;
     h+='<div style="border:1px solid #E9EEF3;border-radius:10px;margin-bottom:8px;overflow:hidden">'
@@ -15773,6 +15805,10 @@ function _renderMienTQ(){
   var mz=document.getElementById('mien-zone'), tz=document.getElementById('tq-zone');
   if(mz) mz.style.display='none';
   if(tz) tz.style.display='none';
+  // Hướng A: bỏ 2 bảng dropdown "Tổng hợp Miền" và "Toàn quốc mẫu chuẩn" (đã có bảng Tổng hợp
+  // của cấp + "Chia theo con" thay thế, tránh trùng lặp). Giữ hàm để đảo lại được nếu cần.
+  return;
+  /* eslint-disable no-unreachable */
   var rid=(typeof _currentRootId==='function')?_currentRootId():null;
   var root=rid?UNIT_BY_ID[rid]:null;
   if(!root) return;
