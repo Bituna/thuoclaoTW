@@ -3033,7 +3033,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 
 <script>
 // ═══ PHIÊN BẢN — kiểm tra bản đang chạy ═══
-window.APP_VERSION = 'v2026.09.23-huongA-2';
+window.APP_VERSION = 'v2026.09.23-khorieng-input-1';
 console.log('%c[PM Thuốc Lao] Phiên bản: ' + window.APP_VERSION, 'background:#1d4ed8;color:white;padding:3px 8px;border-radius:4px;font-weight:bold');
 console.log('%c✓ Tồn đầu khóa cứng khi kỳ trước đã chốt (mọi ngõ)', 'color:#16a34a;font-weight:bold');
 // ============================================================
@@ -6121,7 +6121,12 @@ function nav(page,el){
 // PHÂN QUYỀN
 // ============================================================
 function isAdmin(){return !!(currentUser&&currentUser.role==='admin');}
-function canEditBVPH(){return currentUser&&(currentUser.role==='admin'||currentUser.role==='bvph');}
+function canEditBVPH(){
+  if(!currentUser) return false;
+  if(currentUser.role==='admin'||currentUser.role==='bvph') return true;
+  // Tài khoản đơn vị đang xem CHÍNH kho riêng của mình → được nhập/sửa.
+  try{ var rid=_currentRootId(); return !!(currentUser.unitId && rid===currentUser.unitId); }catch(e){ return false; }
+}
 function canEditUnit(unit){
   if(isAdmin()) return true;
   if(!currentUser) return false;
@@ -11933,8 +11938,17 @@ function updateLockedUI(){
       if(fB){ fB.style.opacity='1'; fB.style.pointerEvents='auto'; fB.style.display = locked ? 'none' : (role==='bvph' ? 'block' : 'none'); }
       if(fD){ fD.style.opacity='1'; fD.style.pointerEvents='auto'; fD.style.display = locked ? 'none' : (role==='donvi' ? 'block' : 'none'); }
   }
-  // Hướng A: cấp Toàn quốc/Miền không có kho riêng → luôn ẩn form nhập kho (form-bvph).
-  try{ var _rk=_currentRootId(); var _ru=_rk&&UNIT_BY_ID[_rk]; if(_ru&&(_ru.utype==='kho_tq'||_ru.utype==='kho_mien')&&fB){ fB.style.display='none'; } }catch(e){}
+  // KHO RIÊNG có Ô NHẬP (form-bvph "Thêm dòng — Kho riêng", giống thuoclao2):
+  // hiện khi cấp đang xem CÓ kho riêng (không phải TW/Miền) VÀ người dùng được sửa đơn vị đó
+  // (admin xem đơn vị bất kỳ, hoặc chính tài khoản đơn vị đó). Ẩn ở TW/Miền và khi kỳ đã khóa.
+  try{
+    var _rk=_currentRootId(); var _ru=_rk&&UNIT_BY_ID[_rk];
+    // Có kho riêng = bệnh viện đầu mối (không phải TW/Miền, cũng không phải cấp lá cơ sở).
+    var _hasKho = !!(_ru && !_isLeafLevel(_ru) && _ru.utype!=='kho_tq' && _ru.utype!=='kho_mien');
+    var _canEditRoot = (role==='admin') || (role==='bvph') || (currentUser.unitId && currentUser.unitId===_rk);
+    var _showFB = (!locked && _hasKho && _canEditRoot);
+    if(fB){ fB.style.display = _showFB ? 'block' : 'none'; if(_showFB){ fB.style.opacity='1'; fB.style.pointerEvents='auto'; } }
+  }catch(e){}
 
   // Nút Xóa dữ liệu — ẩn hoàn toàn khi đã lưu
   document.querySelectorAll('.del-dd').forEach(function(el){
