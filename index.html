@@ -3074,6 +3074,14 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
       được bù lại trường `unit` để code cũ đọc tiếp.
    7) Tự thử lại 1 lần khi lỗi mạng / 502-503-504 (chỉ request đọc).
    8) Vượt trần an toàn → báo rõ (không cắt im lặng).
+   v4:
+   9) SỬA LỖI MẤT/TRÙNG DÒNG: order=drug,lot KHÔNG duy nhất (nhiều đơn vị
+      cùng thuốc+lô) → các trang tải song song bị xếp lệch nhau, mỗi lần tải
+      kỳ ~14k dòng thì ~500-700 dòng bị NHÂN ĐÔI và đúng chừng ấy dòng bị
+      MẤT (mỗi lần một khác). Nay luôn thêm id làm khóa phụ: order=drug,lot,id.
+  10) Nhanh ~3 lần: trang đầu xin luôn tổng số dòng (Prefer: count=exact) →
+      bỏ 1 lượt "đếm" chạy nối tiếp; các trang còn lại tải 1 đợt (PAGE_CONC)
+      thay vì từng đợt 6; cỡ trang tự theo max-rows thật của máy chủ.
    =================================================================== */
 (function () {
   if (window.__sbPatch) return;
@@ -3083,7 +3091,8 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
   var PAGE_MAX = 1000;      // trần max-rows của PostgREST
   var TTL      = 8000;      // ms — tuổi thọ cache cho request chỉ-đọc
   var HARD_CAP = 500000;    // chặn an toàn, tối đa số dòng gộp
-  var CONC     = 6;         // số trang / mảnh tải song song mỗi đợt
+  var CONC     = 6;         // số mảnh in.(...) tải song song mỗi đợt
+  var PAGE_CONC = 16;       // số TRANG tải song song mỗi đợt (14k dòng = 1 đợt)
   var URL_MAX  = 6000;      // URL dài hơn → tách danh sách in.(...)
   var IN_CHUNK = 100;       // số phần tử mỗi mảnh in.(...)
 
@@ -3156,12 +3165,22 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
     return did;
   }
 
-  // ── (4) Phân trang ổn định ──
+  // ── (4)+(9) Phân trang ổn định ──
+  // Thứ tự giữa các trang chỉ ổn định khi khóa sắp xếp là DUY NHẤT. order=drug,lot
+  // không duy nhất → mỗi trang (một truy vấn riêng) có thể xếp các dòng hoà nhau khác
+  // nhau → trùng/sót dòng. Luôn thêm id làm khóa phụ cuối cùng.
   function ensureOrder(u) {
     var sp = splitUrl(u);
     if (!ID_TABLES.test(sp.base)) return u;
-    if (sp.ps.some(function (p) { return p.indexOf('order=') === 0 || /^(limit|offset)=/.test(p); })) return u;
-    return withQ(u, 'order=id');
+    if (sp.ps.some(function (p) { return /^(limit|offset)=/.test(p); })) return u;
+    var oi = -1;
+    sp.ps.forEach(function (p, i) { if (p.indexOf('order=') === 0) oi = i; });
+    if (oi < 0) return withQ(u, 'order=id');
+    var keys = sp.ps[oi].slice(6).split(',');
+    var hasId = keys.some(function (k) { return k.split('.')[0] === 'id'; });
+    if (hasId) return u;
+    sp.ps[oi] = sp.ps[oi] + ',id';
+    return joinUrl(sp.base, sp.ps);
   }
 
   // ── (5) Tách danh sách in.(...) quá dài ──
@@ -3273,34 +3292,55 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
     var selfLimited = /[?&](limit|offset)=/.test(url) || !!(h0.Range || h0.range);
     if (!selfLimited && !isRPC(url)) url = ensureOrder(url);
 
-    var res = await net(url, init, true);
+    // (10) Bảng lớn: xin luôn TỔNG SỐ DÒNG ngay ở trang đầu → khỏi chạy riêng 1 lượt đếm.
+    var wantCount = !selfLimited && !isRPC(url) && ID_TABLES.test(splitUrl(url).base);
+    var init1 = init;
+    if (wantCount) {
+      var hp = Object.assign({}, h0);
+      var pv = hp.Prefer || hp.prefer || '';
+      if (!/count=/.test(pv)) {
+        delete hp.prefer;
+        hp.Prefer = pv ? (pv + ',count=exact') : 'count=exact';
+        init1 = Object.assign({}, init, { headers: hp });
+      }
+    }
+
+    var res = await net(url, init1, true);
     if (!res.ok || selfLimited) return res;
 
     var first;
     try { first = await res.clone().json(); } catch (e) { return res; }
+    if (!Array.isArray(first) || !first.length) return res;
 
-    // Chưa chạm trần -> dữ liệu đã đủ, trả nguyên response gốc.
-    if (!Array.isArray(first) || first.length < PAGE_MAX) return res;
+    var total = NaN;
+    if (wantCount) total = parseInt((res.headers.get('content-range') || '').split('/')[1], 10);
+
+    // Đã đủ dữ liệu → trả nguyên response gốc.
+    if (isFinite(total) ? first.length >= total : first.length < PAGE_MAX) return res;
 
     S.paged++;
     var all = first.slice();
+    // Cỡ trang = số dòng máy chủ thực trả ở trang đầu (= max-rows thật, mặc định 1000).
+    // Nếu sau này nâng max-rows trên Supabase thì tự dùng trang lớn hơn, ít request hơn.
+    var step = first.length;
 
-    var total = NaN;
-    try {
-      var cr = await net(withQ(url, 'limit=1'), Object.assign({}, init, {
-        headers: Object.assign({}, h0, { Prefer: 'count=exact' })
-      }), true);
-      total = parseInt((cr.headers.get('content-range') || '').split('/')[1], 10);
-      await cr.text();
-    } catch (e) { /* bỏ qua, sẽ tải tuần tự */ }
+    if (!isFinite(total)) {
+      try {
+        var cr = await net(withQ(url, 'limit=1'), Object.assign({}, init, {
+          headers: Object.assign({}, h0, { Prefer: 'count=exact' })
+        }), true);
+        total = parseInt((cr.headers.get('content-range') || '').split('/')[1], 10);
+        await cr.text();
+      } catch (e) { /* bỏ qua, sẽ tải tuần tự */ }
+    }
 
-    if (isFinite(total) && total > PAGE_MAX) {
+    if (isFinite(total) && total > step) {
       if (total > cap && cap === HARD_CAP) warnCap(url);
       var offs = [];
-      for (var o = PAGE_MAX; o < Math.min(total, cap); o += PAGE_MAX) offs.push(o);
-      for (var i = 0; i < offs.length; i += CONC) {
-        var got = await Promise.all(offs.slice(i, i + CONC).map(function (off) {
-          return pageReq(url, init, h0, off, PAGE_MAX)
+      for (var o = step; o < Math.min(total, cap); o += step) offs.push(o);
+      for (var i = 0; i < offs.length; i += PAGE_CONC) {
+        var got = await Promise.all(offs.slice(i, i + PAGE_CONC).map(function (off) {
+          return pageReq(url, init, h0, off, step)
             .then(function (x) { return x.ok ? x.json() : Promise.reject(new Error('HTTP ' + x.status)); });
         }));
         got.forEach(function (g) {
@@ -3309,13 +3349,13 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
       }
     } else {
       while (all.length < cap) {
-        var r2 = await pageReq(url, init, h0, all.length, PAGE_MAX);
+        var r2 = await pageReq(url, init, h0, all.length, step);
         if (!r2.ok) throw new Error('HTTP ' + r2.status);
         var chunk = await r2.json();
         if (!Array.isArray(chunk) || !chunk.length) break;
         all = all.concat(chunk);
         S.extraPages++;
-        if (chunk.length < PAGE_MAX) break;
+        if (chunk.length < step) break;
       }
       if (all.length >= HARD_CAP) warnCap(url);
     }
@@ -9640,7 +9680,12 @@ window._bcPickUnit = '';
 function _onBcUnitPick(){
   var s = document.getElementById('bc-unit-pick');
   window._bcPickUnit = s ? s.value : '';
+  // Đổi đơn vị chỉ ảnh hưởng bảng dòng chi tiết → KHÔNG vẽ lại các bảng tổng hợp
+  // (renderTQ / renderDrugTable / renderTP / renderCapPhat ~1,5s ở cấp toàn quốc).
+  var _prev = window._inFullRender;
+  window._inFullRender = true; window._bcPickOnly = true;
   try{ renderBC(); }catch(e){ console.warn('[bc-unit-pick]', e); }
+  finally{ window._inFullRender = _prev; window._bcPickOnly = false; }
 }
 // Đổ danh sách đơn vị TRONG NHÁNH đang xem có dòng dữ liệu ở kỳ này (sắp theo cây).
 function _fillBcUnitPick(rootNode, cntByUnit){
@@ -9729,7 +9774,7 @@ function renderBC(){
   if(!window._inFullRender){ renderTQ(); renderDrugTable(); renderTP(); }
   updateLockedUI();
   try{ _updateOpenInputState('other'); }catch(e){}
-  try{renderCapPhat();}catch(e){}
+  if(!window._bcPickOnly){ try{renderCapPhat();}catch(e){} }
 }
 
 // ============================================================
