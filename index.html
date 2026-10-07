@@ -3047,6 +3047,159 @@ console.log('%c✓ Tồn đầu khóa cứng khi kỳ trước đã chốt (mọ
 var SUPA_URL = 'https://zmdhekbwgxxucluayyrg.supabase.co';
 var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InptZGhla2J3Z3h4dWNsdWF5eXJnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3MjM0MjgsImV4cCI6MjEwNTI5OTQyOH0.AkLooSU5hDh8OXAEbnqRMgBly4GAQRVadd27alrGGM4';
 
+/* ===================================================================
+   VÁ SUPABASE FETCH  —  v2
+   Dán khối này NGAY SAU dòng khai báo SUPA_URL / SUPA_KEY.
+   Không cần sửa bất kỳ lời gọi fetch() nào khác trong file.
+
+   Giải quyết 2 việc:
+   1) PostgREST cắt mọi truy vấn ở 1000 dòng -> tự động tải tiếp
+      các trang còn lại (song song) rồi gộp lại trước khi trả về.
+   2) Cùng một URL bị gọi lại nhiều lần trong một đợt tải
+      -> gộp chung 1 request (dedupe) + cache ngắn 8 giây.
+
+   An toàn:
+   - Chỉ can thiệp request tới SUPA_URL.
+   - Chỉ cache/gộp request CHỈ-ĐỌC (GET, và rpc/list_accounts).
+     Mọi request ghi (POST/PATCH/PUT/DELETE, verify_login...) đi thẳng
+     và xoá sạch cache ngay.
+   - Truy vấn đã tự giới hạn (có limit=/offset= hoặc header Range)
+     được giữ nguyên, không đụng tới.
+   - Truy vấn trả < 1000 dòng: trả về y hệt như cũ, không tốn thêm
+     request nào.
+   =================================================================== */
+(function () {
+  if (window.__sbPatch) return;
+
+  var _native = window.fetch.bind(window);
+
+  var PAGE_MAX = 1000;      // trần max-rows của PostgREST
+  var TTL      = 8000;      // ms — tuổi thọ cache cho request chỉ-đọc
+  var HARD_CAP = 200000;    // chặn an toàn, tối đa số dòng gộp
+  var CONC     = 5;         // số trang tải song song mỗi đợt
+
+  // RPC chỉ-đọc, được phép cache. Thêm tên khác vào đây nếu cần.
+  var READ_RPC = /\/rpc\/(list_accounts)\b/;
+
+  var S = (window.__sbPatch = {
+    v: 2, dedup: 0, cacheHit: 0, paged: 0, extraPages: 0, netCalls: 0
+  });
+
+  var inflight = new Map();
+  var cache    = new Map();
+
+  function isSB(u)  { return typeof u === 'string' && u.indexOf(SUPA_URL) === 0; }
+  function isRPC(u) { return u.indexOf('/rest/v1/rpc/') > -1; }
+  function withQ(u, extra) { return u + (u.indexOf('?') > -1 ? '&' : '?') + extra; }
+
+  function selfLimited(u, init) {
+    if (/[?&](limit|offset)=/.test(u)) return true;
+    var h = (init && init.headers) || {};
+    return !!(h.Range || h.range);
+  }
+
+  function net(u, i) { S.netCalls++; return _native(u, i); }
+
+  function pageReq(url, init, headers, off) {
+    if (isRPC(url)) {
+      return net(withQ(url, 'limit=' + PAGE_MAX + '&offset=' + off), init);
+    }
+    return net(url, Object.assign({}, init, {
+      headers: Object.assign({}, headers, {
+        'Range-Unit': 'items',
+        'Range': off + '-' + (off + PAGE_MAX - 1)
+      })
+    }));
+  }
+
+  async function fullFetch(url, init) {
+    var res = await net(url, init);
+    if (!res.ok || selfLimited(url, init)) return res;
+
+    var first;
+    try { first = await res.clone().json(); } catch (e) { return res; }
+
+    // Chưa chạm trần -> dữ liệu đã đủ, trả nguyên response gốc.
+    if (!Array.isArray(first) || first.length < PAGE_MAX) return res;
+
+    S.paged++;
+    var h = (init && init.headers) || {};
+    var all = first.slice();
+
+    // 1 request đếm tổng (rẻ) để biết trước số trang -> tải song song.
+    var total = NaN;
+    try {
+      var cr = await net(withQ(url, 'limit=1'), Object.assign({}, init, {
+        headers: Object.assign({}, h, { Prefer: 'count=exact' })
+      }));
+      total = parseInt((cr.headers.get('content-range') || '').split('/')[1], 10);
+      await cr.text();
+    } catch (e) { /* bỏ qua, sẽ tải tuần tự */ }
+
+    if (isFinite(total) && total > PAGE_MAX) {
+      var offs = [];
+      for (var o = PAGE_MAX; o < Math.min(total, HARD_CAP); o += PAGE_MAX) offs.push(o);
+      for (var i = 0; i < offs.length; i += CONC) {
+        var got = await Promise.all(offs.slice(i, i + CONC).map(function (off) {
+          return pageReq(url, init, h, off)
+            .then(function (x) { return x.ok ? x.json() : []; })
+            .catch(function () { return []; });
+        }));
+        got.forEach(function (g) {
+          if (Array.isArray(g) && g.length) { all = all.concat(g); S.extraPages++; }
+        });
+      }
+    } else {
+      // Không đếm được tổng -> lùi về tải tuần tự cho tới khi hết.
+      while (all.length < HARD_CAP) {
+        var r2 = await pageReq(url, init, h, all.length);
+        if (!r2.ok) break;
+        var chunk;
+        try { chunk = await r2.json(); } catch (e) { break; }
+        if (!Array.isArray(chunk) || !chunk.length) break;
+        all = all.concat(chunk);
+        S.extraPages++;
+        if (chunk.length < PAGE_MAX) break;
+      }
+    }
+
+    return new Response(JSON.stringify(all), {
+      status: 200, statusText: 'OK',
+      headers: {
+        'Content-Type' : 'application/json; charset=utf-8',
+        'Content-Range': '0-' + (all.length - 1) + '/' + all.length
+      }
+    });
+  }
+
+  window.fetch = function (input, init) {
+    var url    = (typeof input === 'string') ? input : (input && input.url);
+    var method = ((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+
+    if (!isSB(url)) return _native(input, init);
+
+    var readOnly = (method === 'GET') || (method === 'POST' && READ_RPC.test(url));
+
+    // Request ghi: đi thẳng, đồng thời xoá cache để lần đọc sau luôn mới.
+    if (!readOnly) { cache.clear(); inflight.clear(); return _native(input, init); }
+
+    var key = method + ' ' + url;
+    var hit = cache.get(key);
+    if (hit && Date.now() - hit.t < TTL) { S.cacheHit++; return Promise.resolve(hit.r.clone()); }
+    if (inflight.has(key)) { S.dedup++; return inflight.get(key).then(function (r) { return r.clone(); }); }
+
+    var p = fullFetch(url, init).then(function (r) {
+      inflight.delete(key);
+      if (r.ok) cache.set(key, { t: Date.now(), r: r.clone() });
+      return r;
+    }, function (e) { inflight.delete(key); throw e; });
+
+    inflight.set(key, p);
+    return p.then(function (r) { return r.clone(); });
+  };
+})();
+
+
 var _supaHdr = {
   'apikey': SUPA_KEY,
   'Authorization': 'Bearer ' + SUPA_KEY,
