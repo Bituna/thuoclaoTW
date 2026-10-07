@@ -9677,6 +9677,14 @@ function renderBVPH(){
 //  '__all__' = gộp toàn bộ đơn vị trong nhánh (hành vi đổ phẳng cũ, vẫn giữ lại)
 //  <unit id> = chỉ dòng của đúng đơn vị đó
 window._bcPickUnit = '';
+function _onBcScopeChange(){
+  // Đổi đơn vị ở "Chọn đơn vị" (Chia theo) → vẽ lại dropdown + bảng dòng chi tiết theo phạm vi mới.
+  if(!document.getElementById('bc-unit-pick')) return;
+  var _prev = window._inFullRender;
+  window._inFullRender = true; window._bcPickOnly = true;
+  try{ renderBC(); }catch(e){ console.warn('[bc-scope]', e); }
+  finally{ window._inFullRender = _prev; window._bcPickOnly = false; }
+}
 function _onBcUnitPick(){
   var s = document.getElementById('bc-unit-pick');
   window._bcPickUnit = s ? s.value : '';
@@ -9688,21 +9696,34 @@ function _onBcUnitPick(){
   finally{ window._inFullRender = _prev; window._bcPickOnly = false; }
 }
 // Đổ danh sách đơn vị TRONG NHÁNH đang xem có dòng dữ liệu ở kỳ này (sắp theo cây).
+// Phạm vi của "Dòng chi tiết": nếu ô "Chọn đơn vị" của bảng Chia theo đang chọn một đơn vị
+// con (vd Hà Nội) thì chỉ lấy đơn vị đó + các đơn vị trực thuộc nó; không thì lấy cả nhánh đang xem.
+function _bcScopeNode(rootNode){
+  var sid = window._TPC && window._TPC.sel;
+  var sn = sid ? UNIT_BY_ID[sid] : null;
+  if(sn && rootNode && sn.id!==rootNode.id && _pathIn(sn.path, rootNode.path)) return sn;
+  return rootNode;
+}
 function _fillBcUnitPick(rootNode, cntByUnit){
   var sel = document.getElementById('bc-unit-pick'); if(!sel) return;
-  var rootPath = rootNode ? String(rootNode.path||'') : '';
+  var scope = _bcScopeNode(rootNode);
+  var rootPath = scope ? String(scope.path||'') : '';
+  var _selfIn = scope && rootNode && scope.id!==rootNode.id;   // đơn vị đang chọn cũng có kho riêng
   var nodes = (UNITS_TREE||[]).filter(function(u){
-    return u.id !== (rootNode||{}).id && cntByUnit[u.id] && (!rootPath || _pathIn(u.path, rootPath));
+    if(!cntByUnit[u.id]) return false;
+    if(u.id === (scope||{}).id) return !!_selfIn;
+    return !rootPath || _pathIn(u.path, rootPath);
   }).sort(function(a,b){ return String(a.path).localeCompare(String(b.path),'vi'); });
   var baseDepth = rootPath ? rootPath.split('/').length : 1;
   var h = '<option value="">-- Chọn đơn vị để xem dòng chi tiết --</option>';
   nodes.forEach(function(u){
     var d = String(u.path).split('/').length - baseDepth; if(d<0) d=0;
+    if(_selfIn && u.id===scope.id) d=0;
     h += '<option value="'+u.id+'">'
        + (d>0 ? ('\u00A0\u00A0\u00A0\u00A0'.repeat(d)+'└ ') : '')
        + escH(_unitDistinctName(u))+' ('+cntByUnit[u.id]+' lô)</option>';
   });
-  h += '<option value="__all__">▦ Tất cả đơn vị trong nhánh ('+nodes.length+' đơn vị — bảng gộp)</option>';
+  h += '<option value="__all__">▦ Tất cả đơn vị thuộc '+escH(scope?_unitDistinctName(scope):'nhánh')+' ('+nodes.length+' đơn vị — bảng gộp)</option>';
   sel.innerHTML = h;
   sel.value = window._bcPickUnit || '';
   if(sel.value !== (window._bcPickUnit||'')) { window._bcPickUnit=''; sel.value=''; }
@@ -9722,8 +9743,10 @@ function renderBC(){
 
   // Đếm số lô theo từng đơn vị trong nhánh (1 lượt duyệt) → đổ dropdown chọn đơn vị.
   var _cnt = {};
+  var _scN = _bcScopeNode(_r2);
+  var _scSet = {}; if(_scN) _subtreeIds(_scN.id).forEach(function(i){ _scSet[i]=1; });
   bcData.filter(matchPeriod).forEach(function(r){
-    if(r.unitId && r.unitId !== _rid2) _cnt[r.unitId] = (_cnt[r.unitId]||0) + 1;
+    if(r.unitId && r.unitId !== _rid2 && _scSet[r.unitId]) _cnt[r.unitId] = (_cnt[r.unitId]||0) + 1;
   });
   // Đơn vị đang chọn không còn thuộc nhánh này (vừa đổi node) → bỏ chọn.
   if(window._bcPickUnit && window._bcPickUnit !== '__all__' && !_cnt[window._bcPickUnit]) window._bcPickUnit = '';
@@ -9877,6 +9900,11 @@ function getFilteredBC(){
   var rows = bcData.filter(matchPeriod).filter(function(r){
     return !(r.unitId && r.unitId === rid);   // loại dòng KHO RIÊNG của node đang xem
   });
+  var _sc = _bcScopeNode(rid ? UNIT_BY_ID[rid] : null);
+  if(_sc && rid && _sc.id !== rid){               // đã chọn một đơn vị con ở "Chọn đơn vị" → chỉ nhánh đó
+    var _ss = {}; _subtreeIds(_sc.id).forEach(function(i){ _ss[i]=1; });
+    rows = rows.filter(function(r){ return _ss[r.unitId]; });
+  }
   if(pick && pick !== '__all__') rows = rows.filter(function(r){ return r.unitId === pick; });
   return _sortByDrugLot(rows);
 }
@@ -16287,6 +16315,11 @@ function _renderTpcDetail(uid){
   var st=document.getElementById('tpc-detail-status');
   if(!body) return;
   window._TPC.sel = uid || null;
+  if(window._bcScopeSeen !== (uid||null)){            // thật sự đổi đơn vị ở ô "Chọn đơn vị"
+    window._bcScopeSeen = uid || null;
+    window._bcPickUnit = '';
+    if(typeof _onBcScopeChange==='function') _onBcScopeChange();   // renderBC chạy trước renderTP nên phải vẽ lại phạm vi
+  }
   var u = uid ? UNIT_BY_ID[uid] : null;
   if(!u){
     body.innerHTML='<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:14px">Chọn một đơn vị ở ô bên phải để xem bảng chi tiết.</td></tr>';
@@ -16329,7 +16362,7 @@ function renderChildBreakdown(rootId){
   var kids=(UNITS_TREE||[]).filter(function(u){ return u.parent_id===rootId && u.active!==false && !_isLeafLevel(u); })
     .sort(function(a,b){ return String(a.name).localeCompare(String(b.name),'vi'); });
   // Chỉ hiện khi có TỪ 2 đơn vị con trở lên (1 con thì trùng bảng Tổng hợp → ẩn).
-  if(kids.length<=1){ window._TPC={aggs:{},kids:[],label:'',sel:null}; return; }
+  if(kids.length<=1){ window._TPC={aggs:{},kids:[],label:'',sel:null}; window._bcScopeSeen=undefined; return; }
   var _lbls={}; kids.forEach(function(u){ _lbls[_levelLabel(u.utype)]=1; });
   var _lblKeys=Object.keys(_lbls);
   var _childLbl = (_lblKeys.length===1) ? _lblKeys[0] : 'đơn vị con';
