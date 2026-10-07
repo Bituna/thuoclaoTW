@@ -20956,14 +20956,34 @@ let REGION_MERGES=[];   // [{id:'rm_...', name:'Miền Nam', members:['dong','ta
 function mergeOf(baseKey){ return REGION_MERGES.find(g=>g.members.includes(baseKey)); }
 function regionDispName(baseKey){ const g=mergeOf(baseKey); return g?g.name:(REGIONS[baseKey]||baseKey); }
 function regionTokenName(token){ const g=REGION_MERGES.find(x=>x.id===token); return g?g.name:(REGIONS[token]||token); }
-function regionMembers(token){ const g=REGION_MERGES.find(x=>x.id===token); return g?g.members.slice():(BASE_REGIONS.includes(token)?[token]:[]); }
+function regionMembers(token){ const g=REGION_MERGES.find(x=>x.id===token); return g?g.members.slice():(token?[token]:[]); }
+// Các KEY miền CÓ THẬT trong dữ liệu (ưu tiên thứ tự 4 miền chuẩn, rồi tới miền mới).
+// Nhờ vậy cây hiện đúng số miền đang có: 3 thì 3, thêm miền thứ 4 thì tự thành 4.
+function _liveRegionKeys(){
+  const present={};
+  (window.accounts||[]).forEach(a=>{ if(a.mien) present[a.mien]=1; });
+  if(!Object.keys(present).length){ (window.UNITS_TREE||[]).forEach(u=>{ if(u.mien) present[u.mien]=1; }); }
+  const ordered=[];
+  BASE_REGIONS.forEach(k=>{ if(present[k]){ ordered.push(k); delete present[k]; } });
+  Object.keys(present).sort((x,y)=>String(REGIONS[x]||x).localeCompare(String(REGIONS[y]||y),'vi')).forEach(k=>ordered.push(k));
+  return ordered;
+}
+// Lấy TÊN miền từ node "Kho miền" trong cây đơn vị → REGIONS luôn khớp dữ liệu
+// (vd key 'nam' → "Miền Nam"). Gọi sau mỗi lần nạp cây.
+function _syncRegionNames(){
+  (window.UNITS_TREE||[]).forEach(m=>{
+    if(m.utype!=='kho_mien'||!m.path) return;
+    const child=(window.UNITS_TREE||[]).find(u=>u.mien && u.path && u.path.indexOf(m.path+'/')===0);
+    if(child && child.mien) REGIONS[child.mien]=m.name;
+  });
+}
 // Danh sách miền để hiển thị/chọn (đã gộp)
 function displayRegions(){
   const out=[], seen=new Set();
-  BASE_REGIONS.forEach(k=>{
+  _liveRegionKeys().forEach(k=>{
     const g=mergeOf(k);
     if(g){ if(!seen.has(g.id)){ seen.add(g.id); out.push({key:g.id,name:g.name,members:g.members.slice(),merged:true}); } }
-    else out.push({key:k,name:REGIONS[k],members:[k],merged:false});
+    else out.push({key:k,name:(REGIONS[k]||k),members:[k],merged:false});
   });
   return out;
 }
@@ -21133,7 +21153,7 @@ function renderTree(){
     const rc=RC.kho_tq||{};
     h+=`<div class="tr-children"><div class="tr-row tr-unit" onclick="openEdit(${+c1.id})" title="Kho toàn quốc · ${esc(c1.ten)}">
         <div class="tr-dot" style="background:${rc.color||'#185070'}"></div>
-        <div class="tr-name tr-uname"><b>${esc(c1.ten)}</b><span class="tr-uunit">@${esc(c1.username)} · bao toàn hệ thống (4 miền)</span></div>
+        <div class="tr-name tr-uname"><b>${esc(c1.ten)}</b><span class="tr-uunit">@${esc(c1.username)} · bao toàn hệ thống (${_liveRegionKeys().length} miền)</span></div>
         <div class="tr-cap" style="color:${rc.color||'#185070'}">${capCode('kho_tq')}</div></div>`;
     h+=renderRegions();
     h+='</div>';
@@ -22581,6 +22601,7 @@ function _tkRenderOnly(){
       nextId = idseq;
       usedNames = new Set(accs.map(function(a){return a.user;}));
       window.accounts = arr;
+      try{ _syncRegionNames(); }catch(e){}
       window.nextId = idseq;
       window.usedNames = usedNames;
       if(window.updateStats) updateStats();
