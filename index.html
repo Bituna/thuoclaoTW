@@ -4205,7 +4205,9 @@ var BVPH="Bệnh viện Phổi Hải Phòng";
 // ══════════════════════════════════════════════════════════════
 var UNITS_TREE = [];           // mảng phẳng mọi node
 var UNIT_BY_ID = {};           // id → node
-var UNIT_BY_NAME = {};         // name (đã chuẩn hoá) → node
+var UNIT_BY_NAME = {};         // name (đã chuẩn hoá) → node ĐẦU TIÊN (giữ cho code cũ)
+var _UNITS_BY_NAME = {};       // name (đã chuẩn hoá) → MẢNG mọi node mang tên đó
+var _DUP_UNIT_NAMES = {};      // name bị trùng → {n, distinctParents}
 var _unitsLoaded = false;
 
 function _normName(s){ return String(s||'').replace(/\u00A0/g,' ').replace(/\s+/g,' ').trim(); }
@@ -4223,15 +4225,24 @@ async function _loadUnitsTree(){
       toast('⚠ Cây tổ chức trên cloud RỖNG (bảng units không trả về đơn vị nào). Kiểm tra RLS/quyền anon — chạy file 07_kiem_tra_cay.sql.','var(--danger)');
       console.warn('[_loadUnitsTree] units rỗng — HTTP', r.status);
     }
-    UNIT_BY_ID = {}; UNIT_BY_NAME = {};
+    UNIT_BY_ID = {}; UNIT_BY_NAME = {}; _UNITS_BY_NAME = {}; _DUP_UNIT_NAMES = {};
     var _dupNames = {};
     UNITS_TREE.forEach(function(u){
       u.name = _safeText(u.name);   // chặn XSS lưu trữ: tên đơn vị do cấp dưới tự nhập
       u.path = String(u.path||'');
       UNIT_BY_ID[u.id] = u;
       var nk = _normName(u.name);
+      (_UNITS_BY_NAME[nk] = _UNITS_BY_NAME[nk] || []).push(u);
       if(UNIT_BY_NAME[nk] && UNIT_BY_NAME[nk].id !== u.id) _dupNames[nk] = (_dupNames[nk]||1) + 1;
       else UNIT_BY_NAME[nk] = u;
+    });
+    // Tên nào bị trùng → ghi nhớ cách phân biệt: cha khác nhau (tên huyện trùng giữa các
+    // tỉnh) thì hiển thị kèm tên cha; cùng một cha (các khoa của cùng BV bị đặt trùng tên)
+    // thì hiển thị kèm slug.
+    Object.keys(_UNITS_BY_NAME).forEach(function(k){
+      var arr=_UNITS_BY_NAME[k]; if(arr.length<2) return;
+      var pr={}; arr.forEach(function(u){ pr[u.parent_id||'']=1; });
+      _DUP_UNIT_NAMES[k] = { n:arr.length, distinctParents: Object.keys(pr).length===arr.length };
     });
     _rebuildUnitIndex();
     // Trùng tên đơn vị → tra cứu theo TÊN (transfers, lockedPeriods, patients) sẽ nhầm đơn vị.
@@ -4239,7 +4250,13 @@ async function _loadUnitsTree(){
     if(_dupList.length){
       console.warn('[_loadUnitsTree] TRÙNG TÊN đơn vị:', _dupList);
       if(currentUser && currentUser.role==='admin'){
-        toast('⚠ Có '+_dupList.length+' tên đơn vị bị trùng (vd: '+_dupList.slice(0,3).join('; ')+'). Hãy đặt tên phân biệt (kèm tỉnh/huyện) để tránh ghi nhầm số liệu.','var(--danger)');
+        var _dSame=[], _dCross=[];
+        _dupList.forEach(function(k){
+          ((_DUP_UNIT_NAMES[k]||{}).distinctParents ? _dCross : _dSame).push(k||'(chưa đặt tên)');
+        });
+        toast('⚠ '+_dupList.length+' tên đơn vị bị trùng — '+_dSame.length+' tên trùng trong CÙNG một đơn vị cha (vd: '
+          +_dSame.slice(0,2).join('; ')+') nên đặt lại tên; '+_dCross.length+' tên trùng giữa các tỉnh (vd: '
+          +_dCross.slice(0,2).join('; ')+') là bình thường. Khi hiển thị, hệ thống đã tự thêm dấu hiệu phân biệt.','#b45309');
       }
     }
     _unitsLoaded = true;
@@ -4293,8 +4310,38 @@ function _compatUnitName(id){
 
 // Tên đơn vị từ id (để hiển thị/nhóm trong code cũ)
 function unitNameById(id){ var u = UNIT_BY_ID[id]; return u ? u.name : ''; }
-// id từ tên (để chuyển dữ liệu cũ / code dùng tên)
-function unitIdByName(name){ var u = UNIT_BY_NAME[_normName(name)]; return u ? u.id : null; }
+// Tên hiển thị PHÂN BIỆT cho node bị trùng tên (chỉ đổi HIỂN THỊ, KHÔNG đổi u.name
+// trong DB — mọi dữ liệu cũ tra theo tên vẫn khớp).
+//  • Trùng giữa các tỉnh (cha khác nhau) → "Châu Thành · Tỉnh Bến Tre"
+//  • Trùng trong cùng một cha (các khoa)  → "Bệnh viện phổi Hải Dương · hd_hscc"
+//  • Node chưa đặt tên                    → "(chưa đặt tên · <slug>)"
+function _unitDistinctName(u){
+  if(!u) return '';
+  var nm = _normName(u.name);
+  if(!nm) return '(chưa đặt tên · '+(u.slug||String(u.id).slice(0,8))+')';
+  var d = _DUP_UNIT_NAMES[nm];
+  if(!d) return u.name;
+  if(d.distinctParents){
+    var p = UNIT_BY_ID[u.parent_id];
+    if(p && _normName(p.name) !== nm) return u.name+' · '+p.name;
+  }
+  return u.name+' · '+(u.slug||String(u.id).slice(0,8));
+}
+// id từ tên (để chuyển dữ liệu cũ / code dùng tên).
+// hintPath: path của phạm vi đang xét — khi TÊN BỊ TRÙNG thì ưu tiên node nằm trong
+// phạm vi đó thay vì lấy bừa node đầu tiên (nguyên nhân gán nhầm số liệu điều chuyển).
+function unitIdByName(name, hintPath){
+  var k = _normName(name);
+  var arr = _UNITS_BY_NAME[k];
+  if(!arr || !arr.length){ var u0 = UNIT_BY_NAME[k]; return u0 ? u0.id : null; }
+  if(arr.length === 1) return arr[0].id;
+  if(hintPath){
+    for(var i=0;i<arr.length;i++){ if(_pathIn(arr[i].path, hintPath)) return arr[i].id; }
+  }
+  if(window.console) console.warn('[unitIdByName] tên trùng, không xác định được đơn vị:',
+    name, arr.map(function(x){ return x.slug||x.id; }));
+  return arr[0].id;
+}
 // path của một node
 function unitPathById(id){ var u = UNIT_BY_ID[id]; return u ? u.path : ''; }
 
@@ -4491,7 +4538,7 @@ function _fillUnitScopeSelect(sel, opts){
     if(depth < 0) depth = 0;
     var o=document.createElement('option');
     o.value=u.id;
-    o.textContent = (depth>0 ? ('\u00A0\u00A0\u00A0\u00A0'.repeat(depth) + '└ ') : '') + u.name;
+    o.textContent = (depth>0 ? ('\u00A0\u00A0\u00A0\u00A0'.repeat(depth) + '└ ') : '') + _unitDistinctName(u);
     sel.appendChild(o);
   });
   if(prev) sel.value = prev;
@@ -15924,7 +15971,7 @@ function renderTP(){
   // InternalCirc: phiếu điều chuyển có CẢ nơi gửi và nơi nhận trong phạm vi → luân chuyển nội bộ (triệt tiêu).
   var _subIds=_subtreeIds(rootId), _subSet={}, _rootNames={};
   _subIds.forEach(function(id){ _subSet[id]=1; var u=UNIT_BY_ID[id]; if(u&&u.name)_rootNames[u.name]=1; });
-  var _nameInScope=function(nm){ if(!nm||nm==='admin')return false; var id=(typeof unitIdByName==='function')?unitIdByName(nm):null; return !!((id&&_subSet[id])||_rootNames[nm]); };
+  var _nameInScope=function(nm){ if(!nm||nm==='admin')return false; var id=(typeof unitIdByName==='function')?unitIdByName(nm, rootPath):null; return !!((id&&_subSet[id])||_rootNames[nm]); };
   var _ek=function(dr,lo,ex){ return (dr||'')+'|'+(lo||'')+'|'+((typeof _normExp==='function')?_normExp(ex):(ex||'')); };
   var internalCirc={}, icTinh={}, icDc={};
   (window._printTransfers||[]).forEach(function(t){
@@ -16041,7 +16088,7 @@ function _aggScopeTotals(scopeRootId){
   });
   var _subIds=_subtreeIds(scopeRootId), _subSet={}, _rootNames={};
   _subIds.forEach(function(id){ _subSet[id]=1; var u=UNIT_BY_ID[id]; if(u&&u.name)_rootNames[u.name]=1; });
-  var _nameInScope=function(nm){ if(!nm||nm==='admin')return false; var id=(typeof unitIdByName==='function')?unitIdByName(nm):null; return !!((id&&_subSet[id])||_rootNames[nm]); };
+  var _nameInScope=function(nm){ if(!nm||nm==='admin')return false; var id=(typeof unitIdByName==='function')?unitIdByName(nm, rootPath):null; return !!((id&&_subSet[id])||_rootNames[nm]); };
   var _ek=function(dr,lo,ex){ return (dr||'')+'|'+(lo||'')+'|'+((typeof _normExp==='function')?_normExp(ex):(ex||'')); };
   var ic={}, icT={}, icD={};
   (window._printTransfers||[]).forEach(function(t){
@@ -16102,7 +16149,7 @@ function _tpcSummaryTable(kids){
     h+='<tr class="tpc-row" data-uid="'+u.id+'" onclick="_tpcPick(\''+u.id+'\')" '
       +'style="cursor:pointer" title="Bấm để xem bảng chi tiết của đơn vị này">'
       +'<td style="color:#888">'+(i+1)+'</td>'
-      +'<td class="left" style="font-weight:600;white-space:normal">'+escH(u.name)
+      +'<td class="left" style="font-weight:600;white-space:normal">'+escH(_unitDistinctName(u))
       +' <span style="font-weight:400;color:#94a3b8;font-size:11px">· '+escH(_levelLabel(u.utype))+' · '+nLo+' lô</span></td>'
       +'<td class="open-stock">'+fmtNum(t.open||0)+'</td>'
       +'<td class="calc-in"><strong>'+fmtNum(t.tin||0)+'</strong></td>'
@@ -16162,7 +16209,7 @@ function _renderTpcDetail(uid){
   var agg = window._TPC.aggs[uid] || _aggScopeTotals(uid);
   window._TPC.aggs[uid]=agg;
   body.innerHTML=_aggTableBody(agg,{noXn:false});
-  if(tt) tt.textContent='📋 '+_levelLabel(u.utype)+' · '+u.name;
+  if(tt) tt.textContent='📋 '+_levelLabel(u.utype)+' · '+_unitDistinctName(u);
   if(st) st.textContent='Tổng hợp cả nhánh (kho riêng + mọi đơn vị trực thuộc) · '
     +agg.rows.length+' lô · điều chuyển nội bộ trong nhánh đã triệt tiêu.';
   // Làm nổi dòng đang chọn ở bảng tổng quan
@@ -16226,7 +16273,7 @@ function renderChildBreakdown(rootId){
           +'<label for="tpc-picker" style="font-size:11px;color:#1d6f42;font-weight:700;display:block">Chọn đơn vị</label>'
           +'<select id="tpc-picker" style="min-width:240px" onchange="_renderTpcDetail(this.value)">'
           + kids.map(function(u){
-              return '<option value="'+u.id+'"'+(u.id===_sel?' selected':'')+'>'+escH(u.name)+'</option>';
+              return '<option value="'+u.id+'"'+(u.id===_sel?' selected':'')+'>'+escH(_unitDistinctName(u))+'</option>';
             }).join('')
           +'</select>'
         +'</div>'
