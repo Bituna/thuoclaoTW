@@ -131,6 +131,9 @@ th.left{text-align:center;padding-left:8px}
 td{border:1px solid #edf2f7;padding:7px;text-align:center;color:var(--text);vertical-align:middle;line-height:1}
 td.left{text-align:center;font-weight:600;padding-left:7px}
 .tbl-wrap td{white-space:nowrap;font-size:12px;padding:9px 8px;vertical-align:middle;line-height:1}
+#tp-children tr.tpc-row{transition:background .12s}
+#tp-children tr.tpc-row:hover td{background:#eef7ff !important}
+#tp-children tr.tpc-sel td{background:#dbeafe !important;box-shadow:inset 0 0 0 9999px rgba(29,78,216,.06)}
 td.open-stock{background:#fff8e1 !important;font-weight:700;color:#7c5200;border-left:3px solid #f59e0b;border-right:2px solid #f59e0b}
 /* Nút quản lý admin — đồng kích thước, cùng hàng */
 .adm-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;height:32px;padding:0 12px;border:none;border-radius:18px;cursor:pointer;font-size:12px;font-weight:700;color:#fff;white-space:nowrap;transition:transform .12s,filter .12s,box-shadow .12s}
@@ -16064,20 +16067,121 @@ function _aggScopeTotals(scopeRootId){
   return {rows:rows, tot:tot};
 }
 
-function _tpcTable(agg){
-  if(!agg.rows.length) return '<div style="padding:10px 12px;color:#94a3b8;font-size:12px">Chưa có dữ liệu kỳ này.</div>';
-  var h='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f1f5f9;color:#475569">'
-    +'<th style="padding:5px 8px;text-align:left">Thuốc</th><th>Lô</th><th>Tồn đầu</th><th>Tổng nhập</th><th>Sử dụng</th><th>Xuất ngoài</th><th>Hỏng/HH</th><th>Tổng xuất</th><th>Tồn cuối</th></tr></thead><tbody>';
-  agg.rows.forEach(function(r){
-    h+='<tr style="border-top:1px solid #eef2f7">'
-      +'<td style="padding:4px 8px;text-align:left">'+r.drug+'</td><td style="text-align:center">'+r.lot+'</td>'
-      +'<td style="text-align:center">'+fmtNum(r.open)+'</td><td style="text-align:center;color:#1e7e44">'+fmtNum(r.tin)+'</td>'
-      +'<td style="text-align:center">'+fmtNum(r.sd)+'</td><td style="text-align:center">'+fmtNum(r.xn)+'</td>'
-      +'<td style="text-align:center">'+fmtNum(r.hh)+'</td><td style="text-align:center;color:#c0392b">'+fmtNum(r.tout)+'</td>'
-      +'<td style="text-align:center;font-weight:600;color:#1d4ed8">'+fmtNum(r.fin)+'</td></tr>';
+// ════════════════════════════════════════════════════════════════════
+// "Chia theo <cấp con>" — BẢNG TỔNG QUAN + DROPDOWN CHỌN ĐƠN VỊ
+// (thay cho danh sách accordion đổ phẳng cũ)
+//  • Bảng 1 — Tổng quan: mỗi đơn vị con 1 dòng + dòng "Tổng cộng"; bấm dòng
+//    để xem chi tiết.
+//  • Bảng 2 — Chi tiết: dropdown "Chọn đơn vị" → bảng chuẩn 13 cột (cùng mẫu
+//    với bảng Tổng hợp theo cấp / Tổng hợp Miền).
+// Số liệu vẫn lấy từ _aggScopeTotals: GOM CẢ NHÁNH CON của đơn vị đó, điều
+// chuyển nội bộ trong nhánh đã triệt tiêu.
+// ════════════════════════════════════════════════════════════════════
+window._TPC = window._TPC || { aggs:{}, kids:[], label:'', sel:null };
+
+function _tpcSummaryTable(kids){
+  var h='<div class="tbl-wrap" style="margin-bottom:14px;max-height:420px">'
+    +'<table><thead><tr>'
+    +'<th class="hdr-name" style="min-width:34px;width:34px">TT</th>'
+    +'<th class="left hdr-name" style="min-width:260px">Đơn vị</th>'
+    +'<th class="hdr-open" style="min-width:85px">Tồn đầu</th>'
+    +'<th class="hdr-in" style="min-width:85px">Tổng nhập</th>'
+    +'<th class="hdr-out" style="min-width:85px">Sử dụng</th>'
+    +'<th class="hdr-out" style="min-width:95px">Xuất nơi khác</th>'
+    +'<th class="hdr-out" style="min-width:80px">Hỏng/HH</th>'
+    +'<th class="hdr-out" style="min-width:85px">Tổng xuất</th>'
+    +'<th class="hdr-end" style="min-width:95px">Tồn cuối</th>'
+    +'</tr></thead><tbody>';
+  var T={open:0,tin:0,sd:0,xn:0,hh:0,tout:0,fin:0};
+  kids.forEach(function(u,i){
+    var t=((window._TPC.aggs[u.id]||{}).tot)||{};
+    var nLo=((window._TPC.aggs[u.id]||{}).rows||[]).length;
+    T.open+=(t.open||0);T.tin+=(t.tin||0);T.sd+=(t.sd||0);T.xn+=(t.xn||0);
+    T.hh+=(t.hh||0);T.tout+=(t.tout||0);T.fin+=(t.fin||0);
+    var fcls=(t.fin||0)<0?'final-neg':((t.fin||0)<threshold.low?'final-low':'final-ok');
+    h+='<tr class="tpc-row" data-uid="'+u.id+'" onclick="_tpcPick(\''+u.id+'\')" '
+      +'style="cursor:pointer" title="Bấm để xem bảng chi tiết của đơn vị này">'
+      +'<td style="color:#888">'+(i+1)+'</td>'
+      +'<td class="left" style="font-weight:600;white-space:normal">'+escH(u.name)
+      +' <span style="font-weight:400;color:#94a3b8;font-size:11px">· '+escH(_levelLabel(u.utype))+' · '+nLo+' lô</span></td>'
+      +'<td class="open-stock">'+fmtNum(t.open||0)+'</td>'
+      +'<td class="calc-in"><strong>'+fmtNum(t.tin||0)+'</strong></td>'
+      +'<td>'+fmtNum(t.sd||0)+'</td>'
+      +'<td>'+fmtNum(t.xn||0)+'</td>'
+      +'<td>'+fmtNum(t.hh||0)+'</td>'
+      +'<td class="calc-out"><strong>'+fmtNum(t.tout||0)+'</strong></td>'
+      +'<td class="'+fcls+'">'+fmtNum(t.fin||0)+'</td>'
+      +'</tr>';
   });
-  h+='</tbody></table>';
+  h+='<tr style="background:#f8fafc;font-weight:700;border-top:2px solid #cbd5e0">'
+    +'<td colspan="2" style="text-align:right">Tổng cộng ('+kids.length+' đơn vị)</td>'
+    +'<td>'+fmtNum(T.open)+'</td><td class="calc-in">'+fmtNum(T.tin)+'</td>'
+    +'<td>'+fmtNum(T.sd)+'</td><td>'+fmtNum(T.xn)+'</td><td>'+fmtNum(T.hh)+'</td>'
+    +'<td class="calc-out">'+fmtNum(T.tout)+'</td><td>'+fmtNum(T.fin)+'</td>'
+    +'</tr>';
+  h+='</tbody></table></div>';
   return h;
+}
+
+// Thead chuẩn 13 cột — dùng chung mẫu với bảng "Tổng hợp theo cấp".
+function _tpcDetailHead(){
+  return '<thead><tr>'
+    +'<th class="hdr-name" style="min-width:34px;width:34px" rowspan="2">TT</th>'
+    +'<th class="left hdr-name" style="min-width:220px" rowspan="2">Tên thuốc</th>'
+    +'<th class="hdr-lot" rowspan="2" style="min-width:100px">Số lô</th>'
+    +'<th class="hdr-exp" rowspan="2" style="min-width:90px">Hạn dùng</th>'
+    +'<th class="hdr-open" rowspan="2" style="min-width:75px">Tồn đầu</th>'
+    +'<th class="hdr-in" colspan="3">Nhập trong kỳ</th>'
+    +'<th class="hdr-out" colspan="4">Xuất trong kỳ</th>'
+    +'<th class="hdr-end" rowspan="2" style="min-width:85px">Tồn cuối</th>'
+    +'</tr><tr>'
+    +'<th class="hdr-in-sub" title="Nhập từ tuyến trên — từ ngoài phạm vi đơn vị này" style="min-width:72px">Nhập tuyến trên</th>'
+    +'<th class="hdr-in-sub" title="Nhập nguồn khác / điều chuyển từ ngoài phạm vi" style="min-width:78px">Nhập nguồn khác</th>'
+    +'<th class="hdr-in-sub" style="min-width:80px">Tổng nhập</th>'
+    +'<th class="hdr-out-sub" title="Sử dụng toàn phạm vi đơn vị này (tự động)" style="min-width:80px">Sử dụng</th>'
+    +'<th class="hdr-out-sub" title="Xuất ra ngoài phạm vi đơn vị này (tự động)" style="min-width:80px">Xuất nơi khác</th>'
+    +'<th class="hdr-out-sub" style="min-width:75px">Hỏng/HH</th>'
+    +'<th class="hdr-out-sub" style="min-width:80px">Tổng xuất</th>'
+    +'</tr></thead>';
+}
+
+// Vẽ thân bảng chi tiết cho MỘT đơn vị con (gọi khi đổi dropdown / bấm dòng).
+function _renderTpcDetail(uid){
+  var body=document.getElementById('tpc-detail-body');
+  var tt=document.getElementById('tpc-detail-title');
+  var st=document.getElementById('tpc-detail-status');
+  if(!body) return;
+  window._TPC.sel = uid || null;
+  var u = uid ? UNIT_BY_ID[uid] : null;
+  if(!u){
+    body.innerHTML='<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:14px">Chọn một đơn vị ở ô bên phải để xem bảng chi tiết.</td></tr>';
+    if(tt) tt.textContent='📋 Chi tiết theo đơn vị';
+    if(st) st.textContent='';
+    return;
+  }
+  var agg = window._TPC.aggs[uid] || _aggScopeTotals(uid);
+  window._TPC.aggs[uid]=agg;
+  body.innerHTML=_aggTableBody(agg,{noXn:false});
+  if(tt) tt.textContent='📋 '+_levelLabel(u.utype)+' · '+u.name;
+  if(st) st.textContent='Tổng hợp cả nhánh (kho riêng + mọi đơn vị trực thuộc) · '
+    +agg.rows.length+' lô · điều chuyển nội bộ trong nhánh đã triệt tiêu.';
+  // Làm nổi dòng đang chọn ở bảng tổng quan
+  try{
+    document.querySelectorAll('#tp-children .tpc-row').forEach(function(tr){
+      tr.classList.toggle('tpc-sel', tr.getAttribute('data-uid')===uid);
+    });
+  }catch(e){}
+}
+
+// Bấm 1 dòng ở bảng tổng quan → đồng bộ dropdown + vẽ bảng chi tiết.
+function _tpcPick(uid){
+  var sel=document.getElementById('tpc-picker');
+  if(sel) sel.value=uid;
+  _renderTpcDetail(uid);
+  try{
+    var el=document.getElementById('tpc-detail-wrap');
+    if(el) el.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }catch(e){}
 }
 
 function renderChildBreakdown(rootId){
@@ -16087,31 +16191,53 @@ function renderChildBreakdown(rootId){
   host.innerHTML='';
   var root=rootId?UNIT_BY_ID[rootId]:null; if(!root) return;
   // Con TRỰC TIẾP là cấp tổng hợp (không phải lá): Miền→từng Tỉnh, Tỉnh→từng Khu vực, TW→từng Miền.
-  // Chỉ "chia theo con" khi con là ĐƠN VỊ TỔNG HỢP (Miền/Tỉnh/Khu vực) — vài khối, dễ nhìn.
-  // Con là CƠ SỞ (cấp lá) thì KHÔNG chia (sẽ rối mắt) — xem bằng bảng "đơn vị trực thuộc" + chọn đơn vị.
   var kids=(UNITS_TREE||[]).filter(function(u){ return u.parent_id===rootId && u.active!==false && !_isLeafLevel(u); })
     .sort(function(a,b){ return String(a.name).localeCompare(String(b.name),'vi'); });
-  // Chỉ hiện khi có TỪ 2 đơn vị con trở lên (1 con thì trùng với bảng Tổng hợp → ẩn).
-  if(kids.length<=1) return;
-  // Tiêu đề theo cấp con (nếu các con cùng cấp): "Chia theo Miền/Tỉnh/Cơ sở (N)".
+  // Chỉ hiện khi có TỪ 2 đơn vị con trở lên (1 con thì trùng bảng Tổng hợp → ẩn).
+  if(kids.length<=1){ window._TPC={aggs:{},kids:[],label:'',sel:null}; return; }
   var _lbls={}; kids.forEach(function(u){ _lbls[_levelLabel(u.utype)]=1; });
   var _lblKeys=Object.keys(_lbls);
   var _childLbl = (_lblKeys.length===1) ? _lblKeys[0] : 'đơn vị con';
-  var h='<div class="tpc-wrap" style="margin-top:14px">'
-       +'<div style="font-size:13px;font-weight:700;color:#243040;margin-bottom:8px">📊 Chia theo '+_childLbl+' ('+kids.length+') — bấm để xem chi tiết</div>';
-  kids.forEach(function(u, idx){
-    var agg=_aggScopeTotals(u.id), cid='tpc-body-'+idx;
-    h+='<div style="border:1px solid #E9EEF3;border-radius:10px;margin-bottom:8px;overflow:hidden">'
-      +'<div onclick="var d=document.getElementById(\''+cid+'\');var open=d.style.display===\'none\';d.style.display=open?\'block\':\'none\';this.querySelector(\'.tpc-chev\').textContent=open?\'▾\':\'▸\';" style="cursor:pointer;display:flex;align-items:center;gap:8px;padding:9px 12px;background:#FBFCFD">'
-        +'<span class="tpc-chev" style="font-size:9px;color:#888">▸</span>'
-        +'<span style="font-weight:650;font-size:12.5px;flex:1">'+_levelLabel(u.utype)+' · '+u.name+'</span>'
-        +'<span style="font-size:11px;color:#64748b">Tồn cuối <b style="color:#1d4ed8">'+fmtNum(agg.tot.fin)+'</b> · Nhập '+fmtNum(agg.tot.tin)+' · Xuất '+fmtNum(agg.tot.tout)+'</span>'
+
+  // Tính tổng hợp cho từng đơn vị con (gom cả nhánh).
+  var aggs={}; kids.forEach(function(u){ aggs[u.id]=_aggScopeTotals(u.id); });
+  var _prevSel = window._TPC ? window._TPC.sel : null;
+  window._TPC = { aggs:aggs, kids:kids, label:_childLbl, sel:null };
+  // Giữ đơn vị đang chọn nếu vẫn còn trong danh sách, không thì chọn đơn vị đầu.
+  var _sel = null;
+  for(var i=0;i<kids.length;i++){ if(kids[i].id===_prevSel){ _sel=_prevSel; break; } }
+  if(!_sel) _sel = kids[0].id;
+
+  var h='<div class="tpc-wrap" style="margin-top:16px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:12px;flex-wrap:wrap">'
+      +'<div>'
+        +'<h3 style="font-size:14px;font-weight:700;color:#6c3483">📊 Chia theo '+escH(_childLbl)+' ('+kids.length+')</h3>'
+        +'<div style="font-size:11.5px;color:#6b7280;margin-top:2px">Bảng tổng quan từng '+escH(_childLbl).toLowerCase()+' — bấm vào dòng (hoặc chọn ở ô bên dưới) để xem bảng chi tiết theo lô.</div>'
       +'</div>'
-      +'<div id="'+cid+'" style="display:none">'+_tpcTable(agg)+'</div>'
-    +'</div>';
-  });
-  h+='</div>';
+    +'</div>'
+    + _tpcSummaryTable(kids)
+    +'<div id="tpc-detail-wrap">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:12px;flex-wrap:wrap">'
+        +'<div>'
+          +'<h3 id="tpc-detail-title" style="font-size:14px;font-weight:700;color:#1d6f42">📋 Chi tiết theo đơn vị</h3>'
+          +'<div id="tpc-detail-status" style="font-size:11.5px;color:#6b7280;margin-top:2px"></div>'
+        +'</div>'
+        +'<div class="fg no-print" style="margin:0">'
+          +'<label for="tpc-picker" style="font-size:11px;color:#1d6f42;font-weight:700;display:block">Chọn đơn vị</label>'
+          +'<select id="tpc-picker" style="min-width:240px" onchange="_renderTpcDetail(this.value)">'
+          + kids.map(function(u){
+              return '<option value="'+u.id+'"'+(u.id===_sel?' selected':'')+'>'+escH(u.name)+'</option>';
+            }).join('')
+          +'</select>'
+        +'</div>'
+      +'</div>'
+      +'<div class="tbl-wrap" style="margin-bottom:0;max-height:480px;position:relative">'
+        +'<table>'+_tpcDetailHead()+'<tbody id="tpc-detail-body"></tbody></table>'
+      +'</div>'
+    +'</div>'
+  +'</div>';
   host.innerHTML=h;
+  _renderTpcDetail(_sel);
 }
 
 // ── Dựng thân bảng tổng hợp (Miền / Toàn quốc) từ _aggScopeTotals ──
