@@ -1669,9 +1669,11 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
       </div>
     </div>
 
-    <!-- Hướng A: ở cấp hub, bảng đổ phẳng được thu gọn sau nút này (admin/TW mở khi cần) -->
-    <div id="bc-flat-toggle" class="no-print" style="display:none;cursor:pointer;margin:6px 0;padding:9px 12px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;font-size:12.5px;font-weight:600;color:#334155" onclick="_toggleBcFlat()">
-      <span id="bc-flat-chev">▸</span> 📋 Xem toàn bộ dòng chi tiết (đổ phẳng)
+    <!-- Chọn ĐƠN VỊ trong nhánh đang xem → bảng dòng chi tiết bên dưới chỉ hiện đơn vị đó -->
+    <div id="bc-unit-bar" class="no-print" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px">
+      <label for="bc-unit-pick" style="margin:0;font-size:12.5px;font-weight:700;color:#334155;white-space:nowrap">📋 Dòng chi tiết của đơn vị:</label>
+      <select id="bc-unit-pick" title="Chọn đơn vị trong nhánh đang xem" onchange="_onBcUnitPick()" style="min-width:280px;max-width:460px;font-weight:600;color:#1a5276;padding:8px 10px;border:1.5px solid #b3d4f0;border-radius:18px;background:#fff;font-size:12px;cursor:pointer"></select>
+      <span id="bc-unit-pick-note" style="font-size:11.5px;color:#6b7280"></span>
     </div>
     <div id="bc-zone">
       <div class="tbl-hd-bar">
@@ -9630,12 +9632,35 @@ function renderBVPH(){
   try{ _updateOpenInputState('bvph'); }catch(e){}
   try{renderCapPhat();}catch(e){}
 }
-window._bcFlatOpen = false;   // trạng thái mở/gấp bảng đổ phẳng (mặc định gấp ở cấp hub)
-function _toggleBcFlat(){
-  window._bcFlatOpen = !window._bcFlatOpen;
-  var _bz=document.getElementById('bc-zone'); if(_bz) _bz.style.display = window._bcFlatOpen ? 'block' : 'none';
-  if(window._bcFlatOpen && window._bcFlatStale){ try{ renderBC(); }catch(e){ console.warn('[bc-flat]', e); } }
-  var _chev=document.getElementById('bc-flat-chev'); if(_chev) _chev.textContent = window._bcFlatOpen ? '▾' : '▸';
+// ── CHỌN ĐƠN VỊ cho bảng "dòng chi tiết" (thay nút xem đổ phẳng cũ) ──
+//  ''        = chưa chọn → không dựng DOM (cấp Miền/TW có thể hàng chục nghìn dòng)
+//  '__all__' = gộp toàn bộ đơn vị trong nhánh (hành vi đổ phẳng cũ, vẫn giữ lại)
+//  <unit id> = chỉ dòng của đúng đơn vị đó
+window._bcPickUnit = '';
+function _onBcUnitPick(){
+  var s = document.getElementById('bc-unit-pick');
+  window._bcPickUnit = s ? s.value : '';
+  try{ renderBC(); }catch(e){ console.warn('[bc-unit-pick]', e); }
+}
+// Đổ danh sách đơn vị TRONG NHÁNH đang xem có dòng dữ liệu ở kỳ này (sắp theo cây).
+function _fillBcUnitPick(rootNode, cntByUnit){
+  var sel = document.getElementById('bc-unit-pick'); if(!sel) return;
+  var rootPath = rootNode ? String(rootNode.path||'') : '';
+  var nodes = (UNITS_TREE||[]).filter(function(u){
+    return u.id !== (rootNode||{}).id && cntByUnit[u.id] && (!rootPath || _pathIn(u.path, rootPath));
+  }).sort(function(a,b){ return String(a.path).localeCompare(String(b.path),'vi'); });
+  var baseDepth = rootPath ? rootPath.split('/').length : 1;
+  var h = '<option value="">-- Chọn đơn vị để xem dòng chi tiết --</option>';
+  nodes.forEach(function(u){
+    var d = String(u.path).split('/').length - baseDepth; if(d<0) d=0;
+    h += '<option value="'+u.id+'">'
+       + (d>0 ? ('\u00A0\u00A0\u00A0\u00A0'.repeat(d)+'└ ') : '')
+       + escH(_unitDistinctName(u))+' ('+cntByUnit[u.id]+' lô)</option>';
+  });
+  h += '<option value="__all__">▦ Tất cả đơn vị trong nhánh ('+nodes.length+' đơn vị — bảng gộp)</option>';
+  sel.innerHTML = h;
+  sel.value = window._bcPickUnit || '';
+  if(sel.value !== (window._bcPickUnit||'')) { window._bcPickUnit=''; sel.value=''; }
 }
 function renderBC(){
   var selUnit = document.getElementById('filter-unit-bc');
@@ -9648,43 +9673,57 @@ function renderBC(){
   // Con là ĐƠN VỊ TỔNG HỢP (miền/tỉnh) → có "Chia theo con" → bảng "đổ phẳng" thu gọn sau nút.
   // Con toàn là CƠ SỞ (lá) → KHÔNG có "chia theo con" → hiện thẳng bảng "đơn vị trực thuộc".
   var _aggKids = (UNITS_TREE||[]).some(function(u){ return u.parent_id===_rid2 && u.active!==false && !_isLeafLevel(u); });
-  var _tog = document.getElementById('bc-flat-toggle');
+  var _bar = document.getElementById('bc-unit-bar');
+
+  // Đếm số lô theo từng đơn vị trong nhánh (1 lượt duyệt) → đổ dropdown chọn đơn vị.
+  var _cnt = {};
+  bcData.filter(matchPeriod).forEach(function(r){
+    if(r.unitId && r.unitId !== _rid2) _cnt[r.unitId] = (_cnt[r.unitId]||0) + 1;
+  });
+  // Đơn vị đang chọn không còn thuộc nhánh này (vừa đổi node) → bỏ chọn.
+  if(window._bcPickUnit && window._bcPickUnit !== '__all__' && !_cnt[window._bcPickUnit]) window._bcPickUnit = '';
+  // Cấp cuối (không có đơn vị trực thuộc) → giấu cả thanh chọn lẫn bảng.
   if(_leaf){
     if(_bz) _bz.style.display='none';
-    if(_tog) _tog.style.display='none';
-  } else if(_aggKids){
-    // Có chia theo con (Miền/Tỉnh) → thu gọn bảng đổ phẳng sau nút
-    if(_tog) _tog.style.display='';
-    if(_bz) _bz.style.display = window._bcFlatOpen ? 'block' : 'none';
-    var _chev0=document.getElementById('bc-flat-chev'); if(_chev0) _chev0.textContent = window._bcFlatOpen ? '▾' : '▸';
+    if(_bar) _bar.style.display='none';
   } else {
-    // Con toàn cơ sở → hiện thẳng bảng đơn vị trực thuộc, ẩn nút thu gọn
-    if(_tog) _tog.style.display='none';
-    if(_bz) _bz.style.display='block';
+    // Con toàn cơ sở → mặc định gộp tất cả như trước; cấp Miền/TW (hàng chục nghìn
+    // dòng) → mặc định CHƯA chọn, không dựng DOM cho tới khi người dùng chọn đơn vị.
+    if(!window._bcPickUnit && !_aggKids) window._bcPickUnit = '__all__';
+    _fillBcUnitPick(_r2, _cnt);
+    if(_bar) _bar.style.display = 'flex';
+    if(_bz)  _bz.style.display  = window._bcPickUnit ? 'block' : 'none';
   }
   if(_fD) _fD.style.display = _leaf ? 'none' : 'block';
-  // ĐƠN VỊ TRỰC THUỘC = mọi dòng KHÔNG phải của chính node đang xem (loại dòng kho riêng ra).
-  var filtered = _sortByDrugLot(bcData.filter(matchPeriod).filter(function(r){ return !(r.unitId && r.unitId===_rid2); }));
+  // Dùng CHUNG getFilteredBC() với getReal/updField để rowIdx luôn khớp đúng dòng.
+  var filtered = getFilteredBC();
+  var _pickU = (window._bcPickUnit && window._bcPickUnit!=='__all__') ? UNIT_BY_ID[window._bcPickUnit] : null;
 
   // Cập nhật tiêu đề bảng
   var titleEl=document.getElementById('bc-table-title');
   var noteEl=document.getElementById('bc-filter-note');
   if(titleEl){
-    titleEl.textContent = _reportTitles(_r2).truc;
+    titleEl.textContent = _pickU ? (_levelLabel(_pickU.utype)+' · '+_unitDistinctName(_pickU))
+                                 : _reportTitles(_r2).truc;
   }
   if(noteEl){
     var _d={}; filtered.forEach(function(r){ _d[r.drug]=true; });
     noteEl.textContent=Object.keys(_d).length+' thuốc — '+filtered.length+' lô';
   }
+  var _pn = document.getElementById('bc-unit-pick-note');
+  if(_pn){
+    _pn.textContent = !window._bcPickUnit
+      ? 'Chưa chọn đơn vị — chọn một đơn vị để xem và sửa dòng chi tiết.'
+      : (_pickU ? ('Trực thuộc: '+((UNIT_BY_ID[_pickU.parent_id]||{}).name||'—')+' · '+filtered.length+' lô')
+                : ('Bảng gộp toàn nhánh · '+filtered.length+' lô'));
+  }
 
-  // Bảng "đổ phẳng" đang GẤP (cấp miền/tỉnh, có thể hàng chục nghìn dòng) → không dựng DOM.
-  // Xoá sạch tbody để thao tác "flush ô nhập" không đọc nhầm ô cũ; dựng lại khi mở.
-  if(_aggKids && !window._bcFlatOpen){
+  // Chưa chọn đơn vị → KHÔNG dựng DOM (tránh treo ở cấp Miền/TW) và xoá sạch tbody
+  // để thao tác "flush ô nhập" không đọc nhầm ô cũ.
+  if(!window._bcPickUnit){
     var _bcb = document.getElementById('bc-body'); if(_bcb) _bcb.innerHTML = '';
-    window._bcFlatStale = true;
   } else {
     buildTbl(filtered,'bc-body','other');
-    window._bcFlatStale = false;
   }
   checkMismatch();
   if(!window._inFullRender){ renderTQ(); renderDrugTable(); renderTP(); }
@@ -9784,13 +9823,17 @@ function _sortByDrugLot(arr){
   });
 }
 
+// NGUỒN DUY NHẤT quyết định tập dòng của bảng "đơn vị trực thuộc" (bc-body).
+// renderBC vẽ bảng từ đây, và getReal/updField/delR cũng map rowIdx từ đây —
+// hai bên BẮT BUỘC dùng chung một danh sách, nếu lệch sẽ sửa nhầm sang lô khác.
 function getFilteredBC(){
-  var selUnit = document.getElementById('filter-unit-bc');
-  var unitVal = selUnit ? selUnit.value : '__all__';
-  return _sortByDrugLot(bcData.filter(function(r){
-    var unitOk = (unitVal==='__all__' || r.unit===unitVal);
-    return unitOk && matchPeriod(r);
-  }));
+  var rid  = (typeof _currentRootId==='function') ? _currentRootId() : null;
+  var pick = window._bcPickUnit || '';
+  var rows = bcData.filter(matchPeriod).filter(function(r){
+    return !(r.unitId && r.unitId === rid);   // loại dòng KHO RIÊNG của node đang xem
+  });
+  if(pick && pick !== '__all__') rows = rows.filter(function(r){ return r.unitId === pick; });
+  return _sortByDrugLot(rows);
 }
 
 // Cập nhật LIVE khi đang gõ (oninput): chỉ ghi giá trị vào model,
