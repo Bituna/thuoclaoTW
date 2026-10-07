@@ -21265,12 +21265,14 @@ function renderTable(){
   if(!filtered.length){tbody.innerHTML='';empty.style.display='block';}
   else{
     empty.style.display='none';
-    const sm={active:['active','Hoạt động'],locked:['locked','Đã khóa'],pending:['pending','Chờ kích hoạt'],merged:['merged','Đã hợp nhất']};
+    const sm={active:['active','Hoạt động'],locked:['locked','Đã khóa'],pending:['pending','Chờ kích hoạt'],no_account:['pending','Chưa có tài khoản'],merged:['merged','Đã hợp nhất']};
     tbody.innerHTML=page.map(a=>{
       const rc=RC[a.cap]||{};
       const [sc,sl]=sm[a.status]||['pending','Chờ'];
       const actToggle = a.status==='merged'
         ? `<span class="ib" style="color:#7C5CFC;cursor:default" title="Đã hợp nhất — dùng 'Tách lại' trong modal Sửa tên tỉnh/TP & Miền">⛙</span>`
+        : a.status==='no_account'
+        ? `<button class="ib ib-on" title="Tạo tài khoản đăng nhập cho đơn vị này" onclick="toggleLock(${+a.id})">${IC.power}</button>`
         : a.status==='locked'
         ? `<button class="ib ib-on" title="Mở khóa" onclick="toggleLock(${+a.id})">${IC.unlock}</button>`
         : a.status==='pending'
@@ -21327,7 +21329,7 @@ function goPage(p){curPage=p;renderTable();}
 function toggleLock(id){
   if(!(window.currentUser&&window.currentUser.role==='admin')){ if(typeof toast==='function') toast('Chỉ quản trị viên mới khóa/mở tài khoản.','var(--warning)'); return; }
   const a=accounts.find(x=>x.id===id);if(!a)return;
-  if(!a.username){ if(typeof toast==='function') toast('Đơn vị này chưa có tài khoản đăng nhập để khóa/mở.','var(--warning)'); return; }
+  if(!a.username){ if(window.showToast) showToast('Đơn vị chưa có tài khoản — nhập tên đăng nhập + mật khẩu để tạo'); openEdit(id); return; }
   const prev=a.status;
   const next=prev==='active'?'locked':'active';
   if(a._busy) return; a._busy=true;
@@ -21771,7 +21773,7 @@ function openEdit(id){
   }
 
   // Trạng thái
-  const isActive = a.status==='active';
+  const isActive = a.status==='active' || a.status==='no_account';
   const tog = document.getElementById('edit-sts-tog');
   tog.checked = isActive;
   document.getElementById('edit-sts-badge').textContent = isActive?'Hoạt động':a.status==='locked'?'Đã khóa':'Chờ kích hoạt';
