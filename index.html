@@ -21327,8 +21327,29 @@ function goPage(p){curPage=p;renderTable();}
 function toggleLock(id){
   if(!(window.currentUser&&window.currentUser.role==='admin')){ if(typeof toast==='function') toast('Chỉ quản trị viên mới khóa/mở tài khoản.','var(--warning)'); return; }
   const a=accounts.find(x=>x.id===id);if(!a)return;
-  a.status=a.status==='active'?'locked':a.status==='locked'?'active':'active';
-  updateStats();renderTree();renderTable();
+  if(!a.username){ if(typeof toast==='function') toast('Đơn vị này chưa có tài khoản đăng nhập để khóa/mở.','var(--warning)'); return; }
+  const prev=a.status;
+  const next=prev==='active'?'locked':'active';
+  if(a._busy) return; a._busy=true;
+  // Lưu THẬT lên Supabase (upsert_account giữ nguyên mật khẩu khi p_new_pass rỗng), rồi mới đổi giao diện
+  window._rpc('upsert_account',{ p_actor:window._authUser, p_actor_pass:window._authPass,
+    p_user:a.username, p_name:a.ten||a.username, p_unit_id:a.node_id, p_role:'don_vi',
+    p_new_pass:'', p_email:a.email||'', p_phone:a.phone||'', p_status:next })
+  .then(function(r){
+    if(typeof r==='string' && r!=='OK') throw new Error(r);
+    a.status=next; updateStats();renderTree();renderTable();
+    return window.tkLoadFromCloud && window.tkLoadFromCloud();
+  })
+  .then(function(){
+    const b=(accounts.find(x=>x.id===id)||{});
+    if(b.status!==next) throw new Error('Máy chủ không ghi nhận trạng thái mới');
+    if(window.showToast) showToast((next==='active'?'✅ Đã kích hoạt: ':'🔒 Đã khóa: ')+a.username);
+  })
+  .catch(function(e){
+    a.status=prev; updateStats();renderTree();renderTable();
+    if(window.showToast) showToast('❌ Không lưu được trạng thái: '+(e.message||e));
+  })
+  .finally(function(){ a._busy=false; });
 }
 
 
