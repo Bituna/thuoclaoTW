@@ -405,7 +405,8 @@ td input[type=number]{border-radius:7px}
 .bvph-cc{cursor:pointer;transition:box-shadow .12s}
 .bvph-cc:hover{box-shadow:inset 0 0 0 2px rgba(41,128,185,.55);border-radius:4px}
 /* Bảng cấp C5 (đơn vị cơ sở/kho nội trú): ẩn cột "Nhập tỉnh khác" và "Xuất Tổ CL" — không có ở mẫu cơ sở */
-table.bvph-leaf .col-ntk, table.bvph-leaf .col-dc2{display:none!important}
+table.bvph-leaf .col-ntk, table.bvph-leaf .col-dc2, table.bvph-leaf .col-dc3{display:none!important}
+table:not(.bvph-leaf) .col-dcleaf{display:none!important}
 /* Ô bấm được trong bảng tổng hợp Tổng quan */
 .tq-drug-cc{cursor:pointer;transition:box-shadow .12s}
 .tq-drug-cc:hover{box-shadow:inset 0 0 0 2px rgba(41,128,185,.55);border-radius:4px}
@@ -1702,7 +1703,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
             </tr>
             <tr>
               <th class="hdr-in-sub" id="bvph-th-tinh" style="min-width:58px">Nhập TW</th><th class="hdr-in-sub col-ntk" title="Nhập điều chuyển từ tỉnh/TP khác" style="min-width:68px">Nhập tỉnh khác</th><th class="hdr-in-sub" id="bvph-th-dc" title="Nhập điều chuyển từ đơn vị tuyến về" style="min-width:60px">Nhập ĐC</th><th class="hdr-in-sub" style="min-width:62px">Tổng nhập</th>
-              <th class="hdr-out-sub" style="min-width:60px">Sử dụng</th><th class="hdr-out-sub col-dc2" title="Tự tính = tổng Tỉnh cấp của các đơn vị tuyến (không nhập tay)" style="min-width:66px">Xuất Tổ CL</th><th class="hdr-out-sub" id="bvph-th-dc3" style="min-width:68px">Xuất tỉnh khác</th><th class="hdr-out-sub" style="min-width:58px">Hỏng/HH</th><th class="hdr-out-sub" style="min-width:62px">Tổng xuất</th>
+              <th class="hdr-out-sub" style="min-width:60px">Sử dụng</th><th class="hdr-out-sub col-dc2" title="Tự tính = tổng Tỉnh cấp của các đơn vị tuyến (không nhập tay)" style="min-width:66px">Xuất Tổ CL</th><th class="hdr-out-sub col-dc3" id="bvph-th-dc3" style="min-width:68px">Xuất tỉnh khác</th><th class="hdr-out-sub col-dcleaf" title="Xuất điều chuyển sang đơn vị khác cùng tỉnh/TP" style="min-width:68px">Xuất ĐC</th><th class="hdr-out-sub" style="min-width:58px">Hỏng/HH</th><th class="hdr-out-sub" style="min-width:62px">Tổng xuất</th>
             </tr>
           </thead>
           <tbody id="bvph-body"></tbody>
@@ -4521,6 +4522,59 @@ function _subtreeIds(rootId){
 }
 function _hasChildren(id){ var k = _UNIT_CHILDREN[id]; return !!(k && k.length); }
 // Tên cấp báo cáo theo phân cấp tài khoản (utype)
+
+
+// ── ĐIỀU CHUYỂN NGANG CẤP: trợ giúp chọn nơi nhận ──
+function _xfId(name){ try{ return name ? (unitIdByName(name) || null) : null; }catch(e){ return null; } }
+// Node tỉnh/TP (cao nhất có gắn tỉnh) chứa node id
+function _provNodeOf(id){ var u=id?UNIT_BY_ID[id]:null, top=null, g=0; while(u && g++<30){ if(u.tinh) top=u; u=u.parent_id?UNIT_BY_ID[u.parent_id]:null; } return top; }
+// Xuất ĐC của đơn vị: CHỈ tới đơn vị cùng tỉnh/TP (kể cả trả về kho tỉnh). Không cho sang tỉnh khác.
+function _dcPeerUnits(fromName){
+  var fid=_xfId(fromName), fu=fid?UNIT_BY_ID[fid]:null;
+  var pv=_provNodeOf(fid);
+  var ids = pv ? _subtreeIds(pv.id) : ((fu && fu.parent_id) ? (_UNIT_CHILDREN[fu.parent_id]||[]).map(function(x){ return x.id; }) : []);
+  var out=[];
+  ids.forEach(function(id){
+    var u=UNIT_BY_ID[id];
+    if(!u || id===fid || u.active===false || u.utype==='kho_tq' || u.utype==='kho_mien') return;
+    out.push(u);
+  });
+  out.sort(function(a,b){ return (pv&&a.id===pv.id?-1:0)-(pv&&b.id===pv.id?-1:0) || String(a.path).localeCompare(String(b.path)); });
+  return out.map(function(u){ return u.name; });
+}
+// Kho tỉnh/TP KHÁC trong hệ thống (nơi nhận của "Xuất tỉnh khác")
+function _otherProvKho(fromName){
+  var pv=_provNodeOf(_xfId(fromName));
+  return (UNITS_TREE||[]).filter(function(u){
+    var par=u.parent_id?UNIT_BY_ID[u.parent_id]:null;
+    return u.tinh && par && !par.tinh && u.active!==false && (!pv || u.id!==pv.id);
+  }).sort(function(a,b){ return String(a.name).localeCompare(String(b.name),'vi'); });
+}
+// Phiếu "Xuất tỉnh khác" gửi tới một kho tỉnh TRONG hệ thống (bên nhận xác nhận → ghi Nhập tỉnh khác)
+function _dc3InSystem(t){ return !!(t && t.type==='dc3_province' && _xfId(t.to_unit)); }
+// Ô chọn nơi nhận cho Xuất tỉnh khác: danh sách kho tỉnh trong hệ thống + "Ngoài hệ thống" (gõ tên)
+function _dc3TargetPicker(fromName){
+  var wrap=document.createElement('div');
+  var lbl=document.createElement('div'); lbl.style.cssText='font-size:12px;font-weight:600;color:#333;margin-bottom:4px'; lbl.textContent='Tỉnh/Thành phố nhận:';
+  var sel=document.createElement('select');
+  sel.style.cssText='width:100%;padding:9px 10px;border:1px solid #cbd5e0;border-radius:7px;font-size:13px;margin-bottom:6px;box-sizing:border-box;background:#fff';
+  var opts='<option value="">-- Chọn tỉnh/TP nhận --</option>';
+  _otherProvKho(fromName).forEach(function(u){ opts+='<option value="'+String(u.name).replace(/"/g,'&quot;')+'">'+escH(u.name)+'</option>'; });
+  opts+='<option value="__ext__">Ngoài hệ thống (ghi tên)…</option>';
+  sel.innerHTML=opts;
+  var ext=document.createElement('input'); ext.type='text'; ext.placeholder='Tên tỉnh/TP hoặc đơn vị ngoài hệ thống';
+  ext.style.cssText='width:100%;padding:9px 10px;border:1px solid #cbd5e0;border-radius:7px;font-size:13px;margin-bottom:6px;box-sizing:border-box;display:none';
+  var note=document.createElement('div'); note.style.cssText='font-size:11px;color:#6b21a8;margin-bottom:14px';
+  function upd(){
+    ext.style.display = sel.value==='__ext__' ? '' : 'none';
+    note.textContent = sel.value==='__ext__' ? 'Ngoài hệ thống: chỉ tính vào Xuất tỉnh khác của bạn, không đối chiếu được.'
+      : (sel.value ? 'Bên nhận xác nhận phiếu → số lượng tự ghi vào cột Nhập tỉnh khác của họ.' : '');
+  }
+  sel.onchange=upd; upd();
+  wrap.appendChild(lbl); wrap.appendChild(sel); wrap.appendChild(ext); wrap.appendChild(note);
+  return { el:wrap, focus:function(){ (sel.value==='__ext__'?ext:sel).focus(); },
+    get:function(){ if(sel.value==='__ext__') return {name:ext.value.trim(), inSystem:false}; return {name:sel.value, inSystem:!!sel.value}; } };
+}
 
 // ── Nhãn cặp cột ĐIỀU CHUYỂN NGANG CẤP theo cấp của node ──
 //   Toàn quốc: không có ngang cấp · Miền: Nhập/Xuất miền khác · Tỉnh/TP: Nhập/Xuất tỉnh khác
@@ -7768,7 +7822,7 @@ async function _fetchAndRenderTQTransfers(el, periodKey){
     // Lọc theo KỲ GHI NHẬN — phải khai báo _txRecPeriod trước khi dùng
     // (dc3_to_tinh: kỳ ngày chuyển · dc2_to_dc: kỳ ngày nhận · dc3_province: kỳ ngày chuyển)
     function _txRecPeriodEarly(t){
-      if(t.type === 'dc3_to_tinh' || t.type === 'dc3_province') return t.period || '';
+      if(t.type === 'dc3_to_tinh' || (t.type === 'dc3_province' && !_dc3InSystem(t))) return t.period || '';
       var rx = t.receive_date || '';
       return rx ? (_periodFromDate(rx) || t.period || '') : (t.period || '');
     }
@@ -7796,8 +7850,8 @@ async function _fetchAndRenderTQTransfers(el, periodKey){
     }
     // Chỉ phiếu điều chuyển NGANG CẤP (đơn vị↔đơn vị, kể cả đơn vị trả về kho tuyến trên).
     // Phiếu cấp phát tuyến trên → tuyến dưới (dc3_to_tinh) KHÔNG phải điều chuyển → không hiện ở đây.
-    var dc2List = transfers.filter(function(t){ return t.type==='dc2_to_dc'; });
-    var dc3List = transfers.filter(function(t){ return t.type==='dc3_province'; });
+    var dc2List = transfers.filter(function(t){ return t.type==='dc2_to_dc' || _dc3InSystem(t); });
+    var dc3List = transfers.filter(function(t){ return t.type==='dc3_province' && !_dc3InSystem(t); });   // xuất ra NGOÀI hệ thống
     var html='';
 
     // ── Tính trạng thái "Đối chiếu báo cáo" cho từng phiếu ──
@@ -7813,12 +7867,12 @@ async function _fetchAndRenderTQTransfers(el, periodKey){
     }
     // Cột báo cáo mà phiếu rơi vào bên NHẬN
     function _txRecField(t){
-      return (t.type === 'dc3_to_tinh') ? 'tinh' : 'dc';
+      return (t.type === 'dc3_to_tinh') ? 'tinh' : (t.type === 'dc3_province' ? 'ntk' : 'dc');
     }
 
     var expectedMap = {}, siblingsMap = {};
     transfers.forEach(function(t){
-      if(t.type==='dc3_province') return;
+      if(t.type==='dc3_province' && !_dc3InSystem(t)) return;
       var k = _txRecPeriod(t)+'|'+(t.to_unit||'')+'|'+(t.drug||'')+'|'+(t.lot||'')+'|'+_normExp(t.exp)+'|'+_txRecField(t);
       expectedMap[k] = (expectedMap[k]||0) + Number(t.qty||0);
       (siblingsMap[k] = siblingsMap[k] || []).push(t);
@@ -7833,7 +7887,7 @@ async function _fetchAndRenderTQTransfers(el, periodKey){
     // Lưu chi tiết đối chiếu theo id phiếu để hiện popup
     _tqMatchDetail = {};
     function _matchDetail(tx){
-      if(tx.type==='dc3_province'){
+      if(tx.type==='dc3_province' && !_dc3InSystem(tx)){
         return { status:'na', tx:tx };
       }
       var to = tx.to_unit||'';
@@ -7873,7 +7927,7 @@ async function _fetchAndRenderTQTransfers(el, periodKey){
         var bg=i%2===0?'#f8f9fa':'white';
         var dt=tx.transfer_date?_fmtDate(tx.transfer_date):(tx.created_at?_fmtDate(tx.created_at):'—');
         // Ngày nhận: chỉ có khi phiếu đã xác nhận
-        var rxDt = (tx.type==='dc3_province')
+        var rxDt = (tx.type==='dc3_province' && !_dc3InSystem(tx))
                  ? '<span style="color:#cbd5e1;font-weight:400">—</span>'
                  : (tx.receive_date ? _fmtDate(tx.receive_date)
                  : (tx.status==='confirmed' && tx.created_at ? _fmtDate(tx.created_at)
@@ -7917,7 +7971,7 @@ async function _fetchAndRenderTQTransfers(el, periodKey){
       html+=_tqTransferTree(dc2List, makeTable, _matchDetail);
     }
     if(dc3List.length){
-      html+='<div style="font-size:12px;font-weight:700;color:#8e44ad;margin-bottom:6px">↗ Xuất tỉnh/thành phố khác ('+dc3List.length+' phiếu)</div>';
+      html+='<div style="font-size:12px;font-weight:700;color:#8e44ad;margin:10px 0 6px">↗ Xuất ra ngoài hệ thống ('+dc3List.length+' phiếu)</div>';
       html+=makeTable(dc3List,'#8e44ad');
     }
     if(!html) html='<div style="color:#888;font-size:12px;font-style:italic;text-align:center;padding:10px">Chưa có phiếu điều chuyển ngang cấp nào trong kỳ này (phiếu cấp phát tuyến trên → tuyến dưới không tính là điều chuyển).</div>';
@@ -8522,6 +8576,8 @@ function buildTbl(data, bodyId, prefix){
   var htmlString = '';
 
   var isBVPH = (prefix === 'bvph');
+  // Kho riêng của ĐƠN VỊ CƠ SỞ (C5): Xuất ĐC ghi vào dc2 như bảng đơn vị (không có Xuất Tổ CL / tỉnh khác)
+  var _leafKho = isBVPH && (function(){ try{ return _isLeafLevel(UNIT_BY_ID[_currentRootId()]); }catch(e){ return false; } })();
 
   // Biến tổng footer
   var sumOpen=0, sumTinh=0, sumDC=0, sumTIN=0;
@@ -8611,12 +8667,13 @@ function buildTbl(data, bodyId, prefix){
         //       22ĐV = Xuất điều chuyển → rơi vào dc đơn vị nhận
         if(field === 'dc2'){
           var onch = 'updField(\'' + prefix + '\',' + rowIdx + ',\'' + field + '\',this.value)';
-          var dc2Fn = isBVPH ? 'onDc2BVPHChange' : 'showDcOutDetail';
-          var dc2Color = isBVPH ? '#2ecc71' : '#f59e0b';
-          var dc2Bg    = isBVPH ? '#f0fff4' : '#fffbeb';
-          var dc2Title = isBVPH ? 'Tự tính = tổng Tỉnh cấp các đơn vị · Bấm để xuất Tổ CL cho đơn vị tuyến' : 'Bấm xem chi tiết / tạo phiếu điều chuyển';
+          var _kho = isBVPH && !_leafKho;
+          var dc2Fn = _kho ? 'onDc2BVPHChange' : 'showDcOutDetail';
+          var dc2Color = _kho ? '#2ecc71' : '#f59e0b';
+          var dc2Bg    = _kho ? '#f0fff4' : '#fffbeb';
+          var dc2Title = _kho ? 'Tự tính = tổng Tỉnh cấp các đơn vị · Bấm để xuất Tổ CL cho đơn vị tuyến' : 'Bấm xem chi tiết / tạo phiếu điều chuyển';
           // đơn vị tuyến: onfocus → popup chi tiết + có nút tạo phiếu bên trong
-          var dc2FocusCall = isBVPH
+          var dc2FocusCall = _kho
             ? dc2Fn + '(\'' + prefix + '\',' + rowIdx + ',this)'
             : dc2Fn + '(\'' + prefix + '\',' + rowIdx + ')';
           return '<input type="number" min="0" value="' + val + '"'
@@ -8703,7 +8760,13 @@ function buildTbl(data, bodyId, prefix){
           tr += '<td class="col-dc2">'+makeCell('dc2', row.dc2||0, false)+'</td>';
         }
       })();
-      tr += clickCell('dc3', row.dc3||0, '');
+      tr += clickCell('dc3', row.dc3||0, 'col-dc3');
+      // Cột "Xuất ĐC" của kho riêng cấp cơ sở (= dc2) — chỉ hiện khi bảng ở chế độ cơ sở
+      (function(){
+        var _v=row.dc2||0;
+        if(isEditing && canEdit) tr += '<td class="col-dcleaf">'+makeCell('dc2', _v, false)+'</td>';
+        else tr += '<td class="col-dcleaf bvph-cc" onclick="showDcOutDetail(\''+prefix+'\','+idx+')" title="Bấm xem chi tiết xuất điều chuyển" style="cursor:pointer">'+fmtNum(_v)+'</td>';
+      })();
     } else {
       // dc2 đơn vị tuyến = Xuất điều chuyển → bấm xem xuất đi đơn vị nào
       var dc2OnUnit = 'showDcOutDetail(\''+prefix+'\','+idx+')';
@@ -9601,6 +9664,8 @@ function _syncBVPHDc2FromUnits(){
   // trạm khu vực bị đếm 2 lần; ở cấp toàn quốc thì cộng cả nước vào một kho).
   var _rid = _currentRootId(); var _rn = _rid ? UNIT_BY_ID[_rid] : null;
   if(!_rn || _rn.utype==='kho_tq' || _rn.utype==='kho_mien') return false;
+  // Kho KHÔNG có đơn vị trực thuộc (cấp cơ sở) → dc2 là "Xuất ĐC" nhập qua phiếu, KHÔNG phải Xuất TCL → không ghi đè.
+  if(!_hasChildren(_rid)) return false;
   // Tài khoản đầu mối (tỉnh/khu vực) đang xem CHÍNH kho mình → RAM đã có đủ dòng đơn vị trực thuộc
   // (nạp theo nhánh) nên tính được ngay; còn lại (đang xem 1 đơn vị con…) giữ nguyên dc2.
   if(role !== 'admin' && (typeof _dc2HubId!=='function' || _dc2HubId() !== _rid)) return false;
@@ -9875,7 +9940,9 @@ function renderBVPH(){
     var _go=document.getElementById('bvph-grp-out'); if(_go) _go.setAttribute('colspan', _leafC5?'4':'5');
     var _thT=document.getElementById('bvph-th-tinh'); if(_thT) _thT.textContent = _leafC5?'Tính cấp':'Nhập TW';
     var _thD=document.getElementById('bvph-th-dc');   if(_thD) _thD.textContent = 'Nhập ĐC';
-    var _thD3=document.getElementById('bvph-th-dc3'); if(_thD3) _thD3.textContent = _leafC5?'Xuất ĐC':'Xuất tỉnh khác';
+    var _thD3=document.getElementById('bvph-th-dc3'); if(_thD3) _thD3.textContent = 'Xuất tỉnh khác';
+    // Form thêm dòng: cấp cơ sở không có Xuất TCL / Xuất tỉnh khác (Xuất ĐC tạo phiếu ở ô trong bảng)
+    ['bvph-dc2','bvph-dc3'].forEach(function(id){ var e=document.getElementById(id); var f=e&&e.closest('.fg'); if(f) f.style.display=_leafC5?'none':''; });
   }catch(e){ console.warn('[bvph-leaf]', e); }
   checkMismatch();
   updateLockedUI();
@@ -11084,9 +11151,10 @@ function _showPendingTransferPopup(transfers, myUnit, periodKey){
             return;
           }
 
-          // ── Phiếu Đơn vị → BVPH/Đơn vị (dc2_to_dc): cộng `dc` vào kỳ của NGÀY NHẬN
+          // ── Phiếu Đơn vị → Đơn vị cùng tỉnh (dc2_to_dc): cộng `dc` (Nhập ĐC) vào kỳ của NGÀY NHẬN
+          // ── Phiếu Xuất tỉnh khác (dc3_province) tới kho tỉnh trong hệ thống: cộng `ntk` (Nhập tỉnh khác)
           var txPeriod = _rxPeriod;
-          var fieldToUpdate = 'dc';
+          var fieldToUpdate = (transfer.type === 'dc3_province') ? 'ntk' : 'dc';
           var tExp = transfer.exp || '';
           var _dbUnit = (myUnit===BVPH||myUnit==='bvph') ? 'bvph' : myUnit;
 
@@ -11224,7 +11292,7 @@ function _showPendingTransferPopup(transfers, myUnit, periodKey){
         // Phiếu Xuất Tổ CL: bên xuất KHÔNG có cột riêng (Xuất TCL = Σ Tỉnh cấp đơn vị nhận, tự tính lại)
         // → chỉ trừ `tinh` bên nhận. Bản cũ trừ nhầm cột dc3 "Xuất tỉnh khác" của kho.
         var _srcFld = _isDc3 ? null : (transfer.type === 'dc3_province' ? 'dc3' : 'dc2');
-        var _srcFldTxt = _isDc3 ? 'Xuất Tổ CL (tự tính lại)' : 'Xuất ĐC';
+        var _srcFldTxt = _isDc3 ? 'Xuất Tổ CL (tự tính lại)' : (transfer.type === 'dc3_province' ? 'Xuất tỉnh khác' : 'Xuất ĐC');
 
         var _rejMsg = '<div style="font-size:13px;line-height:1.7">'
           + 'Từ chối nhận <b>'+_qtyTxt+' viên '+transfer.drug+'</b> từ <b>'+_srcName+'</b>?<br><br>'
@@ -12763,31 +12831,56 @@ function onFormDc2BVPHChange(inp){
   });
 }
 
-// Form BVPH dc3 = Tỉnh khác
+// Form BVPH dc3 = Xuất tỉnh khác → chọn kho tỉnh/TP nhận trong hệ thống
 function onFormDc3BVPHChange(inp){
   var info = _getFormRowInfo('bvph');
   if(!info.drug || !info.lot){ toast('Chọn thuốc và lô trước!','var(--warning)'); inp.blur(); return; }
-  var currentVal = parseInt(inp.value)||0;
   var availStock = info.open + info.tinh + info.dc - info.sd - (parseInt(document.getElementById('bvph-dc2').value)||0) - info.hh;
   var maxCan = Math.max(0, availStock);
-  _showFormTransferPopup({
-    title:'↗ Xuất tỉnh/thành phố khác', color:'#8e44ad', bgColor:'#f9f0ff',
-    drug:info.drug, lot:info.lot, exp:expToMMYYYY(info.exp), fromUnit:(unitNameById(_currentRootId())||BVPH),
-    note:'Chỉ tính vào Tổng xuất, không rơi vào đơn vị nào trong hệ thống',
-    maxCan:maxCan, currentVal:currentVal,
-    showProvince:true,
-    onConfirm:function(qty, province, txDate){
-      inp.value = qty;
-      if(qty>0 && _supaOnline){
-        var txDate2=new Date(txDate);
-        var txPeriod=isNaN(txDate2)?_currentPeriodKey():txDate2.getFullYear()+'-'+(txDate2.getMonth()<9?'0':'')+(txDate2.getMonth()+1);
-        var fakeRow={drug:info.drug,lot:info.lot,exp:info.exp||''};
-        _saveTransfer(txPeriod,(unitNameById(_currentRootId())||BVPH),province,fakeRow,qty,'dc3_province',txDate)
-          .then(function(){ toast('✓ Phiếu Tỉnh khác đã lưu cloud','#8e44ad'); })
-          .catch(function(e){ toast('Chưa lưu phiếu: '+e.message,'orange'); });
-      }
+  var fromUnit = (unitNameById(_currentRootId())||BVPH);
+  inp.blur();
+  var old=document.getElementById('_dc3_form_modal'); if(old) old.remove();
+  var ov=document.createElement('div'); ov.id='_dc3_form_modal'; ov.className='app-popup';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999999;display:flex;align-items:center;justify-content:center';
+  var box=document.createElement('div');
+  box.style.cssText='background:white;border-radius:14px;max-width:460px;width:95%;padding:18px 20px;box-shadow:0 20px 60px rgba(0,0,0,.3)';
+  box.innerHTML='<div style="font-size:15px;font-weight:700;color:#8e44ad;margin-bottom:6px">↗ Xuất tỉnh/thành phố khác</div>'
+    +'<div style="font-size:12px;color:#555;margin-bottom:12px;padding:8px;background:#f9f0ff;border-radius:6px;line-height:1.7"><b>Thuốc:</b> '+escH(info.drug)+'<br><b>Số lô:</b> '+escH(info.lot)+' | <b>Hạn:</b> '+expToMMYYYY(info.exp)+'<br><b>Từ:</b> '+escH(fromUnit)+'</div>'
+    +'<div style="font-size:12px;font-weight:600;color:#333;margin-bottom:4px">Số lượng (viên): <span style="color:#27ae60">Tối đa '+maxCan.toLocaleString()+'</span></div>';
+  var q=document.createElement('input'); q.type='number'; q.min='0'; q.value=parseInt(inp.value)||'';
+  q.style.cssText='width:100%;padding:9px;border:2px solid #8e44ad;border-radius:7px;font-size:15px;font-weight:700;margin-bottom:12px;box-sizing:border-box;text-align:center';
+  box.appendChild(q);
+  var tgt=_dc3TargetPicker(fromUnit); box.appendChild(tgt.el);
+  var dl=document.createElement('div'); dl.style.cssText='font-size:12px;font-weight:600;color:#333;margin-bottom:4px'; dl.textContent='Ngày điều chuyển (dd/mm/yyyy):';
+  var d=document.createElement('input'); d.type='text'; var _t=new Date(); d.value=('0'+_t.getDate()).slice(-2)+'/'+('0'+(_t.getMonth()+1)).slice(-2)+'/'+_t.getFullYear();
+  d.style.cssText='width:100%;padding:8px 10px;border:1px solid #cbd5e0;border-radius:7px;font-size:13px;margin-bottom:14px;box-sizing:border-box';
+  box.appendChild(dl); box.appendChild(d);
+  var row=document.createElement('div'); row.style.cssText='display:flex;gap:10px;justify-content:flex-end';
+  var bc=document.createElement('button'); bc.textContent='Đóng'; bc.style.cssText='padding:8px 18px;border:1px solid #dee2e6;border-radius:18px;background:white;cursor:pointer;font-size:13px';
+  bc.onclick=function(){ ov.remove(); };
+  var bo=document.createElement('button'); bo.textContent='✓ Xác nhận'; bo.style.cssText='padding:8px 18px;border:none;border-radius:18px;background:#8e44ad;color:white;cursor:pointer;font-size:13px;font-weight:600';
+  bo.onclick=function(){
+    var qty=parseInt(q.value)||0;
+    if(qty<0 || qty>maxCan){ toast('⚠ Số lượng không hợp lệ (tối đa '+maxCan+')','var(--danger)'); q.focus(); return; }
+    var tg=tgt.get();
+    if(qty>0 && !tg.name){ toast('Chọn tỉnh/thành phố nhận!','var(--warning)'); tgt.focus(); return; }
+    var dp=d.value.split('/');
+    var txD=(dp.length===3&&dp[2].length===4)?new Date(parseInt(dp[2]),parseInt(dp[1])-1,parseInt(dp[0])):new Date();
+    var txDate=isNaN(txD)?new Date().toISOString().slice(0,10):(txD.getFullYear()+'-'+('0'+(txD.getMonth()+1)).slice(-2)+'-'+('0'+txD.getDate()).slice(-2));
+    var txPeriod=isNaN(txD)?_currentPeriodKey():txD.getFullYear()+'-'+(txD.getMonth()<9?'0':'')+(txD.getMonth()+1);
+    ov.remove();
+    inp.value = qty;
+    if(qty>0 && _supaOnline){
+      var fakeRow={drug:info.drug,lot:info.lot,exp:info.exp||''};
+      _saveTransfer(txPeriod,fromUnit,tg.name,fakeRow,qty,'dc3_province',txDate)
+        .then(function(){ toast('✓ Phiếu Xuất tỉnh khác → '+tg.name+(tg.inSystem?' · chờ bên nhận xác nhận':''),'#8e44ad'); try{ renderTQTransfers(); }catch(e){} })
+        .catch(function(e){ toast('Chưa lưu phiếu: '+e.message,'orange'); });
     }
-  });
+  };
+  row.appendChild(bc); row.appendChild(bo); box.appendChild(row);
+  ov.appendChild(box); document.body.appendChild(ov);
+  ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
+  setTimeout(function(){ q.focus(); },50);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -13074,7 +13167,7 @@ function onFormDc2BCChange(inp){
   var availStock = info.open + info.tinh + info.dc - info.sd - info.hh;
   var maxCan = Math.max(0, availStock);
   var fromUnit = info.unit || '';
-  var allUnits = [BVPH].concat(UNITS.filter(function(u){ return u !== BVPH && u !== fromUnit; }));
+  var allUnits = _dcPeerUnits(fromUnit);   // chỉ đơn vị cùng tỉnh/TP
   _showTransferModal({
     mode: 'dc2_form',
     drug: info.drug, lot: info.lot, exp: expToMMYYYY(info.exp), fromUnit: fromUnit,
@@ -13200,8 +13293,9 @@ function onDc2Change(prefix, rowIdx, inp){
   var row = arr[realIdx];
   var fromUnit = row.unit || BVPH;
   var periodKey = _currentPeriodKey();
-  var receiveUnits = [BVPH].concat(UNITS.filter(function(u){ return u !== BVPH && u !== fromUnit; }))
-    .filter(function(u){ return u !== fromUnit; });
+  // Xuất ĐC chỉ tới đơn vị CÙNG tỉnh/TP (kể cả trả về kho tỉnh) — liên tỉnh phải qua kho tỉnh.
+  var receiveUnits = _dcPeerUnits(fromUnit);
+  if(!receiveUnits.length){ toast('Không có đơn vị nào cùng tỉnh/TP để điều chuyển.','var(--warning)'); return; }
 
   var srcRow0 = arr[realIdx];
   var availStock = (srcRow0.open||0) + (srcRow0.tinh||0) + (srcRow0.dc||0)
@@ -13392,7 +13486,7 @@ function onDc3Change(prefix, rowIdx, inp){
   sub.style.cssText = 'font-size:12px;color:#555;margin-bottom:12px;padding:8px;background:#f9f0ff;border-radius:6px;line-height:1.7';
   sub.innerHTML = '<b>Thuốc:</b> '+row.drug+'<br><b>Số lô:</b> '+row.lot+' &nbsp;|&nbsp; <b>Hạn:</b> '+expToMMYYYY(row.exp)
     +'<br><b>Từ:</b> '+fromUnit
-    +'<br><span style="color:#8e44ad">⚠ Số xuất này chỉ tính vào Tổng xuất, không rơi vào báo cáo đơn vị nào trong hệ thống.</span>';
+    +'<br><span style="color:#8e44ad">Chọn kho tỉnh/TP nhận trong hệ thống → bên nhận xác nhận, số lượng vào cột <b>Nhập tỉnh khác</b> của họ.</span>';
   box.appendChild(h); box.appendChild(sub);
 
   // Danh sách phiếu đã có
@@ -13415,11 +13509,8 @@ function onDc3Change(prefix, rowIdx, inp){
   var qtyWarn = document.createElement('div'); qtyWarn.style.cssText='font-size:11px;color:#e74c3c;margin-bottom:10px;display:none'; qtyWarn.textContent='⚠ Vượt tồn kho!';
   qtyInp.oninput=function(){ var v=parseInt(this.value)||0; qtyWarn.style.display=(v>maxCanTransfer)?'':'none'; this.style.borderColor=(v>maxCanTransfer)?'#e74c3c':'#8e44ad'; };
 
-  // Ô gõ tên tỉnh nhận — TEXT tự do
-  var provLbl = document.createElement('div'); provLbl.style.cssText='font-size:12px;font-weight:600;color:#333;margin-bottom:4px'; provLbl.textContent='Tỉnh/Thành phố nhận:';
-  var provInp = document.createElement('input');
-  provInp.type='text'; provInp.placeholder='VD: Quảng Ninh, Hải Dương, ...';
-  provInp.style.cssText='width:100%;padding:9px 10px;border:1px solid #cbd5e0;border-radius:7px;font-size:13px;margin-bottom:14px;box-sizing:border-box';
+  // Nơi nhận: kho tỉnh/TP trong hệ thống (hoặc ngoài hệ thống — gõ tên)
+  var _tgt = _dc3TargetPicker(fromUnit);
 
   // Ngày điều chuyển
   var dateLbl = document.createElement('div'); dateLbl.style.cssText='font-size:12px;font-weight:600;color:#333;margin-bottom:4px';
@@ -13442,8 +13533,8 @@ function onDc3Change(prefix, rowIdx, inp){
     var qty=parseInt(qtyInp.value);
     if(isNaN(qty)||qty<0){ toast('Số lượng không hợp lệ!','var(--warning)'); qtyInp.focus(); return; }
     if(qty>maxCanTransfer){ toast('⚠ Vượt tồn! Tối đa: '+maxCanTransfer,'var(--danger)'); qtyInp.focus(); return; }
-    var province = provInp.value.trim();
-    if(qty>0 && !province){ toast('Nhập tên tỉnh/thành phố nhận!','var(--warning)'); provInp.focus(); return; }
+    var _tg = _tgt.get(), province = _tg.name;
+    if(qty>0 && !province){ toast('Chọn tỉnh/thành phố nhận!','var(--warning)'); _tgt.focus(); return; }
     var _dp2=dateInp.value.split('/');
     var txDate2 = (_dp2.length===3&&_dp2[2].length===4) ? new Date(parseInt(_dp2[2]),parseInt(_dp2[1])-1,parseInt(_dp2[0])) : new Date();
     var txDate = txDate2.toISOString().slice(0,10);
@@ -13464,7 +13555,7 @@ function onDc3Change(prefix, rowIdx, inp){
     // Lưu phiếu với to_unit = tên tỉnh (để ghi hồ sơ)
     if(_supaOnline){
       _saveTransfer(txPeriod, fromUnit, province, row, qty, 'dc3_province', txDate)
-        .then(function(){ toast('✓ Đã xuất '+qty.toLocaleString()+' viên → '+province+' | Phiếu đã lưu','#8e44ad'); })
+        .then(function(){ toast('✓ Đã xuất '+qty.toLocaleString()+' viên → '+province+(_tg.inSystem?' · chờ bên nhận xác nhận':' | Phiếu đã lưu'),'#8e44ad'); try{ renderTQTransfers(); }catch(e){} })
         .catch(function(e){ toast('✓ Xuất OK nhưng chưa lưu phiếu: '+e.message,'orange'); });
     } else {
       toast('✓ Đã xuất tỉnh khác (offline)','#8e44ad');
@@ -13472,7 +13563,7 @@ function onDc3Change(prefix, rowIdx, inp){
   };
 
   box.appendChild(qtyLabel); box.appendChild(qtyInp); box.appendChild(qtyWarn);
-  box.appendChild(provLbl); box.appendChild(provInp);
+  box.appendChild(_tgt.el);
   box.appendChild(dateLbl); box.appendChild(dateInp); box.appendChild(monthNote);
   btnRow.appendChild(btnC); btnRow.appendChild(btnO);
   box.appendChild(btnRow);
@@ -14275,7 +14366,7 @@ async function cancelTransferById(transferId, toUnit){
         // cột không liên quan, và KHÔNG trừ `tinh` của đơn vị nhận khi phiếu còn pending.
         var srcUnit = t.from_unit || '';
         var srcField = (t.type==='dc2_to_dc') ? 'dc2' : (t.type==='dc3_province' ? 'dc3' : null);
-        var dstField = isdc3 ? 'tinh' : ((t.type==='dc2_to_dc' && wasConfirmed) ? 'dc' : null);
+        var dstField = isdc3 ? 'tinh' : (!wasConfirmed ? null : (t.type==='dc2_to_dc' ? 'dc' : (t.type==='dc3_province' ? 'ntk' : null)));
         var dstPer = isdc3 ? tPeriod : _rxPer;
         var hdRpc = Object.assign({}, _supaHdr, {'Content-Type':'application/json','Prefer':'return=minimal'});
         // LƯU Ý: PHẢI lọc cả `exp` — cùng thuốc+lô nhưng khác hạn là 2 dòng khác nhau.
@@ -16146,7 +16237,7 @@ function _internalCircFor(scopeRootId, match, transfers){
     if(t.status && t.status !== 'confirmed') return;
     if(t.type!=='dc3_to_tinh' && t.type!=='dc2_to_dc' && t.type!=='dc3_province') return;
     var sp = t.period || '';
-    var rp = (t.type==='dc3_to_tinh' || t.type==='dc3_province') ? sp
+    var rp = (t.type==='dc3_to_tinh') ? sp
            : ((t.receive_date && typeof _periodFromDate==='function' && _periodFromDate(t.receive_date)) || sp);
     if(!match({bcMonth:sp}) || !match({bcMonth:rp})) return;
     if(!inScope(t.from_unit) || !inScope(t.to_unit)) return;
