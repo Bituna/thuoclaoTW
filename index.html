@@ -97,25 +97,28 @@ body{font-family:'Be Vietnam Pro',sans-serif;background:var(--bg);color:var(--te
 #page-tq .card-title{font-size:12px;margin-bottom:7px}
 #page-tq .cards-row{gap:10px;margin-bottom:10px}
 #page-tq .list li{font-size:11px;padding:3px 0}
-/* ── Điều chuyển trong kỳ theo cấp ── */
-.tqx-blk{margin-bottom:12px}
-.tqx-h{font-size:12px;font-weight:700;margin-bottom:6px}
-.tqx-h span{font-weight:500;color:#94a3b8}
-.tqx-pair,.tqx-inner{border:1px solid #e2e8f0;border-radius:9px;margin-bottom:6px;background:#fff}
-.tqx-inner{background:#f8fafc}
-.tqx-pair>summary,.tqx-inner>summary{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:8px 12px;cursor:pointer;font-size:12.5px;list-style:none}
-.tqx-pair>summary::-webkit-details-marker,.tqx-inner>summary::-webkit-details-marker{display:none}
-.tqx-pair>summary::before,.tqx-inner>summary::before{content:'▸';color:#94a3b8;transition:transform .15s}
-.tqx-pair[open]>summary::before,.tqx-inner[open]>summary::before{transform:rotate(90deg)}
-.tqx-lb{flex:1 1 260px;font-weight:600;color:#1a2332}
-.tqx-ar{color:#1a5276;margin:0 4px}
-.tqx-k{font-weight:400;color:#64748b;font-size:11px}
-.tqx-n{font-size:11px;color:#475569;background:#eef2f7;border-radius:10px;padding:1px 8px}
-.tqx-q{font-size:12px;font-weight:700;color:#1a5276;min-width:90px;text-align:right}
-.tqx-w{font-size:11px;color:#b45309}
-.tqx-b{font-size:11px;color:#c0392b;font-weight:700}
-.tqx-body{padding:4px 10px 8px}
-.tqx-empty{font-size:12px;color:#94a3b8;font-style:italic;padding:4px 2px 8px}
+/* ── Điều chuyển trong kỳ: thanh lọc + bảng tổng hợp ── */
+.tqx-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-bottom:10px;font-size:12px;color:var(--muted);font-weight:600}
+.tqx-bar label{display:inline-flex;align-items:center;gap:6px}
+.tqx-bar select{font-size:12px;padding:5px 8px;border:1px solid #cbd5e0;border-radius:7px;background:#fff;color:#1a2332;max-width:220px}
+.tqx-seg{display:inline-flex;align-items:center;gap:4px}
+.tqx-seg>span{margin-right:2px}
+.tqx-seg button{border:1px solid #cbd5e0;background:#fff;color:#334155;padding:5px 12px;border-radius:16px;font-size:12px;font-weight:600;cursor:pointer}
+.tqx-seg button.act{background:#1a5276;border-color:#1a5276;color:#fff}
+.tqx-wrap{overflow-x:auto;border:1px solid #e2e8f0;border-radius:10px}
+.tqx-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tqx-tbl th{background:#1a5276;color:#fff;padding:7px 10px;font-weight:600;text-align:center;white-space:nowrap}
+.tqx-tbl td{padding:7px 10px;border-bottom:1px solid #eef2f7;text-align:center;font-variant-numeric:tabular-nums}
+.tqx-tbl .l{text-align:left}
+.tqx-tbl tbody tr:not(.tqx-tot){cursor:pointer}
+.tqx-tbl tbody tr:not(.tqx-tot):hover{background:#f1f6fb}
+.tqx-g{color:#64748b;font-size:12px}
+.tqx-q{font-weight:700;color:#1a5276;text-align:right!important}
+.tqx-w{color:#b45309;font-weight:600}
+.tqx-b{color:#c0392b;font-weight:700}
+.tqx-tot td{background:#f8fafc;font-weight:700;border-top:2px solid #e2e8f0}
+.tqx-empty{color:#94a3b8;font-style:italic;padding:14px!important}
+.tqx-note{font-size:11px;color:#94a3b8;margin-top:6px}
 /* ── Tab con Tổng quan / Bản đồ phân bố thuốc ── */
 .tq-subtabs{display:flex;gap:4px;padding:0 24px;margin:-4px 0 10px;border-bottom:1px solid var(--border)}
 .tq-subtab{border:none;background:none;padding:9px 16px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1px}
@@ -7670,7 +7673,7 @@ async function _renderTQTransfersCached(){
   if(_tqTransferCache
       && _tqTransferCache.periodKey === periodKey
       && (Date.now() - _tqTransferCache.ts) < 60000){
-    if(el._cacheTs !== _tqTransferCache.ts){ el.innerHTML = _tqTransferCache.html; el._cacheTs = _tqTransferCache.ts; }
+    if(el._cacheTs !== _tqTransferCache.ts){ el.innerHTML = _tqTransferCache.html; el._cacheTs = _tqTransferCache.ts; try{ _tqxRender(); }catch(e){} }
     _tqMatchDetail = _tqTransferCache.matchDetail || {};
     return;
   }
@@ -7904,6 +7907,7 @@ async function _fetchAndRenderTQTransfers(el, periodKey){
       html+=makeTable(dc3List,'#8e44ad');
     }
     el.innerHTML=html;
+    try{ _tqxRender(); }catch(e){ console.warn('[tqx]',e); }
 
     // Kết quả đối chiếu dựa vào bvphData/bcData trong RAM. Nếu 2 mảng này CHƯA tải xong
     // (renderTQ chạy trước loadFromSupabase) thì mọi phiếu đều ra "Chưa khớp" — sai.
@@ -7921,120 +7925,121 @@ async function _fetchAndRenderTQTransfers(el, periodKey){
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// ĐIỀU CHUYỂN TRONG KỲ — HIỂN THỊ THEO CẤP
-//  • Mỗi cấp chỉ thấy điều chuyển giữa các đơn vị NGAY DƯỚI nó (gộp theo cặp, bấm mở phiếu).
-//  • Phiếu nằm gọn trong 1 đơn vị con → dòng "Nội bộ <đơn vị con>", bấm xổ ra cấp tiếp theo.
-//  • Cấp Toàn quốc: 2 khối Miền ↔ Miền và Tỉnh ↔ Tỉnh (kể cả khác miền) + Nội bộ từng tỉnh.
+// ĐIỀU CHUYỂN TRONG KỲ — THANH LỌC + BẢNG TỔNG HỢP THEO CẶP
+//  Cấp xem: Giữa các miền | Giữa các tỉnh | Trong tỉnh (giữa các đơn vị)
+//  Lọc: Miền, Tỉnh (phiếu có LIÊN QUAN), Thuốc, Trạng thái. Bấm 1 dòng → popup danh sách phiếu.
 // ══════════════════════════════════════════════════════════════════════
+var _TQX = { lvl:'', mien:'', tinh:'', drug:'', st:'', items:[], mk:null, mf:null, root:null };
+
 function _tqTransferTree(list, makeTable, matchFn){
   var rid=_currentRootId(), R=rid?UNIT_BY_ID[rid]:null;
-  if(!R || !list.length) return list.length ? makeTable(list,'#1a5276') : '';
   var top=UNITS_TREE.find(function(u){ return !u.parent_id; });
   var _ch={};
   function chain(id){
+    if(!id) return [];
     if(_ch[id]) return _ch[id];
     var c=[], u=UNIT_BY_ID[id], g=0;
     while(u && g++<30){ c.unshift(u.id); u=u.parent_id?UNIT_BY_ID[u.parent_id]:null; }
     return (_ch[id]=c);
   }
-  function idOf(nm){
-    if(!nm) return null;
-    if(nm==='admin') return top?top.id:null;
-    try{ return unitIdByName(nm, R.path); }catch(e){ return null; }
-  }
-  function childUnder(id,S){ if(!id) return null; var c=chain(id), i=c.indexOf(S); if(i<0) return null; return i===c.length-1 ? S : c[i+1]; }
-  function provOf(id){ if(!id) return null; var c=chain(id); for(var i=0;i<c.length;i++){ var u=UNIT_BY_ID[c[i]]; if(u && u.tinh) return u.id; } return null; }
-  function nm(id){ var u=UNIT_BY_ID[id]; return u?u.name:'?'; }
-  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-  function lbl(id,S){ return id===S ? nm(id)+' <span class="tqx-k">(kho)</span>' : esc(nm(id)); }
-  function kidWord(S){ var u=UNIT_BY_ID[S]; return u&&u.utype==='kho_tq'?'miền':(u&&u.utype==='kho_mien'?'tỉnh/đơn vị':'đơn vị'); }
+  function idOf(nm){ if(!nm) return null; if(nm==='admin') return top?top.id:null; try{ return unitIdByName(nm, R?R.path:''); }catch(e){ return null; } }
+  function provOf(id){ var c=chain(id); for(var i=0;i<c.length;i++){ var u=UNIT_BY_ID[c[i]]; if(u && u.tinh) return u.id; } return null; }
+  function mienOf(id){ var c=chain(id); return c.length>1 ? c[1] : (c[0]||null); }
+  _TQX.items = list.map(function(t){
+    var f=idOf(t.from_unit), to=idOf(t.to_unit), st='';
+    if(t.status!=='confirmed') st='wait';
+    else { try{ st = matchFn(t).status==='no' ? 'bad' : 'ok'; }catch(e){ st='ok'; } }
+    return { t:t, f:f, to:to, fm:mienOf(f), tm:mienOf(to), fp:provOf(f), tp:provOf(to), st:st };
+  });
+  _TQX.mk=makeTable; _TQX.mf=matchFn; _TQX.root=R;
+  // Cấp mặc định theo người xem; giữ lựa chọn cũ nếu vẫn hợp lệ
+  var lv=_tqxLevels();
+  if(lv.indexOf(_TQX.lvl)<0) _TQX.lvl=lv[0];
+  return '<div class="tqx-bar" id="tqx-bar"></div><div id="tqx-res"></div>';
+}
+function _tqxLevels(){
+  var R=_TQX.root;
+  if(!R || (R.utype==='kho_tq' && !R.parent_id)) return ['mien','tinh','unit'];
+  if(R.utype==='kho_mien') return ['tinh','unit'];
+  return ['unit'];
+}
+function _tqxSet(k,v){ _TQX[k]=v; if(k==='mien') _TQX.tinh=''; _tqxRender(); }
+function _tqxName(id){ var u=id&&UNIT_BY_ID[id]; return u?u.name:''; }
+function _tqxEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-  var items=list.map(function(t){ return {t:t, f:idOf(t.from_unit), to:idOf(t.to_unit)}; });
+function _tqxRender(){
+  var bar=document.getElementById('tqx-bar'), res=document.getElementById('tqx-res');
+  if(!bar||!res) return;
+  var L=_tqxLevels(), X=_TQX, all=X.items;
+  var LB={mien:'Giữa các miền', tinh:'Giữa các tỉnh', unit:'Trong tỉnh'};
+  // Danh sách miền / tỉnh có mặt trong dữ liệu
+  var miens={}, tinhs={};
+  all.forEach(function(x){
+    [x.fm,x.tm].forEach(function(m){ var u=m&&UNIT_BY_ID[m]; if(u && u.utype==='kho_mien') miens[m]=1; });
+    [[x.fp,x.fm],[x.tp,x.tm]].forEach(function(p){ if(p[0] && (!X.mien || p[1]===X.mien)) tinhs[p[0]]=1; });
+  });
+  var drugs={}; all.forEach(function(x){ drugs[x.t.drug]=1; });
+  var opt=function(map,cur,lbl){ return '<option value="">'+lbl+'</option>'+Object.keys(map).sort(function(a,b){ return (_tqxName(a)||a).localeCompare(_tqxName(b)||b,'vi'); })
+    .map(function(k){ return '<option value="'+_tqxEsc(k)+'"'+(k===cur?' selected':'')+'>'+_tqxEsc(_tqxName(k)||k)+'</option>'; }).join(''); };
+  if(X.mien && !miens[X.mien]) X.mien='';
+  if(X.tinh && !tinhs[X.tinh]) X.tinh='';
+  bar.innerHTML=
+    (L.length>1 ? '<div class="tqx-seg"><span>Cấp xem</span>'+L.map(function(l){ return '<button class="'+(X.lvl===l?'act':'')+'" onclick="_tqxSet(\'lvl\',\''+l+'\')">'+LB[l]+'</button>'; }).join('')+'</div>' : '')
+    +(Object.keys(miens).length>1 ? '<label>Miền <select onchange="_tqxSet(\'mien\',this.value)">'+opt(miens,X.mien,'Tất cả')+'</select></label>' : '')
+    +(Object.keys(tinhs).length>1 ? '<label>Tỉnh/TP <select onchange="_tqxSet(\'tinh\',this.value)">'+opt(tinhs,X.tinh,'Tất cả')+'</select></label>' : '')
+    +'<label>Thuốc <select onchange="_tqxSet(\'drug\',this.value)"><option value="">Tất cả</option>'+Object.keys(drugs).sort(function(a,b){ return a.localeCompare(b,'vi'); })
+       .map(function(d){ return '<option'+(d===X.drug?' selected':'')+'>'+_tqxEsc(d)+'</option>'; }).join('')+'</select></label>'
+    +'<label>Trạng thái <select onchange="_tqxSet(\'st\',this.value)">'
+       +[['','Tất cả'],['wait','⏳ Chờ nhận'],['bad','✗ Chưa khớp'],['ok','✓ Đã khớp']].map(function(o){ return '<option value="'+o[0]+'"'+(o[0]===X.st?' selected':'')+'>'+o[1]+'</option>'; }).join('')+'</select></label>';
 
-  function stats(arr){
-    var q=0, d={}, wait=0, bad=0;
-    arr.forEach(function(x){
-      q+=Number(x.t.qty||0); d[x.t.drug]=1;
-      if(x.t.status!=='confirmed') wait++;
-      try{ if(matchFn(x.t).status==='no' && x.t.status==='confirmed') bad++; }catch(e){}
-    });
-    return '<span class="tqx-n">'+arr.length+' phiếu</span><span class="tqx-n">'+Object.keys(d).length+' thuốc</span>'
-      +'<span class="tqx-q">'+q.toLocaleString('vi-VN')+' viên</span>'
-      +(wait?'<span class="tqx-w">⏳ '+wait+' chờ nhận</span>':'')
-      +(bad?'<span class="tqx-b">✗ '+bad+' chưa khớp</span>':'');
+  // Lọc
+  var lv=X.lvl, rows=all.filter(function(x){
+    if(X.drug && x.t.drug!==X.drug) return false;
+    if(X.st && x.st!==X.st) return false;
+    if(X.mien && x.fm!==X.mien && x.tm!==X.mien) return false;
+    if(X.tinh && x.fp!==X.tinh && x.tp!==X.tinh) return false;
+    if(lv==='mien') return x.fm!==x.tm;
+    if(lv==='tinh') return (x.fp||x.fm||x.f)!==(x.tp||x.tm||x.to);
+    return x.fp && x.fp===x.tp;
+  });
+  // Đầu mút theo cấp
+  function end(x,side){
+    var id = side==='f' ? x.f : x.to, raw = side==='f' ? x.t.from_unit : x.t.to_unit;
+    var k = lv==='mien' ? (side==='f'?x.fm:x.tm) : lv==='tinh' ? ((side==='f'?x.fp:x.tp) || (side==='f'?x.fm:x.tm)) : id;
+    return k ? {k:k, n:_tqxName(k)} : {k:'x:'+raw, n:raw||'?'};
   }
-  // Gộp theo cặp (a→b), mỗi cặp 1 dòng bấm mở danh sách phiếu
-  function pairs(arr, keyFn, labelFn, color){
-    var g={}, order=[];
-    arr.forEach(function(x){ var k=keyFn(x); if(!g[k]){ g[k]={k:k, x:x, l:[]}; order.push(k); } g[k].l.push(x); });
-    order.sort(function(a,b){ return g[b].l.length-g[a].l.length; });
-    return order.map(function(k){
-      var G=g[k];
-      return '<details class="tqx-pair"><summary><span class="tqx-lb">'+labelFn(G.x)+'</span>'+stats(G.l)+'</summary>'
-        +'<div class="tqx-body">'+makeTable(G.l.map(function(y){ return y.t; }), color)+'</div></details>';
-    }).join('');
-  }
-  function block(title, color, inner, n){
-    return '<div class="tqx-blk"><div class="tqx-h" style="color:'+color+'">'+title+' <span>('+n+' phiếu)</span></div>'
-      +(inner||'<div class="tqx-empty">Không có phiếu.</div>')+'</div>';
-  }
-  function innerRows(groups){ // groups: [{id, arr}]
-    if(!groups.length) return '';
-    return '<div class="tqx-h" style="color:#475569;margin-top:10px">▸ Nội bộ từng đơn vị — bấm để xem chi tiết cấp dưới</div>'
-      + groups.sort(function(a,b){ return b.arr.length-a.arr.length; }).map(function(G){
-        return '<details class="tqx-inner"><summary><span class="tqx-lb">Nội bộ '+esc(nm(G.id))+'</span>'+stats(G.arr)+'</summary>'
-          +'<div class="tqx-body">'+level(G.id, G.arr)+'</div></details>';
-      }).join('');
-  }
-  // Cấp chung: điều chuyển giữa các đơn vị ngay dưới S + dòng nội bộ từng đơn vị con
-  function level(S, arr){
-    var cross=[], inner={};
-    arr.forEach(function(x){
-      var a=childUnder(x.f,S), b=childUnder(x.to,S);
-      if(a && b && a===b && a!==S){ (inner[a]=inner[a]||[]).push(x); }
-      else cross.push(x);
-    });
-    var h=block('↔ Giữa các '+kidWord(S)+' trực thuộc '+esc(nm(S)), '#1a5276',
-      pairs(cross, function(x){ return childUnder(x.f,S)+'>'+childUnder(x.to,S); },
-        function(x){ return lbl(childUnder(x.f,S),S)+' <b class="tqx-ar">→</b> '+lbl(childUnder(x.to,S),S); }, '#1a5276'), cross.length);
-    return h + innerRows(Object.keys(inner).map(function(id){ return {id:id, arr:inner[id]}; }));
-  }
-
-  var html='';
-  // Phiếu có 1 đầu nằm NGOÀI phạm vi đang xem
-  var inS=[], outS=[];
-  items.forEach(function(x){ (childUnder(x.f,R.id)&&childUnder(x.to,R.id) ? inS : outS).push(x); });
-  if(outS.length){
-    var ext=function(id,raw){ if(!id) return esc(raw||'?'); var p=provOf(id); return esc(p?nm(p):nm(id)); };
-    html+=block('⇄ Với đơn vị ngoài phạm vi', '#b45309',
-      pairs(outS, function(x){ var a=childUnder(x.f,R.id), b=childUnder(x.to,R.id); return (a||'x:'+(provOf(x.f)||x.t.from_unit))+'>'+(b||'x:'+(provOf(x.to)||x.t.to_unit)); },
-        function(x){ var a=childUnder(x.f,R.id), b=childUnder(x.to,R.id);
-          return (a?lbl(a,R.id):ext(x.f,x.t.from_unit)+' <span class="tqx-k">(ngoài)</span>')+' <b class="tqx-ar">→</b> '+(b?lbl(b,R.id):ext(x.to,x.t.to_unit)+' <span class="tqx-k">(ngoài)</span>'); }, '#b45309'), outS.length);
-  }
-  if(R.utype==='kho_tq' && !R.parent_id){
-    // TOÀN QUỐC: Miền↔Miền + Tỉnh↔Tỉnh + nội bộ từng tỉnh
-    var mm=[], tt=[], innerP={}, rest={};
-    inS.forEach(function(x){
-      var a=childUnder(x.f,R.id), b=childUnder(x.to,R.id);
-      var pa=provOf(x.f), pb=provOf(x.to);
-      if(a!==b) mm.push(x);
-      if(pa && pb && pa!==pb) tt.push(x);
-      else if(pa && pa===pb) (innerP[pa]=innerP[pa]||[]).push(x);
-      else if(a===b && a!==R.id) (rest[a]=rest[a]||[]).push(x);   // trong 1 miền nhưng không thuộc tỉnh nào
-    });
-    html+=block('↔ Giữa các miền', '#1a5276',
-      pairs(mm, function(x){ return childUnder(x.f,R.id)+'>'+childUnder(x.to,R.id); },
-        function(x){ return lbl(childUnder(x.f,R.id),R.id)+' <b class="tqx-ar">→</b> '+lbl(childUnder(x.to,R.id),R.id); }, '#1a5276'), mm.length);
-    var pl=function(p,id){ var m=childUnder(id,R.id); return esc(nm(p))+(m&&m!==R.id?' <span class="tqx-k">('+esc(nm(m))+')</span>':''); };
-    html+=block('↔ Giữa các tỉnh/thành phố', '#0e7490',
-      pairs(tt, function(x){ return provOf(x.f)+'>'+provOf(x.to); },
-        function(x){ return pl(provOf(x.f),x.f)+' <b class="tqx-ar">→</b> '+pl(provOf(x.to),x.to); }, '#0e7490'), tt.length);
-    html+=innerRows(Object.keys(innerP).map(function(id){ return {id:id, arr:innerP[id]}; })
-      .concat(Object.keys(rest).map(function(id){ return {id:id, arr:rest[id]}; })));
-  } else {
-    html+=level(R.id, inS);
-  }
-  return html;
+  function grp(x){ return lv==='tinh' ? _tqxName(x.fm)+(x.tm!==x.fm?' → '+_tqxName(x.tm):'') : lv==='unit' ? _tqxName(x.fp) : ''; }
+  var G={}, order=[];
+  rows.forEach(function(x){
+    var a=end(x,'f'), b=end(x,'t'), k=a.k+'>'+b.k;
+    if(!G[k]){ G[k]={a:a.n, b:b.n, g:grp(x), l:[], q:0, d:{}, w:0, bad:0}; order.push(k); }
+    var g=G[k]; g.l.push(x); g.q+=Number(x.t.qty||0); g.d[x.t.drug]=1; if(x.st==='wait') g.w++; if(x.st==='bad') g.bad++;
+  });
+  order.sort(function(p,q){ return (G[p].g||'').localeCompare(G[q].g||'','vi') || G[q].q-G[p].q; });
+  _TQX.groups=G;
+  var gCol = lv==='tinh' ? 'Miền' : lv==='unit' ? 'Tỉnh/TP' : '';
+  var T={n:0,q:0,w:0,bad:0};
+  var h='<div class="tqx-wrap"><table class="tqx-tbl"><thead><tr><th style="width:36px">TT</th>'+(gCol?'<th class="l">'+gCol+'</th>':'')
+    +'<th class="l">Nơi chuyển</th><th class="l">Nơi nhận</th><th>Số phiếu</th><th>Số thuốc</th><th>Tổng SL (viên)</th><th>Chờ nhận</th><th>Chưa khớp</th></tr></thead><tbody>';
+  if(!order.length) h+='<tr><td colspan="9" class="tqx-empty">Không có phiếu điều chuyển phù hợp bộ lọc.</td></tr>';
+  order.forEach(function(k,i){
+    var g=G[k]; T.n+=g.l.length; T.q+=g.q; T.w+=g.w; T.bad+=g.bad;
+    h+='<tr onclick="_tqxOpen(\''+encodeURIComponent(k).replace(/'/g,'%27')+'\')"><td>'+(i+1)+'</td>'+(gCol?'<td class="l tqx-g">'+_tqxEsc(g.g)+'</td>':'')
+      +'<td class="l"><b>'+_tqxEsc(g.a)+'</b></td><td class="l"><b>'+_tqxEsc(g.b)+'</b></td>'
+      +'<td>'+g.l.length+'</td><td>'+Object.keys(g.d).length+'</td><td class="tqx-q">'+g.q.toLocaleString('vi-VN')+'</td>'
+      +'<td>'+(g.w?'<span class="tqx-w">⏳ '+g.w+'</span>':'—')+'</td><td>'+(g.bad?'<span class="tqx-b">✗ '+g.bad+'</span>':'—')+'</td></tr>';
+  });
+  if(order.length) h+='<tr class="tqx-tot"><td></td>'+(gCol?'<td></td>':'')+'<td class="l" colspan="2">Tổng cộng ('+order.length+' tuyến)</td><td>'+T.n+'</td><td></td><td class="tqx-q">'+T.q.toLocaleString('vi-VN')+'</td><td>'+(T.w||'—')+'</td><td>'+(T.bad||'—')+'</td></tr>';
+  h+='</tbody></table></div><div class="tqx-note">Bấm vào một dòng để xem danh sách phiếu, đối chiếu và hủy phiếu.'
+    +(lv==='mien'?' Phiếu giữa 2 tỉnh khác miền được tính vào cặp miền tương ứng.':'')+'</div>';
+  res.innerHTML=h;
+}
+function _tqxOpen(k){
+  var g=_TQX.groups && _TQX.groups[decodeURIComponent(k)]; if(!g || !_TQX.mk) return;
+  _tqPopup('<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#1a5276">Phiếu điều chuyển trong kỳ</div>'
+    +'<div style="font-size:14px;font-weight:700;color:#1e293b;margin-top:3px">'+_tqxEsc(g.a)+' → '+_tqxEsc(g.b)+'</div>'
+    +'<div style="font-size:11px;color:#64748b;margin-top:2px">'+g.l.length+' phiếu · '+g.q.toLocaleString('vi-VN')+' viên</div></div>',
+    _TQX.mk(g.l.map(function(x){ return x.t; }), '#1a5276'));
 }
 
 // Lưu chi tiết đối chiếu phiếu điều chuyển + popup
