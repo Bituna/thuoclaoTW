@@ -97,6 +97,25 @@ body{font-family:'Be Vietnam Pro',sans-serif;background:var(--bg);color:var(--te
 #page-tq .card-title{font-size:12px;margin-bottom:7px}
 #page-tq .cards-row{gap:10px;margin-bottom:10px}
 #page-tq .list li{font-size:11px;padding:3px 0}
+/* ── Điều chuyển trong kỳ theo cấp ── */
+.tqx-blk{margin-bottom:12px}
+.tqx-h{font-size:12px;font-weight:700;margin-bottom:6px}
+.tqx-h span{font-weight:500;color:#94a3b8}
+.tqx-pair,.tqx-inner{border:1px solid #e2e8f0;border-radius:9px;margin-bottom:6px;background:#fff}
+.tqx-inner{background:#f8fafc}
+.tqx-pair>summary,.tqx-inner>summary{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:8px 12px;cursor:pointer;font-size:12.5px;list-style:none}
+.tqx-pair>summary::-webkit-details-marker,.tqx-inner>summary::-webkit-details-marker{display:none}
+.tqx-pair>summary::before,.tqx-inner>summary::before{content:'▸';color:#94a3b8;transition:transform .15s}
+.tqx-pair[open]>summary::before,.tqx-inner[open]>summary::before{transform:rotate(90deg)}
+.tqx-lb{flex:1 1 260px;font-weight:600;color:#1a2332}
+.tqx-ar{color:#1a5276;margin:0 4px}
+.tqx-k{font-weight:400;color:#64748b;font-size:11px}
+.tqx-n{font-size:11px;color:#475569;background:#eef2f7;border-radius:10px;padding:1px 8px}
+.tqx-q{font-size:12px;font-weight:700;color:#1a5276;min-width:90px;text-align:right}
+.tqx-w{font-size:11px;color:#b45309}
+.tqx-b{font-size:11px;color:#c0392b;font-weight:700}
+.tqx-body{padding:4px 10px 8px}
+.tqx-empty{font-size:12px;color:#94a3b8;font-style:italic;padding:4px 2px 8px}
 /* ── Tab con Tổng quan / Bản đồ phân bố thuốc ── */
 .tq-subtabs{display:flex;gap:4px;padding:0 24px;margin:-4px 0 10px;border-bottom:1px solid var(--border)}
 .tq-subtab{border:none;background:none;padding:9px 16px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1px}
@@ -7873,13 +7892,12 @@ async function _fetchAndRenderTQTransfers(el, periodKey){
           +'</tr>';
       });
       if(_more > 0) t+='<tr><td colspan="11" style="padding:8px 10px;text-align:center;color:#64748b;font-style:italic">… và '+_more.toLocaleString()+' phiếu khác — chọn một đơn vị/tỉnh cụ thể ở bộ lọc để xem đầy đủ.</td></tr>';
-      t+='</tbody></table></div></div>';
+      t+='</tbody></table></div>';
       return t;
     }
 
     if(dc2List.length){
-      html+='<div style="font-size:12px;font-weight:700;color:#1a5276;margin-bottom:6px">↔ Điều chuyển nội bộ ('+dc2List.length+' phiếu)</div>';
-      html+=makeTable(dc2List,'#1a5276');
+      html+=_tqTransferTree(dc2List, makeTable, _matchDetail);
     }
     if(dc3List.length){
       html+='<div style="font-size:12px;font-weight:700;color:#8e44ad;margin-bottom:6px">↗ Xuất tỉnh/thành phố khác ('+dc3List.length+' phiếu)</div>';
@@ -7900,6 +7918,123 @@ async function _fetchAndRenderTQTransfers(el, periodKey){
   }catch(e){
     el.innerHTML='<div style="color:red;font-size:12px;padding:10px">Lỗi: '+e.message+'</div>';
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ĐIỀU CHUYỂN TRONG KỲ — HIỂN THỊ THEO CẤP
+//  • Mỗi cấp chỉ thấy điều chuyển giữa các đơn vị NGAY DƯỚI nó (gộp theo cặp, bấm mở phiếu).
+//  • Phiếu nằm gọn trong 1 đơn vị con → dòng "Nội bộ <đơn vị con>", bấm xổ ra cấp tiếp theo.
+//  • Cấp Toàn quốc: 2 khối Miền ↔ Miền và Tỉnh ↔ Tỉnh (kể cả khác miền) + Nội bộ từng tỉnh.
+// ══════════════════════════════════════════════════════════════════════
+function _tqTransferTree(list, makeTable, matchFn){
+  var rid=_currentRootId(), R=rid?UNIT_BY_ID[rid]:null;
+  if(!R || !list.length) return list.length ? makeTable(list,'#1a5276') : '';
+  var top=UNITS_TREE.find(function(u){ return !u.parent_id; });
+  var _ch={};
+  function chain(id){
+    if(_ch[id]) return _ch[id];
+    var c=[], u=UNIT_BY_ID[id], g=0;
+    while(u && g++<30){ c.unshift(u.id); u=u.parent_id?UNIT_BY_ID[u.parent_id]:null; }
+    return (_ch[id]=c);
+  }
+  function idOf(nm){
+    if(!nm) return null;
+    if(nm==='admin') return top?top.id:null;
+    try{ return unitIdByName(nm, R.path); }catch(e){ return null; }
+  }
+  function childUnder(id,S){ if(!id) return null; var c=chain(id), i=c.indexOf(S); if(i<0) return null; return i===c.length-1 ? S : c[i+1]; }
+  function provOf(id){ if(!id) return null; var c=chain(id); for(var i=0;i<c.length;i++){ var u=UNIT_BY_ID[c[i]]; if(u && u.tinh) return u.id; } return null; }
+  function nm(id){ var u=UNIT_BY_ID[id]; return u?u.name:'?'; }
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function lbl(id,S){ return id===S ? nm(id)+' <span class="tqx-k">(kho)</span>' : esc(nm(id)); }
+  function kidWord(S){ var u=UNIT_BY_ID[S]; return u&&u.utype==='kho_tq'?'miền':(u&&u.utype==='kho_mien'?'tỉnh/đơn vị':'đơn vị'); }
+
+  var items=list.map(function(t){ return {t:t, f:idOf(t.from_unit), to:idOf(t.to_unit)}; });
+
+  function stats(arr){
+    var q=0, d={}, wait=0, bad=0;
+    arr.forEach(function(x){
+      q+=Number(x.t.qty||0); d[x.t.drug]=1;
+      if(x.t.status!=='confirmed') wait++;
+      try{ if(matchFn(x.t).status==='no' && x.t.status==='confirmed') bad++; }catch(e){}
+    });
+    return '<span class="tqx-n">'+arr.length+' phiếu</span><span class="tqx-n">'+Object.keys(d).length+' thuốc</span>'
+      +'<span class="tqx-q">'+q.toLocaleString('vi-VN')+' viên</span>'
+      +(wait?'<span class="tqx-w">⏳ '+wait+' chờ nhận</span>':'')
+      +(bad?'<span class="tqx-b">✗ '+bad+' chưa khớp</span>':'');
+  }
+  // Gộp theo cặp (a→b), mỗi cặp 1 dòng bấm mở danh sách phiếu
+  function pairs(arr, keyFn, labelFn, color){
+    var g={}, order=[];
+    arr.forEach(function(x){ var k=keyFn(x); if(!g[k]){ g[k]={k:k, x:x, l:[]}; order.push(k); } g[k].l.push(x); });
+    order.sort(function(a,b){ return g[b].l.length-g[a].l.length; });
+    return order.map(function(k){
+      var G=g[k];
+      return '<details class="tqx-pair"><summary><span class="tqx-lb">'+labelFn(G.x)+'</span>'+stats(G.l)+'</summary>'
+        +'<div class="tqx-body">'+makeTable(G.l.map(function(y){ return y.t; }), color)+'</div></details>';
+    }).join('');
+  }
+  function block(title, color, inner, n){
+    return '<div class="tqx-blk"><div class="tqx-h" style="color:'+color+'">'+title+' <span>('+n+' phiếu)</span></div>'
+      +(inner||'<div class="tqx-empty">Không có phiếu.</div>')+'</div>';
+  }
+  function innerRows(groups){ // groups: [{id, arr}]
+    if(!groups.length) return '';
+    return '<div class="tqx-h" style="color:#475569;margin-top:10px">▸ Nội bộ từng đơn vị — bấm để xem chi tiết cấp dưới</div>'
+      + groups.sort(function(a,b){ return b.arr.length-a.arr.length; }).map(function(G){
+        return '<details class="tqx-inner"><summary><span class="tqx-lb">Nội bộ '+esc(nm(G.id))+'</span>'+stats(G.arr)+'</summary>'
+          +'<div class="tqx-body">'+level(G.id, G.arr)+'</div></details>';
+      }).join('');
+  }
+  // Cấp chung: điều chuyển giữa các đơn vị ngay dưới S + dòng nội bộ từng đơn vị con
+  function level(S, arr){
+    var cross=[], inner={};
+    arr.forEach(function(x){
+      var a=childUnder(x.f,S), b=childUnder(x.to,S);
+      if(a && b && a===b && a!==S){ (inner[a]=inner[a]||[]).push(x); }
+      else cross.push(x);
+    });
+    var h=block('↔ Giữa các '+kidWord(S)+' trực thuộc '+esc(nm(S)), '#1a5276',
+      pairs(cross, function(x){ return childUnder(x.f,S)+'>'+childUnder(x.to,S); },
+        function(x){ return lbl(childUnder(x.f,S),S)+' <b class="tqx-ar">→</b> '+lbl(childUnder(x.to,S),S); }, '#1a5276'), cross.length);
+    return h + innerRows(Object.keys(inner).map(function(id){ return {id:id, arr:inner[id]}; }));
+  }
+
+  var html='';
+  // Phiếu có 1 đầu nằm NGOÀI phạm vi đang xem
+  var inS=[], outS=[];
+  items.forEach(function(x){ (childUnder(x.f,R.id)&&childUnder(x.to,R.id) ? inS : outS).push(x); });
+  if(outS.length){
+    var ext=function(id,raw){ if(!id) return esc(raw||'?'); var p=provOf(id); return esc(p?nm(p):nm(id)); };
+    html+=block('⇄ Với đơn vị ngoài phạm vi', '#b45309',
+      pairs(outS, function(x){ var a=childUnder(x.f,R.id), b=childUnder(x.to,R.id); return (a||'x:'+(provOf(x.f)||x.t.from_unit))+'>'+(b||'x:'+(provOf(x.to)||x.t.to_unit)); },
+        function(x){ var a=childUnder(x.f,R.id), b=childUnder(x.to,R.id);
+          return (a?lbl(a,R.id):ext(x.f,x.t.from_unit)+' <span class="tqx-k">(ngoài)</span>')+' <b class="tqx-ar">→</b> '+(b?lbl(b,R.id):ext(x.to,x.t.to_unit)+' <span class="tqx-k">(ngoài)</span>'); }, '#b45309'), outS.length);
+  }
+  if(R.utype==='kho_tq' && !R.parent_id){
+    // TOÀN QUỐC: Miền↔Miền + Tỉnh↔Tỉnh + nội bộ từng tỉnh
+    var mm=[], tt=[], innerP={}, rest={};
+    inS.forEach(function(x){
+      var a=childUnder(x.f,R.id), b=childUnder(x.to,R.id);
+      var pa=provOf(x.f), pb=provOf(x.to);
+      if(a!==b) mm.push(x);
+      if(pa && pb && pa!==pb) tt.push(x);
+      else if(pa && pa===pb) (innerP[pa]=innerP[pa]||[]).push(x);
+      else if(a===b && a!==R.id) (rest[a]=rest[a]||[]).push(x);   // trong 1 miền nhưng không thuộc tỉnh nào
+    });
+    html+=block('↔ Giữa các miền', '#1a5276',
+      pairs(mm, function(x){ return childUnder(x.f,R.id)+'>'+childUnder(x.to,R.id); },
+        function(x){ return lbl(childUnder(x.f,R.id),R.id)+' <b class="tqx-ar">→</b> '+lbl(childUnder(x.to,R.id),R.id); }, '#1a5276'), mm.length);
+    var pl=function(p,id){ var m=childUnder(id,R.id); return esc(nm(p))+(m&&m!==R.id?' <span class="tqx-k">('+esc(nm(m))+')</span>':''); };
+    html+=block('↔ Giữa các tỉnh/thành phố', '#0e7490',
+      pairs(tt, function(x){ return provOf(x.f)+'>'+provOf(x.to); },
+        function(x){ return pl(provOf(x.f),x.f)+' <b class="tqx-ar">→</b> '+pl(provOf(x.to),x.to); }, '#0e7490'), tt.length);
+    html+=innerRows(Object.keys(innerP).map(function(id){ return {id:id, arr:innerP[id]}; })
+      .concat(Object.keys(rest).map(function(id){ return {id:id, arr:rest[id]}; })));
+  } else {
+    html+=level(R.id, inS);
+  }
+  return html;
 }
 
 // Lưu chi tiết đối chiếu phiếu điều chuyển + popup
