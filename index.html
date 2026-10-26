@@ -1512,10 +1512,10 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
             </tr>
             <tr>
               <th class="hdr-in-sub" id="tp-th-tuyentren" title="Nhập từ tuyến trên (TW→Miền→Tỉnh) — của kho cấp này" style="min-width:72px">Nhập tuyến trên</th>
-              <th class="hdr-in-sub" title="Nhập điều chuyển ngang cấp từ nơi khác — của kho cấp này" style="min-width:78px">Nhập nguồn khác</th>
+              <th class="hdr-in-sub" id="tp-th-nk" title="Nhập điều chuyển ngang cấp từ nơi khác — của kho cấp này" style="min-width:78px">Nhập nguồn khác</th>
               <th class="hdr-in-sub" style="min-width:80px">Tổng nhập</th>
               <th class="hdr-out-sub" title="Sử dụng: kho cấp này + toàn bộ đơn vị trực thuộc (tự động)" style="min-width:80px">Sử dụng</th>
-              <th class="hdr-out-sub" title="Xuất ngang cấp ra nơi khác — chỉ từ kho cấp này (tự động)" style="min-width:80px">Xuất nơi khác</th>
+              <th class="hdr-out-sub" id="tp-th-xn" title="Xuất ngang cấp ra nơi khác — chỉ từ kho cấp này (tự động)" style="min-width:80px">Xuất nơi khác</th>
               <th class="hdr-out-sub" title="Hỏng/Hết hạn — chỉ từ kho cấp này (tự động)" style="min-width:75px">Hỏng/HH</th>
               <th class="hdr-out-sub" style="min-width:80px">Tổng xuất</th>
             </tr>
@@ -1552,10 +1552,10 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
             </tr>
             <tr>
               <th class="hdr-in-sub" title="Nhập từ tuyến trên (TW→Miền) — từ ngoài phạm vi Miền" style="min-width:72px">Nhập tuyến trên</th>
-              <th class="hdr-in-sub" title="Nhập nguồn khác / điều chuyển từ ngoài Miền" style="min-width:78px">Nhập nguồn khác</th>
+              <th class="hdr-in-sub" title="Nhận điều chuyển từ miền khác" style="min-width:78px">Nhập miền khác</th>
               <th class="hdr-in-sub" style="min-width:80px">Tổng nhập</th>
               <th class="hdr-out-sub" title="Sử dụng toàn Miền (tự động)" style="min-width:80px">Sử dụng</th>
-              <th class="hdr-out-sub" title="Xuất ra ngoài Miền (tự động)" style="min-width:80px">Xuất nơi khác</th>
+              <th class="hdr-out-sub" title="Xuất điều chuyển sang miền khác (tự động)" style="min-width:80px">Xuất miền khác</th>
               <th class="hdr-out-sub" style="min-width:75px">Hỏng/HH</th>
               <th class="hdr-out-sub" style="min-width:80px">Tổng xuất</th>
             </tr>
@@ -1813,7 +1813,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
             </tr>
             <tr>
               <th class="hdr-in-sub" style="min-width:75px">Tỉnh cấp</th>
-              <th class="hdr-in-sub" style="min-width:75px">Điều chuyển</th>
+              <th class="hdr-in-sub" style="min-width:75px">Nhập ĐC</th>
               <th class="hdr-in-sub" style="min-width:80px">Tổng nhập</th>
               <th class="hdr-out-sub" style="min-width:75px">Sử dụng</th>
               <th class="hdr-out-sub" style="min-width:75px">Xuất ĐC</th>
@@ -4521,6 +4521,18 @@ function _subtreeIds(rootId){
 }
 function _hasChildren(id){ var k = _UNIT_CHILDREN[id]; return !!(k && k.length); }
 // Tên cấp báo cáo theo phân cấp tài khoản (utype)
+
+// ── Nhãn cặp cột ĐIỀU CHUYỂN NGANG CẤP theo cấp của node ──
+//   Toàn quốc: không có ngang cấp · Miền: Nhập/Xuất miền khác · Tỉnh/TP: Nhập/Xuất tỉnh khác
+//   Đơn vị trong tỉnh (cơ sở, khu vực, nội trú…): Nhập ĐC / Xuất ĐC (đơn vị khác)
+function _xferLbl(u){
+  if(!u) return {inp:'Nhập nguồn khác', out:'Xuất nơi khác', inT:'Nhập từ nơi khác', outT:'Xuất ra nơi khác'};
+  if(u.utype==='kho_tq' && !u.parent_id) return {inp:'Nhập nguồn khác', out:'Xuất nơi khác', inT:'Cấp toàn quốc không có điều chuyển ngang cấp', outT:'Cấp toàn quốc không có điều chuyển ngang cấp'};
+  var p=u.parent_id?UNIT_BY_ID[u.parent_id]:null;
+  if(!u.tinh) return {inp:'Nhập miền khác', out:'Xuất miền khác', inT:'Nhận điều chuyển từ miền khác', outT:'Xuất điều chuyển sang miền khác'};
+  if(!p || !p.tinh) return {inp:'Nhập tỉnh khác', out:'Xuất tỉnh khác', inT:'Nhận điều chuyển từ tỉnh/TP khác', outT:'Xuất điều chuyển sang tỉnh/TP khác'};
+  return {inp:'Nhập ĐC', out:'Xuất ĐC', inT:'Nhận điều chuyển từ đơn vị khác', outT:'Xuất điều chuyển sang đơn vị khác'};
+}
 function _levelLabel(utype){
   return ({kho_tq:'Toàn quốc', kho_mien:'Miền', bv_dm_mien:'Đầu mối miền', ttksbt_mien:'Đầu mối miền',
            bv_dm_tinh:'Toàn tỉnh/TP', bv_kv_tinh:'Đầu mối khu vực', ttksbt_tinh:'Đầu mối khu vực',
@@ -7782,7 +7794,9 @@ async function _fetchAndRenderTQTransfers(el, periodKey){
       _tqTransferCache = {periodKey: periodKey, html: el.innerHTML, matchDetail: {}, ts: Date.now()};
       return;
     }
-    var dc2List = transfers.filter(function(t){ return t.type==='dc2_to_dc'||t.type==='dc3_to_tinh'; });
+    // Chỉ phiếu điều chuyển NGANG CẤP (đơn vị↔đơn vị, kể cả đơn vị trả về kho tuyến trên).
+    // Phiếu cấp phát tuyến trên → tuyến dưới (dc3_to_tinh) KHÔNG phải điều chuyển → không hiện ở đây.
+    var dc2List = transfers.filter(function(t){ return t.type==='dc2_to_dc'; });
     var dc3List = transfers.filter(function(t){ return t.type==='dc3_province'; });
     var html='';
 
@@ -7906,6 +7920,7 @@ async function _fetchAndRenderTQTransfers(el, periodKey){
       html+='<div style="font-size:12px;font-weight:700;color:#8e44ad;margin-bottom:6px">↗ Xuất tỉnh/thành phố khác ('+dc3List.length+' phiếu)</div>';
       html+=makeTable(dc3List,'#8e44ad');
     }
+    if(!html) html='<div style="color:#888;font-size:12px;font-style:italic;text-align:center;padding:10px">Chưa có phiếu điều chuyển ngang cấp nào trong kỳ này (phiếu cấp phát tuyến trên → tuyến dưới không tính là điều chuyển).</div>';
     el.innerHTML=html;
     try{ _tqxRender(); }catch(e){ console.warn('[tqx]',e); }
 
@@ -9859,7 +9874,7 @@ function renderBVPH(){
     var _gi=document.getElementById('bvph-grp-in');  if(_gi) _gi.setAttribute('colspan', _leafC5?'3':'4');
     var _go=document.getElementById('bvph-grp-out'); if(_go) _go.setAttribute('colspan', _leafC5?'4':'5');
     var _thT=document.getElementById('bvph-th-tinh'); if(_thT) _thT.textContent = _leafC5?'Tính cấp':'Nhập TW';
-    var _thD=document.getElementById('bvph-th-dc');   if(_thD) _thD.textContent = _leafC5?'Điều chuyển':'Nhập ĐC';
+    var _thD=document.getElementById('bvph-th-dc');   if(_thD) _thD.textContent = 'Nhập ĐC';
     var _thD3=document.getElementById('bvph-th-dc3'); if(_thD3) _thD3.textContent = _leafC5?'Xuất ĐC':'Xuất tỉnh khác';
   }catch(e){ console.warn('[bvph-leaf]', e); }
   checkMismatch();
@@ -15551,9 +15566,10 @@ async function _doExportExcel(curMonth, curYear, unitShort, allMonths){
     aoa.push(tl);
     return aoa;
   }
-  function aggAoa(title, agg){
+  function aggAoa(title, agg, node){
+    var _xl=_xferLbl(node);
     var aoa = [[title], ['Điều chuyển nội bộ trong phạm vi đã triệt tiêu — Nhập/Xuất chỉ tính phần đến từ / đi ra ngoài phạm vi'], []];
-    aoa.push(['STT','Tên thuốc','Số lô','Hạn dùng','Tồn đầu','Nhập tuyến trên','Nhập nguồn khác','Tổng nhập','Sử dụng','Xuất nơi khác','Hỏng/HH','Tổng xuất','Tồn cuối']);
+    aoa.push(['STT','Tên thuốc','Số lô','Hạn dùng','Tồn đầu','Nhập tuyến trên',_xl.inp,'Tổng nhập','Sử dụng',_xl.out,'Hỏng/HH','Tổng xuất','Tồn cuối']);
     agg.rows.forEach(function(a,i){ aoa.push([i+1, a.drug, a.lot, expFmt(a.exp), a.open, a.tw, a.ntk, a.tin, a.sd, a.xn, a.hh, a.tout, a.fin]); });
     var t = agg.tot; aoa.push(['TỔNG','','','', t.open, t.tw, t.ntk, t.tin, t.sd, t.xn, t.hh, t.tout, t.fin]);
     return aoa;
@@ -15596,7 +15612,7 @@ async function _doExportExcel(curMonth, curYear, unitShort, allMonths){
         addSheet(wb, rowsSheet('CÁC ĐƠN VỊ TRỰC THUỘC · '+root.name+' — '+mt, kids, true), 'Đơn vị trực thuộc', COLS_U); nSheets++;
         var tx1 = await getTx(per);
         var agg1 = _aggScopeTotals(rootId, {rows: rows, transfers: tx1, match: function(r){ return r.bcMonth===per; }});
-        addSheet(wb, aggAoa('TỔNG HỢP '+_levelLabel(root.utype).toUpperCase()+' · '+root.name+' — '+mt, agg1), 'Tổng hợp', COLS_A); nSheets++;
+        addSheet(wb, aggAoa('TỔNG HỢP '+_levelLabel(root.utype).toUpperCase()+' · '+root.name+' — '+mt, agg1, root), 'Tổng hợp', COLS_A); nSheets++;
         var cat = [['DANH MỤC THUỐC & SỐ LÔ'], [], ['STT','Tên thuốc / Hàm lượng','Số lô','Hạn dùng','Ghi chú']];
         catalogData.forEach(function(r, idx){ cat.push([idx+1, r.drug, r.lot, expFmt(r.exp), r.note||'']); });
         addSheet(wb, cat, 'Danh mục thuốc', [{wch:5},{wch:38},{wch:16},{wch:14},{wch:30}]); nSheets++;
@@ -15976,6 +15992,8 @@ function renderTP(){
   var nSub = _subtreeIds(rootId).length - 1;
   if(ttl) ttl.textContent = '🏙 '+_reportTitles(root).tong;
   // Cột nhập đầu kỳ: cấp Toàn quốc (C1) không có tuyến trên → hàng vào là "Mua về"; các cấp dưới giữ "Nhập tuyến trên".
+  try{ var _xl=_xferLbl(root), _e1=document.getElementById('tp-th-nk'), _e2=document.getElementById('tp-th-xn');
+    if(_e1){ _e1.textContent=_xl.inp; _e1.title=_xl.inT; } if(_e2){ _e2.textContent=_xl.out; _e2.title=_xl.outT; } }catch(e){}
   var _thTT=document.getElementById('tp-th-tuyentren');
   if(_thTT){ var _isTop=(root.utype==='kho_tq'); _thTT.textContent=_isTop?'Mua về':'Nhập tuyến trên'; _thTT.title=_isTop?'Mua/nhập khẩu từ nhà cung cấp (cấp toàn quốc không có tuyến trên)':'Nhập từ tuyến trên (TW→Miền→Tỉnh)'; }
   if(!_hasChildren(rootId)){
@@ -16207,7 +16225,7 @@ function _tpcSummaryTable(kids){
     +'<th class="hdr-open" style="min-width:85px">Tồn đầu</th>'
     +'<th class="hdr-in" style="min-width:85px">Tổng nhập</th>'
     +'<th class="hdr-out" style="min-width:85px">Sử dụng</th>'
-    +'<th class="hdr-out" style="min-width:95px">Xuất nơi khác</th>'
+    +'<th class="hdr-out" style="min-width:95px">'+_xferLbl(kids&&kids[0]).out+'</th>'
     +'<th class="hdr-out" style="min-width:80px">Hỏng/HH</th>'
     +'<th class="hdr-out" style="min-width:85px">Tổng xuất</th>'
     +'<th class="hdr-end" style="min-width:95px">Tồn cuối</th>'
@@ -16244,7 +16262,8 @@ function _tpcSummaryTable(kids){
 }
 
 // Thead chuẩn 13 cột — dùng chung mẫu với bảng "Tổng hợp theo cấp".
-function _tpcDetailHead(){
+function _tpcDetailHead(node){
+  var _xl=_xferLbl(node);
   return '<thead><tr>'
     +'<th class="hdr-name" style="min-width:34px;width:34px" rowspan="2">TT</th>'
     +'<th class="left hdr-name" style="min-width:220px" rowspan="2">Tên thuốc</th>'
@@ -16256,10 +16275,10 @@ function _tpcDetailHead(){
     +'<th class="hdr-end" rowspan="2" style="min-width:85px">Tồn cuối</th>'
     +'</tr><tr>'
     +'<th class="hdr-in-sub" title="Nhập từ tuyến trên — từ ngoài phạm vi đơn vị này" style="min-width:72px">Nhập tuyến trên</th>'
-    +'<th class="hdr-in-sub" title="Nhập nguồn khác / điều chuyển từ ngoài phạm vi" style="min-width:78px">Nhập nguồn khác</th>'
+    +'<th class="hdr-in-sub" title="'+_xl.inT+'" style="min-width:78px">'+_xl.inp+'</th>'
     +'<th class="hdr-in-sub" style="min-width:80px">Tổng nhập</th>'
     +'<th class="hdr-out-sub" title="Sử dụng toàn phạm vi đơn vị này (tự động)" style="min-width:80px">Sử dụng</th>'
-    +'<th class="hdr-out-sub" title="Xuất ra ngoài phạm vi đơn vị này (tự động)" style="min-width:80px">Xuất nơi khác</th>'
+    +'<th class="hdr-out-sub" title="'+_xl.outT+'" style="min-width:80px">'+_xl.out+'</th>'
     +'<th class="hdr-out-sub" style="min-width:75px">Hỏng/HH</th>'
     +'<th class="hdr-out-sub" style="min-width:80px">Tổng xuất</th>'
     +'</tr></thead>';
@@ -16357,7 +16376,7 @@ function renderChildBreakdown(rootId){
         +'</div>'
       +'</div>'
       +'<div class="tbl-wrap" style="margin-bottom:0;max-height:480px;position:relative">'
-        +'<table>'+_tpcDetailHead()+'<tbody id="tpc-detail-body"></tbody></table>'
+        +'<table>'+_tpcDetailHead(kids[0])+'<tbody id="tpc-detail-body"></tbody></table>'
       +'</div>'
     +'</div>'
   +'</div>';
