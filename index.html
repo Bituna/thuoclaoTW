@@ -119,6 +119,21 @@ body{font-family:'Be Vietnam Pro',sans-serif;background:var(--bg);color:var(--te
 .tqx-tot td{background:#f8fafc;font-weight:700;border-top:2px solid #e2e8f0}
 .tqx-empty{color:#94a3b8;font-style:italic;padding:14px!important}
 .tqx-note{font-size:11px;color:#94a3b8;margin-top:6px}
+.tqx-tbl tbody tr.tqx-dr{cursor:default}
+.tqx-tbl tbody tr.tqx-gh td{background:#eef4fb;color:#1e293b;border-top:1px solid #d6e2f0;padding:7px 10px}
+.tqx-tbl tbody tr.tqx-gh:hover td{background:#e3edf8}
+.tqx-car{display:inline-block;width:12px;color:#1a5276}
+.tqx-pill{display:inline-flex;align-items:center;gap:3px;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700;white-space:nowrap;border:1px solid}
+.tqx-po{background:#e7f7ee;color:#1a8a4f;border-color:#a3e0bf;cursor:pointer}
+.tqx-pb{background:#fff3e0;color:#c46a00;border-color:#ffc88a;cursor:pointer}
+.tqx-pw{background:#fffbeb;color:#b45309;border-color:#fde68a}
+.tqx-pt{background:#eef6ff;color:#1d4ed8;border-color:#bfdbfe}
+.tqx-x{font-size:11px;padding:2px 8px;border:1px solid #e74c3c;border-radius:14px;color:#e74c3c;background:#fff;cursor:pointer}
+.tqx-tools{font-size:11px;margin:-4px 0 6px;text-align:right}
+.tqx-tools a{color:#1a5276;cursor:pointer;text-decoration:underline}
+.tqx-u{font-weight:600;white-space:nowrap}
+.tqx-u i{font-style:normal;color:#94a3b8;margin:0 5px}
+.tqx-sub{font-size:12px;font-weight:700;color:#1a5276;margin:12px 0 6px}
 /* ── Tab con Tổng quan / Bản đồ phân bố thuốc ── */
 .tq-subtabs{display:flex;gap:4px;padding:0 24px;margin:-4px 0 10px;border-bottom:1px solid var(--border)}
 .tq-subtab{border:none;background:none;padding:9px 16px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1px}
@@ -7913,6 +7928,7 @@ async function _renderTQTransfersCached(){
   // Cache còn hiệu lực (< 60s, đúng kỳ) → vẽ ngay, không nháy, không fetch
   if(_tqTransferCache
       && _tqTransferCache.periodKey === periodKey
+      && _tqTransferCache.rootId === _currentRootId()
       && (Date.now() - _tqTransferCache.ts) < 60000){
     if(el._cacheTs !== _tqTransferCache.ts){ el.innerHTML = _tqTransferCache.html; el._cacheTs = _tqTransferCache.ts; try{ _tqxRender(); }catch(e){} }
     _tqMatchDetail = _tqTransferCache.matchDetail || {};
@@ -7972,13 +7988,14 @@ async function _fetchAndRenderTQTransfers(el, periodKey){
       var _y = parseInt(_pp[0]), _m = parseInt(_pp[1]);
       var _prevY = (_m===1)?_y-1:_y, _prevM = (_m===1)?12:_m-1;
       var _nextY = (_m===12)?_y+1:_y, _nextM = (_m===12)?1:_m+1;
-      var _periods = [
-        _prevY+'-'+String(_prevM).padStart(2,'0'),
-        periodKey,
-        _nextY+'-'+String(_nextM).padStart(2,'0')
+      // Phiếu chuyển kỳ TRƯỚC (bất kỳ kỳ nào, vd T8 nhận T10) mà NHẬN trong kỳ này, hoặc vẫn đang chờ nhận
+      var _d0 = periodKey+'-01', _d1 = _nextY+'-'+String(_nextM).padStart(2,'0')+'-01';
+      var _qs = [
+        'period=eq.'+encodeURIComponent(periodKey),
+        'period=lt.'+encodeURIComponent(periodKey)+'&or=(status.eq.pending,and(receive_date.gte.'+_d0+',receive_date.lt.'+_d1+'))'
       ];
-      var _res = await Promise.all(_periods.map(function(pk){
-        return fetch(SUPA_URL+'/rest/v1/transfers?period=eq.'+encodeURIComponent(pk)
+      var _res = await Promise.all(_qs.map(function(q){
+        return fetch(SUPA_URL+'/rest/v1/transfers?'+q
           +'&status=not.in.(cancelled,cancel_notif)'
           +'&type=in.(dc2_to_dc,dc3_to_tinh,dc3_province)'
           +'&order=transfer_date.desc,created_at.desc',
@@ -8002,10 +8019,19 @@ async function _fetchAndRenderTQTransfers(el, periodKey){
       return rx ? (_periodFromDate(rx) || t.period || '') : (t.period || '');
     }
     if(p.type !== 'year'){
-      transfers = transfers.filter(function(t){ return _txRecPeriodEarly(t) === periodKey; });
+      // Giữ: (a) phiếu GHI NHẬN trong kỳ; (b) chuyển trong kỳ nhưng NHẬN kỳ sau → hàng đi đường cuối kỳ;
+      //       (c) phiếu kỳ trước vẫn chờ nhận → vẫn đang đi đường
+      transfers = transfers.filter(function(t){
+        var rp = _txRecPeriodEarly(t);
+        t._transit = false;
+        if(rp === periodKey) return true;
+        if(t.status==='confirmed' && t.period === periodKey && rp > periodKey){ t._transit = true; return true; }
+        if(t.status==='pending' && t.period && t.period < periodKey) return true;
+        return false;
+      });
       if(!transfers.length){
         el.innerHTML='<div style="color:#888;font-size:12px;font-style:italic;text-align:center;padding:10px">Chưa có phiếu điều chuyển nào ghi nhận trong kỳ này.</div>';
-        _tqTransferCache = {periodKey: periodKey, html: el.innerHTML, matchDetail: {}, ts: Date.now()};
+        _tqTransferCache = {periodKey: periodKey, rootId: _currentRootId(), html: el.innerHTML, matchDetail: {}, ts: Date.now()};
         return;
       }
     }
@@ -8020,7 +8046,7 @@ async function _fetchAndRenderTQTransfers(el, periodKey){
     })();
     if(!transfers.length){
       el.innerHTML='<div style="color:#888;font-size:12px;font-style:italic;text-align:center;padding:10px">Chưa có phiếu điều chuyển nào của phạm vi này trong kỳ.</div>';
-      _tqTransferCache = {periodKey: periodKey, html: el.innerHTML, matchDetail: {}, ts: Date.now()};
+      _tqTransferCache = {periodKey: periodKey, rootId: _currentRootId(), html: el.innerHTML, matchDetail: {}, ts: Date.now()};
       return;
     }
     // Chỉ phiếu điều chuyển NGANG CẤP (đơn vị↔đơn vị, kể cả đơn vị trả về kho tuyến trên).
@@ -8048,6 +8074,7 @@ async function _fetchAndRenderTQTransfers(el, periodKey){
     var expectedMap = {}, siblingsMap = {};
     transfers.forEach(function(t){
       if(t.type==='dc3_province' && !_dc3InSystem(t)) return;
+      if(t._transit) return;   // ghi nhận ở kỳ sau — không tính vào đối chiếu kỳ này
       var k = _txRecPeriod(t)+'|'+(t.to_unit||'')+'|'+(t.drug||'')+'|'+(t.lot||'')+'|'+_normExp(t.exp)+'|'+_txRecField(t);
       expectedMap[k] = (expectedMap[k]||0) + Number(t.qty||0);
       (siblingsMap[k] = siblingsMap[k] || []).push(t);
@@ -8065,6 +8092,7 @@ async function _fetchAndRenderTQTransfers(el, periodKey){
       if(tx.type==='dc3_province' && !_dc3InSystem(tx)){
         return { status:'na', tx:tx };
       }
+      if(tx._transit) return { status:'transit', tx:tx, recPeriod:_txRecPeriod(tx) };
       var to = tx.to_unit||'';
       var per = _txRecPeriod(tx);          // kỳ GHI NHẬN (theo ngày nhận với dc2_to_dc)
       var fld = _txRecField(tx);           // cột báo cáo: 'tinh' hoặc 'dc'
@@ -8122,6 +8150,7 @@ async function _fetchAndRenderTQTransfers(el, periodKey){
             +'title="Đã cộng vào cột '+_fldTxt+' của báo cáo '+(det.recPeriod?_fmtPeriodVN(det.recPeriod):'')+' — bấm xem chi tiết">✓ Khớp '+_pv+'</span>';
         }
         else if(det.status==='no')  matchCell='<span'+clickAttr+'display:inline-flex;align-items:center;gap:3px;background:#fff3e0;color:#c46a00;border:1px solid #ffc88a;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700" title="Bấm xem chi tiết đối chiếu">✗ Chưa khớp</span>';
+        else if(det.status==='transit') matchCell='<span style="display:inline-flex;align-items:center;gap:3px;background:#eef6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700" title="Chuyển trong kỳ này, bên nhận ghi nhận ở kỳ sau — hàng đi đường cuối kỳ">🚚 Đi đường'+(det.recPeriod?' → '+_fmtPeriodVN(det.recPeriod).replace('Tháng ','T'):'')+'</span>';
         else                matchCell='<span style="color:#aaa;font-size:11px">—</span>';
         t+='<tr style="background:'+bg+';border-bottom:1px solid #eee">'
           +'<td style="padding:6px 10px;text-align:center;color:#888;font-size:11px">'+(i+1)+'</td>'
@@ -8159,7 +8188,7 @@ async function _fetchAndRenderTQTransfers(el, periodKey){
     var _dataReady = bvphData.some(function(r){ return r.bcMonth === periodKey; })
                   || bcData.some(function(r){ return r.bcMonth === periodKey; });
     if(_dataReady){
-      _tqTransferCache = {periodKey: periodKey, html: html, matchDetail: _tqMatchDetail, ts: Date.now()};
+      _tqTransferCache = {periodKey: periodKey, rootId: _currentRootId(), html: html, matchDetail: _tqMatchDetail, ts: Date.now()};
     } else {
       _tqTransferCache = null;   // buộc tính lại ở lần render kế tiếp
     }
@@ -8190,33 +8219,69 @@ function _tqTransferTree(list, makeTable, matchFn){
   function provOf(id){ var c=chain(id); for(var i=0;i<c.length;i++){ var u=UNIT_BY_ID[c[i]]; if(u && u.tinh) return u.id; } return null; }
   function mienOf(id){ var c=chain(id); return c.length>1 ? c[1] : (c[0]||null); }
   _TQX.items = list.map(function(t){
-    var f=idOf(t.from_unit), to=idOf(t.to_unit), st='';
-    if(t.status!=='confirmed') st='wait';
-    else { try{ st = matchFn(t).status==='no' ? 'bad' : 'ok'; }catch(e){ st='ok'; } }
-    return { t:t, f:f, to:to, fm:mienOf(f), tm:mienOf(to), fp:provOf(f), tp:provOf(to), st:st };
+    var f=idOf(t.from_unit), to=idOf(t.to_unit), st='', det=null;
+    try{ det = matchFn(t); _tqMatchDetail[t.id] = det; }catch(e){}
+    if(t._transit) st='transit';
+    else if(t.status!=='confirmed') st='wait';
+    else st = (det && det.status==='no') ? 'bad' : 'ok';
+    return { t:t, f:f, to:to, fm:mienOf(f), tm:mienOf(to), fp:provOf(f), tp:provOf(to), st:st, det:det };
   });
-  _TQX.mk=makeTable; _TQX.mf=matchFn; _TQX.root=R;
-  // Cấp mặc định theo người xem; giữ lựa chọn cũ nếu vẫn hợp lệ
+  _TQX.mk=makeTable; _TQX.mf=matchFn;
+  // Đổi phạm vi xem → đặt lại cấp xem + bộ lọc (bản cũ giữ cấp "Trong tỉnh" khi chuyển lên Kho toàn quốc)
+  var newRid = R ? R.id : '';
+  if(_TQX.rootId !== newRid){ _TQX.lvl=''; _TQX.mien=''; _TQX.tinh=''; _TQX.drug=''; _TQX.st=''; _TQX.col={}; }
+  _TQX.root=R; _TQX.rootId=newRid;
   var lv=_tqxLevels();
-  if(lv.indexOf(_TQX.lvl)<0) _TQX.lvl=lv[0];
+  if(lv.indexOf(_TQX.lvl)<0){
+    // Mặc định: cấp đầu tiên có phiếu
+    _TQX.lvl = lv.find(function(l){ return _TQX.items.some(function(x){ return _tqxLvlMatch(x,l); }); }) || lv[0];
+  }
   return '<div class="tqx-bar" id="tqx-bar"></div><div id="tqx-res"></div>';
+}
+// Cấp xem theo vị trí tài khoản trong cây (không dựa vào utype cố định — cây có độ sâu tùy ý):
+//  · Kho toàn quốc / kho miền / đơn vị tuyến miền chưa thuộc tỉnh nào → Giữa các miền · Giữa các tỉnh · Trong tỉnh
+//  · Chính kho tỉnh (nút tỉnh)                                          → Giữa các tỉnh · Trong tỉnh
+//  · Đơn vị bên trong tỉnh (TTYT, kho nội trú…)                         → Trong tỉnh (không được ĐC trực tiếp sang tỉnh khác)
+function _tqxProvOf(id){
+  var c=[], u=id&&UNIT_BY_ID[id], g=0;
+  while(u && g++<30){ c.unshift(u); u=u.parent_id?UNIT_BY_ID[u.parent_id]:null; }
+  for(var i=0;i<c.length;i++){ if(c[i].tinh) return c[i].id; }
+  return null;
 }
 function _tqxLevels(){
   var R=_TQX.root;
-  if(!R || (R.utype==='kho_tq' && !R.parent_id)) return ['mien','tinh','unit'];
-  if(R.utype==='kho_mien') return ['tinh','unit'];
+  if(!R || !R.parent_id) return ['mien','tinh','unit'];
+  var pv=_tqxProvOf(R.id);
+  if(!pv) return ['mien','tinh','unit'];
+  if(pv===R.id) return ['tinh','unit'];
   return ['unit'];
+}
+function _tqxLvlMatch(x,lv){
+  if(lv==='mien') return x.fm!==x.tm;
+  if(lv==='tinh') return (x.fp||x.fm||x.f)!==(x.tp||x.tm||x.to);
+  // Trong tỉnh: cùng tỉnh; đơn vị chưa thuộc tỉnh nào (tuyến miền) thì cùng miền
+  return x.fp===x.tp && (!!x.fp || x.fm===x.tm);
 }
 function _tqxSet(k,v){ _TQX[k]=v; if(k==='mien') _TQX.tinh=''; _tqxRender(); }
 function _tqxName(id){ var u=id&&UNIT_BY_ID[id]; return u?u.name:''; }
 function _tqxEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _tqxToggle(k){ k=decodeURIComponent(k); _TQX.col=_TQX.col||{}; _TQX.col[k]=!_TQX.col[k]; _tqxRender(); }
+function _tqxAll(open){ _TQX.col=_TQX.col||{}; Object.keys(_TQX.groups||{}).forEach(function(k){ _TQX.col[k]=!open; }); _tqxRender(); }
+function _tqxStCell(x){
+  var p=function(per){ return per?_fmtPeriodVN(per).replace('Tháng ','T'):''; };
+  if(x.st==='transit') return '<span class="tqx-pill tqx-pt" title="Chuyển trong kỳ, bên nhận ghi nhận kỳ sau">🚚 Đi đường'+(x.det&&x.det.recPeriod?' → '+p(x.det.recPeriod):'')+'</span>';
+  if(x.st==='wait')    return '<span class="tqx-pill tqx-pw" title="Bên nhận chưa xác nhận — hàng đang đi đường">⏳ Chờ nhận</span>';
+  var clk=' onclick="event.stopPropagation();_showTransferMatch(\''+x.t.id+'\')"';
+  if(x.st==='bad')     return '<span class="tqx-pill tqx-pb"'+clk+' title="Bấm xem chi tiết đối chiếu">✗ Chưa khớp</span>';
+  return '<span class="tqx-pill tqx-po"'+clk+' title="Bấm xem chi tiết đối chiếu">✓ Khớp'+(x.det&&x.det.recPeriod?' '+p(x.det.recPeriod):'')+'</span>';
+}
 
 function _tqxRender(){
   var bar=document.getElementById('tqx-bar'), res=document.getElementById('tqx-res');
   if(!bar||!res) return;
   var L=_tqxLevels(), X=_TQX, all=X.items;
+  X.col=X.col||{};
   var LB={mien:'Giữa các miền', tinh:'Giữa các tỉnh', unit:'Trong tỉnh'};
-  // Danh sách miền / tỉnh có mặt trong dữ liệu
   var miens={}, tinhs={};
   all.forEach(function(x){
     [x.fm,x.tm].forEach(function(m){ var u=m&&UNIT_BY_ID[m]; if(u && u.utype==='kho_mien') miens[m]=1; });
@@ -8234,19 +8299,15 @@ function _tqxRender(){
     +'<label>Thuốc <select onchange="_tqxSet(\'drug\',this.value)"><option value="">Tất cả</option>'+Object.keys(drugs).sort(function(a,b){ return a.localeCompare(b,'vi'); })
        .map(function(d){ return '<option'+(d===X.drug?' selected':'')+'>'+_tqxEsc(d)+'</option>'; }).join('')+'</select></label>'
     +'<label>Trạng thái <select onchange="_tqxSet(\'st\',this.value)">'
-       +[['','Tất cả'],['wait','⏳ Chờ nhận'],['bad','✗ Chưa khớp'],['ok','✓ Đã khớp']].map(function(o){ return '<option value="'+o[0]+'"'+(o[0]===X.st?' selected':'')+'>'+o[1]+'</option>'; }).join('')+'</select></label>';
+       +[['','Tất cả'],['transit','🚚 Đi đường (nhận kỳ sau)'],['wait','⏳ Chờ nhận'],['bad','✗ Chưa khớp'],['ok','✓ Đã khớp']].map(function(o){ return '<option value="'+o[0]+'"'+(o[0]===X.st?' selected':'')+'>'+o[1]+'</option>'; }).join('')+'</select></label>';
 
-  // Lọc
   var lv=X.lvl, rows=all.filter(function(x){
     if(X.drug && x.t.drug!==X.drug) return false;
     if(X.st && x.st!==X.st) return false;
     if(X.mien && x.fm!==X.mien && x.tm!==X.mien) return false;
     if(X.tinh && x.fp!==X.tinh && x.tp!==X.tinh) return false;
-    if(lv==='mien') return x.fm!==x.tm;
-    if(lv==='tinh') return (x.fp||x.fm||x.f)!==(x.tp||x.tm||x.to);
-    return x.fp && x.fp===x.tp;
+    return _tqxLvlMatch(x,lv);
   });
-  // Đầu mút theo cấp
   function end(x,side){
     var id = side==='f' ? x.f : x.to, raw = side==='f' ? x.t.from_unit : x.t.to_unit;
     var k = lv==='mien' ? (side==='f'?x.fm:x.tm) : lv==='tinh' ? ((side==='f'?x.fp:x.tp) || (side==='f'?x.fm:x.tm)) : id;
@@ -8256,35 +8317,60 @@ function _tqxRender(){
   var G={}, order=[];
   rows.forEach(function(x){
     var a=end(x,'f'), b=end(x,'t'), k=a.k+'>'+b.k;
-    if(!G[k]){ G[k]={a:a.n, b:b.n, g:grp(x), l:[], q:0, d:{}, w:0, bad:0}; order.push(k); }
-    var g=G[k]; g.l.push(x); g.q+=Number(x.t.qty||0); g.d[x.t.drug]=1; if(x.st==='wait') g.w++; if(x.st==='bad') g.bad++;
+    if(!G[k]){ G[k]={a:a.n, b:b.n, g:grp(x), l:[]}; order.push(k); }
+    G[k].l.push(x);
   });
-  order.sort(function(p,q){ return (G[p].g||'').localeCompare(G[q].g||'','vi') || G[q].q-G[p].q; });
+  order.sort(function(p,q){ return (G[p].g||'').localeCompare(G[q].g||'','vi') || G[p].a.localeCompare(G[q].a,'vi') || G[p].b.localeCompare(G[q].b,'vi'); });
   _TQX.groups=G;
-  var gCol = lv==='tinh' ? 'Miền' : lv==='unit' ? 'Tỉnh/TP' : '';
-  var T={n:0,q:0,w:0,bad:0};
-  var h='<div class="tqx-wrap"><table class="tqx-tbl"><thead><tr><th style="width:36px">TT</th>'+(gCol?'<th class="l">'+gCol+'</th>':'')
-    +'<th class="l">Nơi chuyển</th><th class="l">Nơi nhận</th><th>Số phiếu</th><th>Số thuốc</th><th>Tổng SL (viên)</th><th>Chờ nhận</th><th>Chưa khớp</th></tr></thead><tbody>';
-  if(!order.length) h+='<tr><td colspan="9" class="tqx-empty">Không có phiếu điều chuyển phù hợp bộ lọc.</td></tr>';
-  order.forEach(function(k,i){
-    var g=G[k]; T.n+=g.l.length; T.q+=g.q; T.w+=g.w; T.bad+=g.bad;
-    h+='<tr onclick="_tqxOpen(\''+encodeURIComponent(k).replace(/'/g,'%27')+'\')"><td>'+(i+1)+'</td>'+(gCol?'<td class="l tqx-g">'+_tqxEsc(g.g)+'</td>':'')
-      +'<td class="l"><b>'+_tqxEsc(g.a)+'</b></td><td class="l"><b>'+_tqxEsc(g.b)+'</b></td>'
-      +'<td>'+g.l.length+'</td><td>'+Object.keys(g.d).length+'</td><td class="tqx-q">'+g.q.toLocaleString('vi-VN')+'</td>'
-      +'<td>'+(g.w?'<span class="tqx-w">⏳ '+g.w+'</span>':'—')+'</td><td>'+(g.bad?'<span class="tqx-b">✗ '+g.bad+'</span>':'—')+'</td></tr>';
+  // Mặc định thu gọn khi có nhiều cặp (cấp toàn quốc)
+  if(X._autoCol!==lv+'|'+order.length){ X._autoCol=lv+'|'+order.length; if(order.length>15) order.forEach(function(k){ if(!(k in X.col)) X.col[k]=true; }); }
+  var canCancel=isAdmin();
+  var showU = (lv==='mien' || lv==='tinh');   // cấp gộp theo miền/tỉnh → ghi rõ đơn vị thật trên từng dòng
+  var NC = (canCancel ? 9 : 8) + (showU ? 1 : 0);
+  var sn=function(n){ return String(n||'').replace(/^(Thành phố|Tỉnh)\s+/,''); };
+  var fmtD=function(d){ return d?_fmtDate(d):'—'; };
+  var h='';
+  if(order.length>1) h+='<div class="tqx-tools"><a onclick="_tqxAll(true)">Mở rộng tất cả</a> · <a onclick="_tqxAll(false)">Thu gọn tất cả</a></div>';
+  h+='<div class="tqx-wrap"><table class="tqx-tbl"><thead><tr><th style="width:36px">TT</th>'+(showU?'<th class="l">Đơn vị chuyển → nhận</th>':'')+'<th class="l">Thuốc</th><th>Lô</th><th>Hạn</th><th>SL</th><th>Ngày chuyển</th><th>Ngày nhận</th><th>Trạng thái</th>'
+    +(canCancel?'<th></th>':'')+'</tr></thead><tbody>';
+  if(!order.length) h+='<tr><td colspan="'+NC+'" class="tqx-empty">Không có phiếu điều chuyển phù hợp bộ lọc.</td></tr>';
+  var DT={};   // tổng theo thuốc
+  order.forEach(function(k){
+    var g=G[k], closed=!!X.col[k];
+    g.l.sort(function(p,q){ return String(p.t.drug).localeCompare(String(q.t.drug),'vi') || String(p.t.lot).localeCompare(String(q.t.lot)) || String(p.t.transfer_date||'').localeCompare(String(q.t.transfer_date||'')); });
+    var w=g.l.filter(function(x){ return x.st==='wait'||x.st==='transit'; }).length, bad=g.l.filter(function(x){ return x.st==='bad'; }).length;
+    h+='<tr class="tqx-gh" onclick="_tqxToggle(\''+encodeURIComponent(k).replace(/'/g,'%27')+'\')"><td colspan="'+NC+'" class="l">'
+      +'<span class="tqx-car">'+(closed?'▸':'▾')+'</span> <b>'+_tqxEsc(g.a)+'</b> → <b>'+_tqxEsc(g.b)+'</b>'
+      +(g.g?' <span class="tqx-g">· '+_tqxEsc(g.g)+'</span>':'')
+      +' <span class="tqx-g">· '+g.l.length+' phiếu</span>'
+      +(w?' <span class="tqx-w">· 🚚 '+w+' đi đường</span>':'')+(bad?' <span class="tqx-b">· ✗ '+bad+' chưa khớp</span>':'')
+      +'</td></tr>';
+    g.l.forEach(function(x,i){
+      var t=x.t, d=DT[t.drug]=DT[t.drug]||{q:0,r:0,w:0,n:0};
+      var q=Number(t.qty||0); d.q+=q; d.n++; if(x.st==='wait'||x.st==='transit') d.w+=q; else d.r+=q;
+      if(closed) return;
+      h+='<tr class="tqx-dr"><td class="tqx-g">'+(i+1)+'</td>'
+        +(showU?'<td class="l tqx-u" title="'+_tqxEsc(t.from_unit)+' → '+_tqxEsc(t.to_unit)+'">'+_tqxEsc(sn(t.from_unit))+'<i>→</i>'+_tqxEsc(sn(t.to_unit))+'</td>':'')
+        +'<td class="l">'+_tqxEsc(t.drug)+'</td><td>'+_tqxEsc(t.lot||'—')+'</td><td>'+(t.exp?expFmt(t.exp):'—')+'</td>'
+        +'<td class="tqx-q">'+q.toLocaleString('vi-VN')+'</td><td>'+fmtD(t.transfer_date||t.created_at)+'</td>'
+        +'<td>'+(x.st==='wait'?'<span class="tqx-g">—</span>':fmtD(t.receive_date))+'</td><td>'+_tqxStCell(x)+'</td>'
+        +(canCancel?'<td><button class="tqx-x" onclick="event.stopPropagation();cancelTransferById(\''+t.id+'\',\''+_tqxEsc(t.to_unit).replace(/'/g,'&#39;')+'\')" title="Hủy phiếu">✕</button></td>':'')+'</tr>';
+    });
   });
-  if(order.length) h+='<tr class="tqx-tot"><td></td>'+(gCol?'<td></td>':'')+'<td class="l" colspan="2">Tổng cộng ('+order.length+' tuyến)</td><td>'+T.n+'</td><td></td><td class="tqx-q">'+T.q.toLocaleString('vi-VN')+'</td><td>'+(T.w||'—')+'</td><td>'+(T.bad||'—')+'</td></tr>';
-  h+='</tbody></table></div><div class="tqx-note">Bấm vào một dòng để xem danh sách phiếu, đối chiếu và hủy phiếu.'
+  h+='</tbody></table></div>';
+  // Tổng theo thuốc — chỉ cộng cùng thuốc (không cộng lẫn viên/lọ của thuốc khác nhau)
+  var dk=Object.keys(DT).sort(function(a,b){ return a.localeCompare(b,'vi'); });
+  if(dk.length){
+    h+='<div class="tqx-sub">Tổng theo thuốc</div><div class="tqx-wrap"><table class="tqx-tbl"><thead><tr><th class="l">Thuốc</th><th>Số phiếu</th><th>Tổng SL</th><th>Đã nhận trong kỳ</th><th>Đi đường / chờ nhận</th></tr></thead><tbody>';
+    dk.forEach(function(n){ var d=DT[n];
+      h+='<tr class="tqx-dr"><td class="l">'+_tqxEsc(n)+'</td><td>'+d.n+'</td><td class="tqx-q">'+d.q.toLocaleString('vi-VN')+'</td><td>'+d.r.toLocaleString('vi-VN')+'</td><td>'+(d.w?'<span class="tqx-w">'+d.w.toLocaleString('vi-VN')+'</span>':'—')+'</td></tr>'; });
+    h+='</tbody></table></div>';
+  }
+  h+='<div class="tqx-note">Bấm dòng tuyến để thu gọn/mở rộng · bấm ô Trạng thái để xem đối chiếu báo cáo. 🚚 Đi đường: chuyển trong kỳ này, bên nhận ghi nhận kỳ sau.'
     +(lv==='mien'?' Phiếu giữa 2 tỉnh khác miền được tính vào cặp miền tương ứng.':'')+'</div>';
   res.innerHTML=h;
 }
-function _tqxOpen(k){
-  var g=_TQX.groups && _TQX.groups[decodeURIComponent(k)]; if(!g || !_TQX.mk) return;
-  _tqPopup('<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#1a5276">Phiếu điều chuyển trong kỳ</div>'
-    +'<div style="font-size:14px;font-weight:700;color:#1e293b;margin-top:3px">'+_tqxEsc(g.a)+' → '+_tqxEsc(g.b)+'</div>'
-    +'<div style="font-size:11px;color:#64748b;margin-top:2px">'+g.l.length+' phiếu · '+g.q.toLocaleString('vi-VN')+' viên</div></div>',
-    _TQX.mk(g.l.map(function(x){ return x.t; }), '#1a5276'));
-}
+function _tqxOpen(k){ _tqxToggle(k); }
 
 // Lưu chi tiết đối chiếu phiếu điều chuyển + popup
 var _tqMatchDetail = {};
