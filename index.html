@@ -3192,6 +3192,68 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
   if (window.__sbPatch) return;
 
   var _native = window.fetch.bind(window);
+  window.__sbNativeFetch = _native;
+
+  // ── (11) PHIÊN ĐĂNG NHẬP PHÍA MÁY CHỦ: gắn header x-app-session vào mọi request Supabase.
+  //    Token do RPC create_session cấp sau khi đăng nhập (xem _secStartSession).
+  //    Chưa chạy SQL 02 → không có token → không gắn gì (giữ nguyên hành vi cũ).
+  function withSess(init) {
+    var tok = window.__appSess;
+    if (!tok) return init;
+    var o = Object.assign({}, init || {});
+    var h = o.headers;
+    if (typeof Headers !== 'undefined' && h instanceof Headers) { h = new Headers(h); h.set('x-app-session', tok); }
+    else { h = Object.assign({}, h || {}); h['x-app-session'] = tok; }
+    o.headers = h;
+    return o;
+  }
+  // Ghi bị máy chủ từ chối vì phiên hết hạn (ERR_SESSION) → xin phiên mới rồi thử lại 1 lần.
+  function secRetry(fn, init) {
+    return fn(withSess(init)).then(function (r) {
+      if (r.ok || typeof window._secRenew !== 'function') return r;
+      return r.clone().text().then(function (t) {
+        if (String(t).indexOf('ERR_SESSION') < 0) return r;
+        return window._secRenew().then(function (ok) { return ok ? fn(withSess(init)) : r; }, function () { return r; });
+      }, function () { return r; });
+    });
+  }
+
+  // ── (12) CHỐNG XSS TỪ DỮ LIỆU CLOUD: thay ký tự phá HTML trong chuỗi trả về bằng ký tự
+  //    nhìn giống nhưng vô hại (< → ‹, > → ›, ` → ʼ). Các trường văn bản thường được nối
+  //    vào HTML/thuộc tính (thuốc, lô, hạn, ghi chú, tên...) thay thêm " → ” và ' → ’.
+  //    Làm 1 chỗ ở lớp fetch → mọi bảng/hàm render phía sau đều an toàn.
+  var XSS_URL = /\/rest\/v1\/(reports|transfers|patients|cap_phat|catalog|settings|units)(\?|$)|\/rest\/v1\/rpc\/list_accounts\b/;
+  var Q_KEYS = { drug:1, lot:1, exp:1, note:1, ghi_chu:1, ly_do:1, reason:1, name:1, ten:1, ho_ten:1,
+                 unit:1, from_unit:1, to_unit:1, display_unit:1, dia_chi:1, address:1, email:1, phone:1,
+                 user_id:1, username:1, slug:1, mien:1, tinh:1, tinh_cu:1, phan_loai:1, period:1 };
+  var xssChanged = false;
+  function cleanStr(v, q) {
+    var o = v.replace(/</g, '\u2039').replace(/>/g, '\u203A').replace(/`/g, '\u02BC');
+    if (q) o = o.replace(/"/g, '\u201D').replace(/'/g, '\u2019');
+    if (o !== v) xssChanged = true;
+    return o;
+  }
+  function deepClean(v, key) {
+    if (typeof v === 'string') return /[<>`"']/.test(v) ? cleanStr(v, !!Q_KEYS[key]) : v;
+    if (Array.isArray(v)) { for (var i = 0; i < v.length; i++) v[i] = deepClean(v[i], key); return v; }
+    if (v && typeof v === 'object') { for (var k in v) if (Object.prototype.hasOwnProperty.call(v, k)) v[k] = deepClean(v[k], k); return v; }
+    return v;
+  }
+  async function sanitizeRes(url, res) {
+    if (!res || !res.ok || !XSS_URL.test(url)) return res;
+    var ct = (res.headers && res.headers.get('content-type')) || '';
+    if (ct.indexOf('json') < 0) return res;
+    var txt;
+    try { txt = await res.clone().text(); } catch (e) { return res; }
+    if (!/[<>`']|\\"/.test(txt)) return res;        // không có ký tự nguy hiểm → giữ nguyên
+    try {
+      xssChanged = false;
+      var data = deepClean(JSON.parse(txt), '');
+      if (!xssChanged) return res;
+      S.xssCleaned = (S.xssCleaned || 0) + 1;
+      return new Response(JSON.stringify(data), { status: res.status, statusText: res.statusText, headers: res.headers });
+    } catch (e) { return res; }
+  }
 
   var PAGE_MAX = 1000;      // trần max-rows của PostgREST
   var TTL      = 8000;      // ms — tuổi thọ cache cho request chỉ-đọc
@@ -3494,7 +3556,7 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
         if (fillUnitNames(rows)) res = jsonResponse(rows);
       } catch (e) { /* để nguyên */ }
     }
-    return res;
+    return sanitizeRes(url, res);
   }
 
   // Ghi có danh sách in.(...) quá dài (vd DELETE id=in.(...)) → tách tuần tự
@@ -3571,6 +3633,7 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 
     if (!isSB(url)) return _native(input, init);
     if (typeof input !== 'string') return _native(input, init);   // Request object → không can thiệp
+    init = withSess(init);
 
     try { url = compatReports(url); } catch (e) { /* giữ URL gốc */ }
 
@@ -3581,14 +3644,16 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
       gen++; cache.clear(); inflight.clear();
       try { init = normalizeWrite(url, method, init); } catch (e) { /* giữ nguyên */ }
       if (/\/rest\/v1\/transfers(\?|$)/.test(url) && init && typeof init.body === 'string'
-          && init.body.indexOf('receive_date') >= 0) return transfersWrite(url, init);
-      return writeFetch(url, init);
+          && init.body.indexOf('receive_date') >= 0) return secRetry(function (i) { return transfersWrite(url, i); }, init);
+      return secRetry(function (i) { return writeFetch(url, i); }, init);
     }
 
     var bodyKey = (method === 'POST' && init && typeof init.body === 'string') ? init.body : '';
     var key = method + ' ' + url + ' ' + bodyKey;
     var hit = cache.get(key);
-    var noStore = init && init.cache === 'no-store';
+    // (13) Số liệu tồn kho & phiếu điều chuyển luôn đọc mới (không dùng cache 8s) —
+    //      tránh hiện số cũ ngay sau khi NGƯỜI KHÁC vừa sửa. Vẫn gộp request trùng đang chạy.
+    var noStore = (init && init.cache === 'no-store') || /\/rest\/v1\/(reports|transfers)(\?|$)/.test(url);
     if (!noStore && hit && Date.now() - hit.t < TTL) { S.cacheHit++; return Promise.resolve(hit.r.clone()); }
     if (inflight.has(key)) { S.dedup++; return inflight.get(key).then(function (r) { return r.clone(); }); }
 
@@ -3824,10 +3889,13 @@ async function saveToSupabase(periodKey, opts){
       if(!_id){ console.warn('[saveToSupabase] bỏ dòng không xác định được đơn vị:', unitName, r.drug, r.lot); return; }
       if(!canWriteUnit(_id)){ console.warn('[saveToSupabase] chặn ghi ngoài quyền:', unitName, r.drug, r.lot); return; }
       var _per = (r.bcMonth && /^\d{4}-\d{2}$/.test(r.bcMonth)) ? r.bcMonth : periodKey;
-      rows.push({period:_per, unit:unitName, unitId:_id, phanLoai:r.phanLoai, periodType:r.periodType,
+      var _o = {period:_per, unit:unitName, unitId:_id, phanLoai:r.phanLoai, periodType:r.periodType,
         drug:r.drug, lot:r.lot,
         exp:r.exp||'', open:r.open||0, tinh:r.tinh||0, ntk:r.ntk||0, dc:r.dc||0, sd:r.sd||0,
-        dc2:r.dc2||0, dc3:r.dc3||0, hh:r.hh||0, locked:!!r.locked, bc_month:_per});
+        dc2:r.dc2||0, dc3:r.dc3||0, hh:r.hh||0, locked:!!r.locked, bc_month:_per};
+      // Chống ghi đè: gửi kèm mốc edited_at đã đọc. Máy chủ thấy khác → ERR_CONFLICT (người khác vừa sửa).
+      if(_SEC_V2 && r._ts) _o.base_edited_at = r._ts;
+      rows.push(_o);
       _dirtyRowRefs.push(r);
     }
 
@@ -3876,14 +3944,37 @@ async function saveToSupabase(periodKey, opts){
     // Gửi theo lô 500 dòng: "Chốt toàn bộ" của admin có thể là hàng chục nghìn dòng
     // → 1 request vài MB dễ quá thời gian chờ/giới hạn payload của máy chủ.
     var _SAVE_CHUNK = 500;
+    // Khi CSDL có khoá chống ghi đè: xin lại edited_at mới của các dòng vừa ghi.
+    var _secOn = _SEC_V2;
+    var _saveUrl = _secOn ? _reportsUpsertUrl + '&select=unit_id,period,phan_loai,drug,lot,exp,edited_at' : _reportsUpsertUrl;
+    var _savePrefer = 'resolution=merge-duplicates,' + (_secOn ? 'return=representation' : 'return=minimal');
+    var _keyDb = function(x){ return [x.unit_id, x.period, x.phan_loai||'h2', x.drug, x.lot, x.exp||''].join('||'); };
+    var _savedTs = {}, _conflicts = [];
+    var _postRows = async function(arr){
+      var _res = await fetch(_saveUrl, {
+        method: 'POST',
+        headers: Object.assign({}, hdBase, {'Prefer': _savePrefer}),
+        body: JSON.stringify(arr)
+      });
+      var _t = _res.ok ? '' : await _res.text();
+      if(_res.ok && _secOn){
+        try{ (await _res.json() || []).forEach(function(x){ _savedTs[_keyDb(x)] = x.edited_at || null; }); }catch(_e){}
+      }
+      return {ok:_res.ok, status:_res.status, text:_t};
+    };
     var _upsertChunks = async function(){
       for(var _ci=0; _ci<_dbRowsAll.length; _ci+=_SAVE_CHUNK){
-        var _res = await fetch(_reportsUpsertUrl, {
-          method: 'POST',
-          headers: Object.assign({}, hdBase, {'Prefer': 'resolution=merge-duplicates,return=minimal'}),
-          body: JSON.stringify(_dbRowsAll.slice(_ci, _ci+_SAVE_CHUNK))
-        });
-        if(!_res.ok){ var _t = await _res.text(); return _res.status+': '+_t.slice(0,160); }
+        var _chunk = _dbRowsAll.slice(_ci, _ci+_SAVE_CHUNK);
+        var _r = await _postRows(_chunk);
+        if(_r.ok) continue;
+        if(_r.text.indexOf('ERR_CONFLICT') < 0) return _r.status+': '+_r.text.slice(0,160);
+        // Có dòng bị người khác sửa trong lúc mình đang nhập → ghi từng dòng, gom các dòng xung đột
+        for(var _k=0; _k<_chunk.length; _k++){
+          var _r1 = await _postRows([_chunk[_k]]);
+          if(_r1.ok) continue;
+          if(_r1.text.indexOf('ERR_CONFLICT') >= 0){ _conflicts.push(_chunk[_k]); continue; }
+          return _r1.status+': '+_r1.text.slice(0,160);
+        }
       }
       return null;
     };
@@ -3932,6 +4023,37 @@ async function saveToSupabase(periodKey, opts){
 
     // Lưu thành công → xóa cờ _dirty của các dòng đã ghi (để lần sau không ghi lại thừa)
     _dirtyRowRefs.forEach(function(r){ delete r._dirty; });
+
+    // Cập nhật mốc edited_at mới cho các dòng vừa ghi (lần lưu sau không bị báo xung đột nhầm)
+    if(_secOn){
+      var _keyRam = function(r){ return [_rowUid(r), (r.bcMonth && /^\d{4}-\d{2}$/.test(r.bcMonth)) ? r.bcMonth : periodKey,
+                                         _rowPL(r), r.drug, r.lot, r.exp||''].join('||'); };
+      _dirtyRowRefs.forEach(function(r){ var k = _keyRam(r); if(k in _savedTs) r._ts = _savedTs[k]; });
+      // Dòng XUNG ĐỘT: tải lại số mới nhất từ cloud, KHÔNG ghi đè lên số của người khác
+      if(_conflicts.length){
+        var _byKey = {}; _dirtyRowRefs.forEach(function(r){ _byKey[_keyRam(r)] = r; });
+        for(var _q=0; _q<_conflicts.length; _q++){
+          var c = _conflicts[_q];
+          try{
+            var _u = SUPA_URL+'/rest/v1/reports?unit_id=eq.'+encodeURIComponent(c.unit_id)+'&period=eq.'+encodeURIComponent(c.period)
+              +'&phan_loai=eq.'+encodeURIComponent(c.phan_loai||'h2')+'&drug=eq.'+encodeURIComponent(c.drug)
+              +'&lot=eq.'+encodeURIComponent(c.lot)+'&exp=eq.'+encodeURIComponent(c.exp||'');
+            var _gr = await fetch(_u, {headers:_supaHdr, cache:'no-store'});
+            var _fresh = _gr.ok ? (await _gr.json())[0] : null;
+            var _ram = _byKey[_keyDb(c)];
+            if(_fresh && _ram){
+              var _m = _mapRow(_fresh);
+              ['open','tinh','ntk','dc','sd','dc2','dc3','hh','locked','_ts'].forEach(function(f){ _ram[f] = _m[f]; });
+            }
+          }catch(_e){ console.warn('[saveToSupabase] tải lại dòng xung đột lỗi:', _e); }
+        }
+        var _names = _conflicts.slice(0,3).map(function(c){ return c.drug+' (lô '+c.lot+')'; }).join(', ')
+                   + (_conflicts.length > 3 ? ' và '+(_conflicts.length-3)+' dòng khác' : '');
+        toast('⚠ '+_conflicts.length+' dòng vừa được NGƯỜI KHÁC sửa nên chưa ghi đè: '+_names
+              +'. Đã tải số mới nhất — kiểm tra rồi nhập lại nếu cần.', 'var(--warning)');
+        try{ renderBVPH(); }catch(_e){} try{ renderBC(); }catch(_e){} try{ renderDrugTable(); }catch(_e){}
+      }
+    }
 
     // Vừa lưu/sửa kỳ này → tồn cuối có thể đã đổi → LAN tồn đầu xuống các kỳ sau.
     try{
@@ -4234,7 +4356,8 @@ function _mapRow(r){
     open:r.open||0, tinh:r.tinh||0, ntk:r.ntk||0, dc:r.dc||0, sd:r.sd||0,
     dc2:r.dc2||0, dc3:r.dc3||0, hh:r.hh||0,
     locked:!!r.locked, editing:false, bcMonth:r.period||r.bc_month,
-    openLocked:!!r.locked
+    openLocked:!!r.locked,
+    _ts: r.edited_at || null     // mốc "lần sửa số liệu cuối" trên cloud → chống ghi đè
   };
 }
 
@@ -4358,6 +4481,8 @@ function _pathIn(t, p){
 }
 // Chuỗi hiển thị an toàn: bỏ ký tự có thể phá HTML/thuộc tính/chuỗi JS inline
 function _safeText(x){ return String(x==null?'':x).replace(/[<>"`]/g,''); }
+// Escape HTML đầy đủ — dùng khi nối dữ liệu người dùng vào chuỗi HTML
+function _escH(x){ return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 // Tra unit_id từ tên/khóa cũ — dùng cho lớp tương thích fetch (unit=eq.<tên> → unit_id)
 function _compatUnitId(name){
   if(!name) return null;
@@ -4484,7 +4609,7 @@ function _uid(x){
 }
 function _toDbRow(r){
   var o = {};
-  var SKIP = {unit:1, bc_month:1, unitId:1, phanLoai:1, periodType:1, editing:1, openLocked:1, _dirty:1, bcMonth:1};
+  var SKIP = {unit:1, bc_month:1, unitId:1, phanLoai:1, periodType:1, editing:1, openLocked:1, _dirty:1, bcMonth:1, _ts:1, _rid:1};
   for(var k in r){ if(!SKIP[k]) o[k] = r[k]; }
   o.unit_id     = r.unit_id || r.unitId || _uid(r.unit);
   o.phan_loai   = r.phan_loai || r.phanLoai || 'h2';
@@ -5293,7 +5418,7 @@ function parseMonthExp(str){
   if(str.indexOf('-')>=0&&str.length===10) return str;
   var pts=str.split('/');
   if(pts.length===2){
-    var mm=parseInt(pts[0])||1, yyyy=parseInt(pts[1])||2026;
+    var mm=parseInt(pts[0],10)||1, yyyy=parseInt(pts[1],10)||2026;
     var last=new Date(yyyy,mm,0).getDate();
     return yyyy+'-'+(mm<10?'0':'')+mm+'-'+(last<10?'0':'')+last;
   }
@@ -5401,10 +5526,10 @@ function renderCatalog(){
       }
 
       // Cột TT + Tên thuốc: chỉ render ở dòng đầu mỗi nhóm với rowspan
-      row += '<td>'+r.lot+'</td>'
-           + '<td>'+expDisp+'</td>'
+      row += '<td>'+_escH(r.lot)+'</td>'
+           + '<td>'+_escH(expDisp)+'</td>'
            + '<td><span class="badge '+st.cls+'">'+st.label+'</span></td>'
-           + '<td style="color:var(--muted);font-size:11px">'+r.note+'</td>'
+           + '<td style="color:var(--muted);font-size:11px">'+_escH(r.note)+'</td>'
            + '<td class="cat-act" style="white-space:nowrap">'+(canDel?'<button class="btn btn-xs" style="background:#e67e22;color:white;border:none;margin-right:4px" onclick="editCatalog('+i+')">✏ Sửa</button><button class="btn btn-danger btn-xs" onclick="delCatalog('+i+')">Xóa</button>':'—')+'</td>'
            + '</tr>';
 
@@ -6199,6 +6324,54 @@ async function _rpcListAccounts(){
 var _authUser = null, _authPass = null;
 function _authArgs(){ return { p_actor: _authUser||'', p_actor_pass: _authPass||'' }; }
 
+// ── PHIÊN MÁY CHỦ (SQL 02_bao_mat_ghi_va_cascade.sql) ─────────────────────
+// Sau khi đăng nhập: xin token phiên → lớp fetch gắn header x-app-session vào mọi request.
+// Máy chủ chặn mọi lệnh ghi không có phiên hợp lệ. Chưa chạy SQL → _SEC_V2=false, app chạy như cũ.
+window.__appSess = null;
+var _SEC_V2 = false;          // true = CSDL đã có phiên + khoá chống ghi đè + cascade máy chủ
+var _secRenewTimer = null, _secRenewP = null;
+async function _secStartSession(user, pass){
+  try{
+    var rows = await _rpc('create_session', { p_user:user, p_pass:pass });
+    var tok = rows && rows[0] && rows[0].o_token;
+    if(!tok){ window.__appSess = null; _SEC_V2 = false; return false; }
+    // Thử 1 request có header riêng: nếu máy chủ/trình duyệt chặn (CORS) thì báo, không bật.
+    try{
+      await window.__sbNativeFetch(SUPA_URL+'/rest/v1/units?select=id&limit=1',
+        { headers: Object.assign({}, _supaHdr, {'x-app-session': tok}) });
+    }catch(eP){
+      console.warn('[bảo mật] Không gửi được header x-app-session:', eP);
+      try{ toast('⚠ Không bật được phiên bảo mật (header bị chặn) — báo quản trị viên.','var(--warning)'); }catch(_e){}
+      window.__appSess = null; _SEC_V2 = false; return false;
+    }
+    window.__appSess = tok; _SEC_V2 = true;
+    clearInterval(_secRenewTimer);
+    _secRenewTimer = setInterval(function(){ window._secRenew(); }, 4*3600*1000);   // phiên 12h, gia hạn mỗi 4h
+    return true;
+  }catch(e){
+    var m = String(e && e.message || '');
+    if(e && (e.status === 404 || m.indexOf('PGRST202') >= 0 || m.indexOf('create_session') >= 0)){
+      console.info('[bảo mật] CSDL chưa chạy 02_bao_mat_ghi_va_cascade.sql — dùng chế độ cũ.');
+    } else {
+      console.warn('[bảo mật] Tạo phiên lỗi:', e);
+    }
+    window.__appSess = null; _SEC_V2 = false;
+    return false;
+  }
+}
+window._secRenew = function(){
+  if(!_authUser || !_authPass) return Promise.resolve(false);
+  if(_secRenewP) return _secRenewP;
+  _secRenewP = _secStartSession(_authUser, _authPass).finally(function(){ _secRenewP = null; });
+  return _secRenewP;
+};
+function _secEndSession(){
+  var tok = window.__appSess;
+  window.__appSess = null; _SEC_V2 = false;
+  clearInterval(_secRenewTimer); _secRenewTimer = null;
+  if(tok){ try{ _rpc('end_session', { p_token: tok }).catch(function(){}); }catch(_e){} }
+}
+
 // Dịch mã lỗi RPC → câu tiếng Việt
 function _rpcErrMsg(code){
   var M = {
@@ -6270,6 +6443,7 @@ function doLogin(){
 
     // Giữ thông tin xác thực trong RAM (chỉ phiên này) để tái xác thực thao tác quản trị
     _authUser = acc.user; _authPass = pass;
+    _secStartSession(acc.user, pass);   // xin phiên máy chủ (không chặn giao diện)
 
     // Đồng bộ vào ACCOUNTS (không có mật khẩu) để phần còn lại của app dùng
     var _ix = ACCOUNTS.findIndex(function(a){ return a.user === acc.user; });
@@ -6462,6 +6636,7 @@ function doLogout(){
   bcData = [];
   lockedPeriods = {};
   noUsagePeriods = {}; deletedRows = {}; _BLOB_BASE = {};   // không mang trạng thái tài khoản trước sang tài khoản sau
+  _secEndSession();                                           // huỷ phiên máy chủ
   _authUser = null; _authPass = null;                         // xoá mật khẩu khỏi RAM khi đăng xuất
   window._treeReloadDone = false; _printTransfers = []; _printTransfersPeriod = '';
   try{ clearInterval(_autoRefreshTimer); clearInterval(_notifTimer); clearTimeout(window._autoRefreshJitterT); clearTimeout(window._notifJitterT); }catch(_e){}
@@ -12345,7 +12520,54 @@ function _scheduleCascade(periodKey, unitIds){
   }, 1200);
 }
 
+// Lan tồn đầu: ưu tiên chạy TRÊN MÁY CHỦ (RPC cascade_opening_stock — 1 giao dịch trọn vẹn,
+// tắt trình duyệt giữa chừng không làm đứt chuỗi). CSDL chưa có RPC → chạy kiểu cũ ở trình duyệt.
+var _CASCADE_RPC_OFF = false;
 async function _cascadeOpeningStock(startPeriodKey, unitIds){
+  if(!startPeriodKey || !_supaOnline) return 0;
+  if(!_SEC_V2 || _CASCADE_RPC_OFF) return _cascadeOpeningStockClient(startPeriodKey, unitIds);
+  if(_cascadeRunning){ _scheduleCascade(startPeriodKey, unitIds); return 0; }
+  _cascadeRunning = true;
+  var curViewKey = (typeof _currentPeriodKey==='function') ? _currentPeriodKey() : '';
+  var res;
+  try{
+    res = await _rpc('cascade_opening_stock', {
+      p_start: startPeriodKey,
+      p_unit_ids: (unitIds && unitIds.length) ? unitIds : null,
+      p_view_period: curViewKey || null
+    });
+  }catch(e){
+    _cascadeRunning = false;
+    var m = String(e && e.message || '');
+    if(e && (e.status === 404 || m.indexOf('PGRST202') >= 0)){
+      _CASCADE_RPC_OFF = true;
+      return _cascadeOpeningStockClient(startPeriodKey, unitIds);
+    }
+    console.warn('[cascade RPC] lỗi:', e);
+    try{ toast('⚠ Chưa cập nhật xong tồn đầu các kỳ sau ('+m.slice(0,80)+'). Lần lưu tới sẽ tự thử lại.','var(--warning)'); }catch(e2){}
+    return 0;
+  }
+  _cascadeRunning = false;
+  var totalUpdated = (res && res.updated) || 0;
+  var viewRows = (res && res.view_rows) || [];
+  viewRows.forEach(function(x){ _ramUpsertRow(curViewKey, x, x.open||0); });
+  if(viewRows.length){
+    var _ae = document.activeElement;
+    var _typing = _ae && /^(INPUT|SELECT|TEXTAREA)$/.test(_ae.tagName);
+    var _modal = document.querySelector('.modal-overlay.open') || document.querySelector('.app-popup');
+    if(!_typing && !_modal){
+      try{ renderBVPH(); }catch(e){} try{ renderBC(); }catch(e){}
+      try{ renderDrugTable(); }catch(e){} try{ renderTQ(); }catch(e){}
+    }
+    try{ toast('Đã cập nhật tồn đầu '+totalUpdated+' dòng theo tồn cuối kỳ trước.','#1a5276'); }catch(e){}
+  } else if(totalUpdated > 0){
+    try{ console.info('[cascade] Đã cập nhật tồn đầu '+totalUpdated+' dòng ở các kỳ sau (máy chủ).'); }catch(e){}
+  }
+  return totalUpdated;
+}
+
+// Bản cũ chạy ở trình duyệt (dự phòng khi CSDL chưa chạy SQL 02)
+async function _cascadeOpeningStockClient(startPeriodKey, unitIds){
   if(!startPeriodKey || !_supaOnline) return 0;
   if(_cascadeRunning){ _scheduleCascade(startPeriodKey, unitIds); return 0; }
   _cascadeRunning = true;
@@ -12932,7 +13154,7 @@ function _showTransferModal(opts){
 
   var metaEl = document.createElement('div');
   metaEl.style.cssText = 'font-size:11px;color:#64748b;display:flex;gap:10px;flex-wrap:wrap';
-  metaEl.innerHTML = '<span>Lô <b>'+opts.lot+'</b></span><span>·</span><span>HD '+opts.exp+'</span><span>·</span><span>Từ: <b>'+escH(_displayUnitForTuyen(opts.fromUnit))+'</b></span>';
+  metaEl.innerHTML = '<span>Lô <b>'+_escH(opts.lot)+'</b></span><span>·</span><span>HD '+_escH(opts.exp)+'</span><span>·</span><span>Từ: <b>'+escH(_displayUnitForTuyen(opts.fromUnit))+'</b></span>';
   hdrLeft.appendChild(metaEl);
   hdr.appendChild(hdrLeft);
 
@@ -13484,7 +13706,7 @@ function onDc3Change(prefix, rowIdx, inp){
   h.textContent = '↗ Xuất tỉnh/thành phố khác';
   var sub = document.createElement('div');
   sub.style.cssText = 'font-size:12px;color:#555;margin-bottom:12px;padding:8px;background:#f9f0ff;border-radius:6px;line-height:1.7';
-  sub.innerHTML = '<b>Thuốc:</b> '+row.drug+'<br><b>Số lô:</b> '+row.lot+' &nbsp;|&nbsp; <b>Hạn:</b> '+expToMMYYYY(row.exp)
+  sub.innerHTML = '<b>Thuốc:</b> '+_escH(row.drug)+'<br><b>Số lô:</b> '+_escH(row.lot)+' &nbsp;|&nbsp; <b>Hạn:</b> '+expToMMYYYY(row.exp)
     +'<br><b>Từ:</b> '+fromUnit
     +'<br><span style="color:#8e44ad">Chọn kho tỉnh/TP nhận trong hệ thống → bên nhận xác nhận, số lượng vào cột <b>Nhập tỉnh khác</b> của họ.</span>';
   box.appendChild(h); box.appendChild(sub);
@@ -15173,7 +15395,7 @@ function _doRenderPrint(unitName,rows,periodKey,month,year,ngayKy,isBVPH,ghiChuS
         ?'<td rowspan="'+rowspan+'" class="c b">'+stt+'</td>'
          +'<td rowspan="'+rowspan+'" class="l b">'+drug+'</td>'
          +'<td rowspan="'+rowspan+'" class="c">Viên</td>'
-         +'<td rowspan="'+rowspan+'" class="c">'+(r.note||'QTC')+'</td>'
+         +'<td rowspan="'+rowspan+'" class="c">'+_escH(r.note||'QTC')+'</td>'
         :'';
       var key=r.drug+'|'+r.lot+'|'+(r.exp||'');
       var gc=ghiChuStr[key]||'';
