@@ -8327,7 +8327,14 @@ function _tqxRender(){
   var canCancel=isAdmin();
   var showU = (lv==='mien' || lv==='tinh');   // cấp gộp theo miền/tỉnh → ghi rõ đơn vị thật trên từng dòng
   var NC = (canCancel ? 9 : 8) + (showU ? 1 : 0);
-  var sn=function(n){ return String(n||'').replace(/^(Thành phố|Tỉnh)\s+/,''); };
+  // Tên đơn vị THẬT trên phiếu, ghi rõ cấp kho: "Kho TP Hà Nội", "Kho tỉnh Nghệ An", "Kho Miền Bắc", "TTYT …"
+  var sn=function(id,raw){
+    var u=id&&UNIT_BY_ID[id], n=String((u&&u.name)||raw||'');
+    if(u && (u.utype==='kho_tq' || !u.parent_id)) return n;
+    if(u && u.utype==='kho_mien') return /^kho/i.test(n)?n:'Kho '+n;
+    if(u && _tqxProvOf(u.id)===u.id) return n.replace(/^Thành phố\s+/,'Kho TP ').replace(/^Tỉnh\s+/,'Kho tỉnh ');
+    return n;
+  };
   var fmtD=function(d){ return d?_fmtDate(d):'—'; };
   var h='';
   if(order.length>1) h+='<div class="tqx-tools"><a onclick="_tqxAll(true)">Mở rộng tất cả</a> · <a onclick="_tqxAll(false)">Thu gọn tất cả</a></div>';
@@ -8350,7 +8357,7 @@ function _tqxRender(){
       var q=Number(t.qty||0); d.q+=q; d.n++; if(x.st==='wait'||x.st==='transit') d.w+=q; else d.r+=q;
       if(closed) return;
       h+='<tr class="tqx-dr"><td class="tqx-g">'+(i+1)+'</td>'
-        +(showU?'<td class="l tqx-u" title="'+_tqxEsc(t.from_unit)+' → '+_tqxEsc(t.to_unit)+'">'+_tqxEsc(sn(t.from_unit))+'<i>→</i>'+_tqxEsc(sn(t.to_unit))+'</td>':'')
+        +(showU?'<td class="l tqx-u" title="'+_tqxEsc(t.from_unit)+' → '+_tqxEsc(t.to_unit)+'">'+_tqxEsc(sn(x.f,t.from_unit))+'<i>→</i>'+_tqxEsc(sn(x.to,t.to_unit))+'</td>':'')
         +'<td class="l">'+_tqxEsc(t.drug)+'</td><td>'+_tqxEsc(t.lot||'—')+'</td><td>'+(t.exp?expFmt(t.exp):'—')+'</td>'
         +'<td class="tqx-q">'+q.toLocaleString('vi-VN')+'</td><td>'+fmtD(t.transfer_date||t.created_at)+'</td>'
         +'<td>'+(x.st==='wait'?'<span class="tqx-g">—</span>':fmtD(t.receive_date))+'</td><td>'+_tqxStCell(x)+'</td>'
@@ -16884,6 +16891,75 @@ function _renderMienTQ(){
   }catch(e){ console.warn('[mien-tq]', e); }
 }
 
+
+// ════════════════════════════════════════════════════════════════════
+// DANH SÁCH PHIẾU ĐIỀU CHUYỂN của một ô báo cáo (Xuất/Nhập tỉnh khác, Xuất/Nhập ĐC, Cấp phát)
+// Dùng trong popup chi tiết ô số: cho biết chuyển đi/nhận từ ĐÂU, NGÀY NÀO, trạng thái.
+//  field: dc3 | ntk | dc2 | dc | tinh   ·  units: tên đơn vị (đúng tên trên phiếu)
+// ════════════════════════════════════════════════════════════════════
+var _CELL_TX = {
+  dc3:  {dir:'out', types:['dc3_province'],            title:'Phiếu xuất tỉnh khác'},
+  ntk:  {dir:'in',  types:['dc3_province'],            title:'Phiếu nhập tỉnh khác'},
+  dc2:  {dir:'out', types:['dc2_to_dc','dc3_to_tinh'], title:'Phiếu xuất điều chuyển / cấp phát'},
+  dc:   {dir:'in',  types:['dc2_to_dc'],               title:'Phiếu nhập điều chuyển'},
+  tinh: {dir:'in',  types:['dc3_to_tinh'],             title:'Phiếu cấp phát từ tuyến trên'}
+};
+function _cellTxSlot(field){ return _CELL_TX[field] ? '<div class="cell-tx" data-f="'+field+'"><div style="margin-top:12px;font-size:12px;color:#94a3b8;font-style:italic">Đang tải danh sách phiếu…</div></div>' : ''; }
+async function _fillCellTx(box, field, units, drug, lot, exp){
+  var M=_CELL_TX[field]; if(!box || !M) return;
+  var slot=box.querySelector('.cell-tx'); if(!slot) return;
+  var P=getSelectedPeriod();
+  var inP=function(d){ d=String(d||'').slice(0,7); return P.type==='year' ? d.slice(0,4)===String(P.year) : d===P.val; };
+  var U={}; units.forEach(function(n){ if(n) U[n]=1; });
+  try{
+    var url=SUPA_URL+'/rest/v1/transfers?select=*&drug=eq.'+encodeURIComponent(drug)+'&lot=eq.'+encodeURIComponent(lot)
+      +'&type=in.('+M.types.join(',')+')&status=not.in.(cancelled,cancel_notif)&order=transfer_date.asc';
+    var r=await fetch(url,{headers:_supaHdr,cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status);
+    var all=(await r.json()).filter(function(t){ return _normExp(t.exp)===_normExp(exp); });
+    var list, wait=[];
+    if(M.dir==='out'){
+      // Bên xuất ghi sổ ở KỲ CHUYỂN (kể cả phiếu chưa nhận)
+      list=all.filter(function(t){ return U[t.from_unit] && inP(t.transfer_date||t.period); });
+    } else {
+      // Bên nhận: cấp phát (dc3_to_tinh) ghi ở kỳ chuyển; ĐC/tỉnh khác ghi ở kỳ NHẬN, chỉ khi đã xác nhận
+      list=all.filter(function(t){
+        if(!U[t.to_unit]) return false;
+        if(t.type==='dc3_to_tinh') return inP(t.transfer_date||t.period);
+        return t.status==='confirmed' && inP(t.receive_date||t.transfer_date);
+      });
+      wait=all.filter(function(t){ return U[t.to_unit] && t.type!=='dc3_to_tinh' && t.status==='pending'; });
+    }
+    var fd=function(d){ return d?_fmtDate(d):'—'; };
+    var stc=function(t){
+      if(t.status==='pending') return '<span style="color:#b45309;font-weight:700">⏳ Chờ nhận</span>';
+      var rp=t.receive_date?String(t.receive_date).slice(0,7):'';
+      if(M.dir==='out' && rp && !inP(rp)) return '<span style="color:#1d4ed8;font-weight:700">🚚 Nhận '+_fmtPeriodVN(rp).replace('Tháng ','T')+'</span>';
+      return '<span style="color:#1a8a4f;font-weight:700">✓ Đã nhận</span>';
+    };
+    var tbl=function(arr, head){
+      var sum=0, h='<div style="margin-top:14px;padding-top:10px;border-top:2px dashed #e2e8f0">'
+        +'<div style="font-size:11px;font-weight:800;color:#1a5276;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">'+head+' ('+arr.length+')</div>'
+        +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f1f5f9;color:#475569">'
+        +'<th style="padding:6px;text-align:left">'+(M.dir==='out'?'Chuyển đến':'Nhận từ')+'</th>'
+        +(units.length>1?'<th style="padding:6px;text-align:left">'+(M.dir==='out'?'Đơn vị xuất':'Đơn vị nhận')+'</th>':'')
+        +'<th style="padding:6px;text-align:right">SL</th><th style="padding:6px">Ngày chuyển</th><th style="padding:6px">Ngày nhận</th><th style="padding:6px">Trạng thái</th></tr></thead><tbody>';
+      arr.forEach(function(t){ sum+=Number(t.qty||0);
+        h+='<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px;font-weight:600">'+escH(M.dir==='out'?t.to_unit:t.from_unit)
+          +(t.type==='dc3_to_tinh'?' <span style="font-size:10px;background:#27ae60;color:#fff;padding:1px 5px;border-radius:3px">Cấp phát</span>':'')+'</td>'
+          +(units.length>1?'<td style="padding:6px;color:#64748b">'+escH(M.dir==='out'?t.from_unit:t.to_unit)+'</td>':'')
+          +'<td style="padding:6px;text-align:right;font-weight:700">'+fmtNum(t.qty)+'</td>'
+          +'<td style="padding:6px;text-align:center;white-space:nowrap">'+fd(t.transfer_date||t.created_at)+'</td>'
+          +'<td style="padding:6px;text-align:center;white-space:nowrap">'+(t.status==='pending'?'—':fd(t.receive_date))+'</td>'
+          +'<td style="padding:6px;text-align:center;white-space:nowrap">'+stc(t)+'</td></tr>'; });
+      if(arr.length>1) h+='<tr><td style="padding:6px;font-weight:800" colspan="'+(units.length>1?2:1)+'">Tổng</td><td style="padding:6px;text-align:right;font-weight:800">'+fmtNum(sum)+'</td><td colspan="3"></td></tr>';
+      return h+'</tbody></table></div></div>';
+    };
+    var html = list.length ? tbl(list, M.title) : '<div style="margin-top:12px;font-size:12px;color:#94a3b8">Không có phiếu nào ghi nhận vào ô này trong kỳ (số có thể nhập tay).</div>';
+    if(wait.length) html += tbl(wait, 'Phiếu gửi đến đang chờ xác nhận — chưa cộng vào báo cáo');
+    slot.innerHTML=html;
+  }catch(e){ slot.innerHTML='<div style="margin-top:12px;font-size:12px;color:#c0392b">Không tải được danh sách phiếu: '+escH(e.message)+'</div>'; }
+}
+
 // ════════════════════════════════════════════════════════════════════
 // POPUP CHI TIẾT CỘNG TỔNG — bấm vào ô số trong bảng Tổng toàn TP để xem
 // từng đơn vị đóng góp bao nhiêu, hoặc công thức cấu thành ô tính toán.
@@ -16972,7 +17048,8 @@ function showTPDetail(idx, field){
   } else {
     // Ô cộng gộp theo đơn vị → liệt kê từng đơn vị đóng góp (>0), sắp giảm dần
     body += _unitTable(mt.per, mt.col, false).html;
-    if(mt.note) body += '<div style="margin-top:8px;font-size:11px;color:#94a3b8;line-height:1.5">ℹ '+mt.note+'</div>';
+    if(mt.note && field!=='ntk' && field!=='dc3') body += '<div style="margin-top:8px;font-size:11px;color:#94a3b8;line-height:1.5">ℹ '+mt.note+'</div>';
+    if(field==='ntk' || field==='dc3') body += _cellTxSlot(field);
   }
 
   // Vẽ popup — dùng class app-popup để auto-refresh 12s KHÔNG render đè khi đang mở
@@ -16983,7 +17060,7 @@ function showTPDetail(idx, field){
   ov.className = 'app-popup';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
   ov.innerHTML =
-    '<div style="background:white;border-radius:14px;width:440px;max-width:96vw;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden" onclick="event.stopPropagation()">'
+    '<div style="background:white;border-radius:14px;width:620px;max-width:96vw;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden" onclick="event.stopPropagation()">'
     +'<div style="background:'+mt.bg+';border-bottom:2px solid '+mt.col+';padding:14px 18px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px">'
       +'<div>'
         +'<div style="font-size:11px;font-weight:700;color:'+mt.col+';text-transform:uppercase;letter-spacing:.5px">Chi tiết: '+mt.label+'</div>'
@@ -16996,6 +17073,11 @@ function showTPDetail(idx, field){
     +'</div>';
   ov.onclick = function(){ ov.remove(); };
   document.body.appendChild(ov);
+  if(field==='ntk' || field==='dc3'){
+    var _us=Object.keys(d.contrib).filter(function(u){ return (d.contrib[u][field]||0)>0; })
+      .map(function(u){ return d.contrib[u].isBvph ? u.replace(/^Kho /,'') : u; });
+    _fillCellTx(ov, field, _us, d.drug, d.lot, d.exp);
+  }
 }
 // Đóng popup bằng phím Esc
 document.addEventListener('keydown', function(e){
@@ -18164,6 +18246,7 @@ function showBVPHDetail(prefix, idx, field){
       +'<div style="font-size:12px;color:#64748b;margin-top:4px">'+mt.label+'</div>'
     +'</div>';
     if(mt.note) body += '<div style="padding:10px 12px;background:'+mt.bg+';border-radius:8px;font-size:12px;color:#475569;line-height:1.5">ℹ '+mt.note+'</div>';
+    body += _cellTxSlot(field);
   }
 
   var old = document.getElementById('bvph-detail-popup');
@@ -18172,7 +18255,7 @@ function showBVPHDetail(prefix, idx, field){
   ov.id = 'bvph-detail-popup';
   ov.className = 'app-popup';
   ov.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
-  ov.innerHTML='<div style="background:white;border-radius:14px;width:360px;max-width:96vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden" onclick="event.stopPropagation()">'
+  ov.innerHTML='<div style="background:white;border-radius:14px;width:'+(_CELL_TX[field]?'620':'360')+'px;max-width:96vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden" onclick="event.stopPropagation()">'
     +'<div style="background:'+mt.bg+';border-bottom:2px solid '+mt.col+';padding:14px 18px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px">'
       +'<div>'
         +'<div style="font-size:11px;font-weight:700;color:'+mt.col+';text-transform:uppercase;letter-spacing:.5px">Chi tiết: '+mt.label+'</div>'
@@ -18185,6 +18268,10 @@ function showBVPHDetail(prefix, idx, field){
   +'</div>';
   ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
   document.body.appendChild(ov);
+  if(_CELL_TX[field]){
+    var _un = isBVPH ? (unitNameById(_currentRootId()) || row.unit) : row.unit;
+    _fillCellTx(ov, field, [_un], row.drug, row.lot, row.exp);
+  }
 }
 // Đóng bvph-detail-popup bằng Esc
 document.addEventListener('keydown', function(e){
