@@ -424,6 +424,9 @@ table.bvph-leaf .col-ntk, table.bvph-leaf .col-dc2, table.bvph-leaf .col-dc3{dis
 table:not(.bvph-leaf) .col-dcleaf{display:none!important}
 /* Dòng TỔNG theo thuốc (cộng các lô của cùng 1 thuốc) — chỉ hiện khi thuốc có từ 2 lô */
 tr.grp-sum td{background:#f1f5f9!important;font-weight:800;color:#1e293b;border-top:1.5px solid #94a3b8!important;border-bottom:2px solid #94a3b8!important}
+/* Các bảng báo cáo: mọi dòng cao đều nhau (dòng có nút Sửa/Xóa, dòng tổng, dòng thường) */
+#bvph-body > tr > td, #bc-body > tr > td, #tp-body > tr > td, #tpc-detail-body > tr > td,
+#mien-body > tr > td, #tq-body > tr > td{height:38px;box-sizing:border-box;vertical-align:middle}
 tr.grp-sum td.gs-lbl{text-align:right;color:#334155}
 tr.grp-sum td.gs-open{background:#fdeeb5!important}
 tr.grp-sum td.gs-in{background:#c9f2d7!important;color:#14532d}
@@ -9329,11 +9332,11 @@ function buildTbl(data, bodyId, prefix){
       }
       var gs = '<tr class="grp-sum">'
         + '<td class="gs-lbl" colspan="2">Cộng ('+(idx-_g0+1)+' lô)</td>'
-        + '<td class="gs-open">'+fmtNum(G.open)+'</td>'
+        + '<td class="open-stock gs-open">'+fmtNum(G.open)+'</td>'
         + '<td>'+fmtNum(G.tinh)+'</td>';
       if(isBVPH) gs += '<td class="col-ntk">'+fmtNum(G.ntk)+'</td>';
       gs += '<td>'+fmtNum(G.dc)+'</td>'
-        + '<td class="gs-in">'+fmtNum(G.tin)+'</td>'
+        + '<td class="calc-in gs-in">'+fmtNum(G.tin)+'</td>'
         + '<td>'+fmtNum(G.sd)+'</td>';
       if(isBVPH){
         gs += '<td class="col-dc2">'+fmtNum(G.dc2)+'</td><td class="col-dc3">'+fmtNum(G.dc3)+'</td><td class="col-dcleaf">'+fmtNum(G.dc2)+'</td>';
@@ -9341,8 +9344,8 @@ function buildTbl(data, bodyId, prefix){
         gs += '<td>'+fmtNum(G.dc2)+'</td>';
       }
       gs += '<td>'+fmtNum(G.hh)+'</td>'
-        + '<td class="gs-out">'+fmtNum(G.tout)+'</td>'
-        + '<td class="gs-fin">'+fmtNum(G.fin)+'</td>'
+        + '<td class="calc-out gs-out">'+fmtNum(G.tout)+'</td>'
+        + '<td class="final-ok gs-fin">'+fmtNum(G.fin)+'</td>'
         + '<td class="no-print"><span></span></td>'
         + '</tr>';
       htmlString += gs;
@@ -16973,9 +16976,9 @@ function renderTP(){
     _G.n++; _G.open+=m.open; _G.tw+=tw; _G.ntk+=ntk; _G.tin+=tin; _G.sd+=sd; _G.dc3+=dc3; _G.hh+=hh; _G.tout+=tout; _G.fin+=fin;
     if(_G.n === _drugCount[_dn] && _G.n > 1){
       _tpHtml += '<tr class="grp-sum"><td class="gs-lbl" colspan="2">Cộng ('+_G.n+' lô)</td>'
-        +'<td class="gs-open">'+fmtNum(_G.open)+'</td><td>'+fmtNum(_G.tw)+'</td><td>'+fmtNum(_G.ntk)+'</td>'
-        +'<td class="gs-in">'+fmtNum(_G.tin)+'</td><td>'+fmtNum(_G.sd)+'</td><td>'+fmtNum(_G.dc3)+'</td>'
-        +'<td>'+fmtNum(_G.hh)+'</td><td class="gs-out">'+fmtNum(_G.tout)+'</td><td class="gs-fin">'+fmtNum(_G.fin)+'</td></tr>';
+        +'<td class="open-stock gs-open">'+fmtNum(_G.open)+'</td><td>'+fmtNum(_G.tw)+'</td><td>'+fmtNum(_G.ntk)+'</td>'
+        +'<td class="calc-in gs-in">'+fmtNum(_G.tin)+'</td><td>'+fmtNum(_G.sd)+'</td><td>'+fmtNum(_G.dc3)+'</td>'
+        +'<td>'+fmtNum(_G.hh)+'</td><td class="calc-out gs-out">'+fmtNum(_G.tout)+'</td><td class="final-ok gs-fin">'+fmtNum(_G.fin)+'</td></tr>';
     }
   });
 
@@ -17280,7 +17283,7 @@ function _aggTableBody(agg, opts){
     }
     h+='<td>'+escH(r.lot)+'</td>';
     h+='<td style="'+(exp_?'color:var(--danger)':'')+'">'+(exp_?'&#9888; ':'')+expD+'</td>';
-    h+='<td>'+fmtNum(r.open)+'</td>';
+    h+='<td class="open-stock">'+fmtNum(r.open)+'</td>';
     h+='<td>'+fmtNum(r.tw)+'</td><td>'+fmtNum(r.ntk)+'</td><td class="calc-in"><strong>'+fmtNum(r.tin)+'</strong></td>';
     h+='<td>'+fmtNum(r.sd)+'</td>';
     if(!noXn) h+='<td>'+fmtNum(r.xn)+'</td>';
@@ -17292,19 +17295,19 @@ function _aggTableBody(agg, opts){
     g.n++; ['open','tw','ntk','tin','sd','xn','hh','tout','fin'].forEach(function(f){ g[f] += (r[f]||0); });
     if(g.n === cnt[r.drug] && g.n > 1){
       h+='<tr class="grp-sum"><td class="gs-lbl" colspan="2">Cộng ('+g.n+' lô)</td>'
-        +'<td class="gs-open">'+fmtNum(g.open)+'</td><td>'+fmtNum(g.tw)+'</td><td>'+fmtNum(g.ntk)+'</td>'
-        +'<td class="gs-in">'+fmtNum(g.tin)+'</td><td>'+fmtNum(g.sd)+'</td>'
+        +'<td class="open-stock gs-open">'+fmtNum(g.open)+'</td><td>'+fmtNum(g.tw)+'</td><td>'+fmtNum(g.ntk)+'</td>'
+        +'<td class="calc-in gs-in">'+fmtNum(g.tin)+'</td><td>'+fmtNum(g.sd)+'</td>'
         +(noXn ? '' : '<td>'+fmtNum(g.xn)+'</td>')
-        +'<td>'+fmtNum(g.hh)+'</td><td class="gs-out">'+fmtNum(g.tout)+'</td><td class="gs-fin">'+fmtNum(g.fin)+'</td></tr>';
+        +'<td>'+fmtNum(g.hh)+'</td><td class="calc-out gs-out">'+fmtNum(g.tout)+'</td><td class="final-ok gs-fin">'+fmtNum(g.fin)+'</td></tr>';
     }
   });
   var t=agg.tot||{};
   h+='<tr style="background:#f8fafc;font-weight:700;border-top:2px solid #cbd5e0">';
   h+='<td colspan="4" style="text-align:right">Tổng cộng</td>';
-  h+='<td>'+fmtNum(t.open||0)+'</td><td>'+fmtNum(t.tw||0)+'</td><td>'+fmtNum(t.ntk||0)+'</td><td class="calc-in">'+fmtNum(t.tin||0)+'</td>';
+  h+='<td class="open-stock">'+fmtNum(t.open||0)+'</td><td>'+fmtNum(t.tw||0)+'</td><td>'+fmtNum(t.ntk||0)+'</td><td class="calc-in">'+fmtNum(t.tin||0)+'</td>';
   h+='<td>'+fmtNum(t.sd||0)+'</td>';
   if(!noXn) h+='<td>'+fmtNum(t.xn||0)+'</td>';
-  h+='<td>'+fmtNum(t.hh||0)+'</td><td class="calc-out">'+fmtNum(t.tout||0)+'</td><td>'+fmtNum(t.fin||0)+'</td>';
+  h+='<td>'+fmtNum(t.hh||0)+'</td><td class="calc-out">'+fmtNum(t.tout||0)+'</td><td class="final-ok">'+fmtNum(t.fin||0)+'</td>';
   h+='</tr>';
   return h;
 }
