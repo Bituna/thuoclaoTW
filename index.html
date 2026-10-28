@@ -13693,7 +13693,9 @@ async function _loadTransferList(el, periodKey, fromUnit, row, inp, arr, realIdx
   try{
     // dc3_to_tinh: BVPH xuất Tổ CL → tỉnh cấp đơn vị nhận
     // dc2_to_dc:   đơn vị xuất điều chuyển → nhập ĐC đơn vị nhận
-    var listType = (field==='dc3'||field==='dc2_bvph') ? 'dc3_to_tinh' : 'dc2_to_dc';
+    // dc3_province: xuất tỉnh khác (ô dc3). SỬA LỖI: bản cũ gộp 'dc3' vào 'dc3_to_tinh' → mở ô
+    // Xuất tỉnh khác lại tải phiếu Xuất TCL và ghi đè tổng của chúng vào dc3.
+    var listType = (field==='dc3') ? 'dc3_province' : (field==='dc2_bvph' ? 'dc3_to_tinh' : 'dc2_to_dc');
     var r = await fetch(
       SUPA_URL+'/rest/v1/transfers?period=eq.'+encodeURIComponent(periodKey)
       +'&from_unit=eq.'+encodeURIComponent(fromUnit)
