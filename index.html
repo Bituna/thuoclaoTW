@@ -1275,6 +1275,18 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
             <label for="cat-drug-custom">Tên thuốc khác</label>
             <input type="text" id="cat-drug-custom" aria-label="Tên thuốc khác" placeholder="Gõ tên thuốc..." style="width:200px">
           </div>
+          <div class="fg cat-edit-zone">
+            <label for="cat-pl">Phân loại</label>
+            <select id="cat-pl" style="width:100px"><option value="h1">Hàng 1</option><option value="h2" selected>Hàng 2</option></select>
+          </div>
+          <div class="fg cat-edit-zone">
+            <label for="cat-dvt">Đơn vị tính</label>
+            <select id="cat-dvt" style="width:90px" onchange="_catDvtToggle('cat-dvt','cat-dvt-custom')"><option value="Viên">Viên</option><option value="Gói">Gói</option><option value="__khac__">Khác</option></select>
+          </div>
+          <div class="fg cat-edit-zone" id="cat-dvt-custom-wrap" style="display:none">
+            <label for="cat-dvt-custom">ĐVT khác</label>
+            <input type="text" id="cat-dvt-custom" placeholder="VD: Lọ, Ống..." style="width:100px">
+          </div>
           <div class="fg cat-edit-zone"><label for="cat-lot">Số lô SX</label><input type="text" id="cat-lot" aria-label="Số lô sản xuất" placeholder="VD: L2026-01" style="width:120px"></div>
           <div class="fg cat-edit-zone">
             <label for="cat-exp">Hạn dùng (mm/yyyy)</label>
@@ -1304,6 +1316,8 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
             <tr style="background:#155724">
               <th style="min-width:34px;width:34px;background:#155724;color:#fff">TT</th>
               <th class="left" style="min-width:220px;background:#155724;color:#fff">Tên thuốc / Hàm lượng</th>
+              <th style="min-width:80px;background:#155724;color:#fff">Phân loại</th>
+              <th style="min-width:70px;background:#155724;color:#fff">ĐVT</th>
               <th style="min-width:100px;background:#155724;color:#fff">Số lô SX</th>
               <th style="min-width:90px;background:#155724;color:#fff">Hạn dùng</th>
               <th style="background:#155724;color:#fff">Tình trạng</th>
@@ -4116,7 +4130,7 @@ async function _saveSupaCatalog(){
 
   var hdPost = Object.assign({}, _supaHdr, {'Prefer':'return=minimal'});
   var body = JSON.stringify(toSave.map(function(r){
-    return {drug:r.drug, lot:r.lot, exp:r.exp||'', note:r.note||''};
+    return {drug:r.drug, lot:r.lot, exp:r.exp||'', note:r.note||'', phan_loai:r.phan_loai||_catPL(r.drug), unit_dose:r.unit_dose||_catDVT(r.drug)||''};
   }));
   // AN TOÀN: dùng upsert (merge-duplicates) — KHÔNG xóa toàn bộ catalog.
   // Tránh trường hợp xóa hết rồi insert thiếu (mất danh mục thuốc).
@@ -5481,12 +5495,48 @@ function catalogStatus(expStr){
   return {label:'Còn hạn',cls:'badge-g'};
 }
 
+// ── Phân loại (h1 = Hàng 1, h2 = Hàng 2) & Đơn vị tính — gắn theo THUỐC (mọi lô cùng thuốc dùng chung).
+// Lưu ở cột catalog.phan_loai và catalog.unit_dose.
+function _catPL(drug){
+  for(var i=0;i<catalogData.length;i++){ if(catalogData[i].drug===drug && catalogData[i].phan_loai) return catalogData[i].phan_loai; }
+  return 'h2';
+}
+function _catDVT(drug){
+  for(var i=0;i<catalogData.length;i++){ if(catalogData[i].drug===drug && catalogData[i].unit_dose) return catalogData[i].unit_dose; }
+  return '';
+}
+function _catDvtToggle(selId, inpId){
+  var sel=document.getElementById(selId), inp=document.getElementById(inpId);
+  var wrap=inp && (document.getElementById(inpId+'-wrap') || inp.parentNode);
+  if(!sel||!wrap) return;
+  var on = sel.value==='__khac__';
+  wrap.style.display = on ? '' : 'none';
+  if(on && inp) setTimeout(function(){ inp.focus(); }, 30); else if(inp) inp.value='';
+}
+// Đặt select ĐVT theo giá trị có sẵn (Viên/Gói hoặc chữ khác → "Khác" + ô gõ)
+function _catDvtSet(selId, inpId, val){
+  var sel=document.getElementById(selId), inp=document.getElementById(inpId);
+  if(!sel) return;
+  var wrap=inp && (document.getElementById(inpId+'-wrap') || inp.parentNode);
+  if(!val || val==='Viên' || val==='Gói'){ sel.value = val || 'Viên'; if(inp) inp.value=''; if(wrap) wrap.style.display='none'; }
+  else { sel.value='__khac__'; if(inp) inp.value=val; if(wrap) wrap.style.display=''; }
+}
+function _catDvtGet(selId, inpId){
+  var sel=document.getElementById(selId), inp=document.getElementById(inpId);
+  if(!sel) return 'Viên';
+  return sel.value==='__khac__' ? ((inp&&inp.value.trim())||'') : sel.value;
+}
+// Áp phân loại + ĐVT cho MỌI lô của thuốc
+function _catApplyDrugMeta(drug, pl, dvt){
+  catalogData.forEach(function(r){ if(r.drug===drug){ r.phan_loai=pl; r.unit_dose=dvt; } });
+}
+
 function renderCatalog(){
   var tbody=document.getElementById('catalog-body');
   if(!tbody) return;
   tbody.innerHTML='';
   if(!catalogData.length){
-    tbody.innerHTML='<tr><td colspan="7" style="color:var(--muted);font-style:normal;padding:12px;text-align:center">Chưa có danh mục thuốc. Admin thêm tại đây.</td></tr>';
+    tbody.innerHTML='<tr><td colspan="9" style="color:var(--muted);font-style:normal;padding:12px;text-align:center">Chưa có danh mục thuốc. Admin thêm tại đây.</td></tr>';
     return;
   }
 
@@ -5538,6 +5588,10 @@ function renderCatalog(){
         row += '<td class="left" rowspan="'+g.rows.length+'"'
           +' style="font-weight:700;vertical-align:middle;border-right:1px solid #dee2e6;'
           +groupBorder+'">'+r.drug+'</td>';
+        var _pl = _catPL(r.drug);
+        row += '<td rowspan="'+g.rows.length+'" style="text-align:center;vertical-align:middle;'+groupBorder+'">'
+          +'<span class="badge" style="background:'+(_pl==='h1'?'#e0f2fe;color:#075985':'#fef3c7;color:#92400e')+'">'+(_pl==='h1'?'Hàng 1':'Hàng 2')+'</span></td>';
+        row += '<td rowspan="'+g.rows.length+'" style="text-align:center;vertical-align:middle;'+groupBorder+'">'+_escH(_catDVT(r.drug)||'—')+'</td>';
       }
 
       // Cột TT + Tên thuốc: chỉ render ở dòng đầu mỗi nhóm với rowspan
@@ -5680,6 +5734,8 @@ function _parseCatalogCSV(csvText){
   var colLot  = findCol('số lô','so lo','lô','lot','batch','lô sx','số lô sx');
   var colExp  = findCol('hạn dùng','han dung','hạn','expir','hsd','exp','date');
   var colNote = findCol('ghi chú','ghi chu','note','nguồn','nguon','ghi');
+  var colPL   = findCol('phân loại','phan loai','hàng','hang');
+  var colDVT  = findCol('đơn vị tính','don vi tinh','đvt','dvt');
 
   if(colDrug < 0 || colLot < 0 || colExp < 0){
     toast('File thiếu cột: Tên thuốc, Số lô, Hạn dùng\n(Dòng đầu phải là tên cột)','var(--danger)');
@@ -5718,7 +5774,10 @@ function _parseCatalogCSV(csvText){
     });
     if(dup){ skipped++; continue; }
 
-    catalogData.push({drug:drug, lot:lot, exp:expParsed, note:note});
+    var _plRaw = colPL>=0 ? (cols[colPL]||'').toLowerCase() : '';
+    var _pl = /1/.test(_plRaw) ? 'h1' : (/2/.test(_plRaw) ? 'h2' : _catPL(drug));
+    var _dvt = (colDVT>=0 && cols[colDVT]) ? cols[colDVT] : (_catDVT(drug)||'Viên');
+    catalogData.push({drug:drug, lot:lot, exp:expParsed, note:note, phan_loai:_pl, unit_dose:_dvt});
     added++;
   }
 
@@ -5912,7 +5971,10 @@ function addCatalog(){
   var lot    = document.getElementById('cat-lot').value.trim().replace(/\s+/g,'');  // chuẩn hóa: xóa space trong số lô
   var expRaw = document.getElementById('cat-exp').value.trim();
   var note   = document.getElementById('cat-note').value.trim();
+  var pl     = (document.getElementById('cat-pl')||{}).value || 'h2';
+  var dvt    = _catDvtGet('cat-dvt','cat-dvt-custom');
   if(!drug||!lot||!expRaw){toast('Nhập đủ: tên thuốc, số lô, hạn dùng!','var(--danger)');return;}
+  if(!dvt){toast('Nhập đơn vị tính (ô "ĐVT khác")!','var(--danger)');var _di=document.getElementById('cat-dvt-custom');if(_di)_di.focus();return;}
   if(!validateMonthExp(expRaw)){toast('Hạn dùng sai định dạng! Nhập mm/yyyy','var(--danger)');return;}
   var expParsed = parseMonthExp(expRaw);
   // Kiểm tra trùng chính xác: cùng thuốc + lô + hạn dùng
@@ -5933,10 +5995,13 @@ function addCatalog(){
       if(!confirmed) return;
     }
   }
-  catalogData.push({drug:drug,lot:lot,exp:expParsed,note:note||'—'});
+  catalogData.push({drug:drug,lot:lot,exp:expParsed,note:note||'—',phan_loai:pl,unit_dose:dvt});
+  _catApplyDrugMeta(drug, pl, dvt);   // giữ thống nhất cho mọi lô của thuốc
   ['cat-lot','cat-exp','cat-note','cat-drug-custom'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
   var cds=document.getElementById('cat-drug');if(cds)cds.value='';
   var cdw=document.getElementById('cat-drug-custom-wrap');if(cdw)cdw.style.display='none';
+  var _cpl=document.getElementById('cat-pl'); if(_cpl) _cpl.value='h2';
+  _catDvtSet('cat-dvt','cat-dvt-custom','Viên');
   renderCatalog();
   fillDrugSelects();
   toast('Đã thêm: '+drug+' — Lô '+lot,'var(--success)');
@@ -6010,6 +6075,21 @@ function editCatalog(i){
     + '<div style="padding:9px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-weight:600;color:#334155">'+escH(item.drug)+'</div>';
   body.appendChild(drugRow);
 
+  // Phân loại + Đơn vị tính (áp cho MỌI lô của thuốc này)
+  var metaRow = document.createElement('div');
+  metaRow.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap';
+  var _lblSt = 'font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px';
+  var _inSt  = 'box-sizing:border-box;padding:8px 10px;border:1.5px solid #cbd5e0;border-radius:8px;font-size:13px;font-weight:600';
+  metaRow.innerHTML =
+      '<div><label for="_ec_pl" style="'+_lblSt+'">Phân loại</label>'
+    +   '<select id="_ec_pl" style="'+_inSt+';width:110px"><option value="h1">Hàng 1</option><option value="h2">Hàng 2</option></select></div>'
+    + '<div><label for="_ec_dvt" style="'+_lblSt+'">Đơn vị tính</label>'
+    +   '<select id="_ec_dvt" style="'+_inSt+';width:100px" onchange="_catDvtToggle(\'_ec_dvt\',\'_ec_dvt_custom\')"><option value="Viên">Viên</option><option value="Gói">Gói</option><option value="__khac__">Khác</option></select></div>'
+    + '<div id="_ec_dvt_custom-wrap" style="display:none"><label for="_ec_dvt_custom" style="'+_lblSt+'">ĐVT khác</label>'
+    +   '<input id="_ec_dvt_custom" type="text" placeholder="VD: Lọ, Ống..." style="'+_inSt+';width:120px"></div>'
+    + '<div style="flex-basis:100%;font-size:11px;color:#94a3b8">Phân loại &amp; ĐVT áp dụng cho tất cả các lô của thuốc này.</div>';
+  body.appendChild(metaRow);
+
   // Số lô
   var lotRow = document.createElement('div');
   lotRow.innerHTML = '<label for="_ec_lot" style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Số lô SX</label>';
@@ -6079,7 +6159,11 @@ function editCatalog(i){
         toast('Lô "'+newLot+'" HSD '+newExpRaw+' đã tồn tại trong danh mục!','var(--warning)'); return;
       }
     }
-    catalogData[i] = {drug:item.drug, lot:newLot, exp:newExp, note:newNote};
+    var newPL  = document.getElementById('_ec_pl').value || 'h2';
+    var newDVT = _catDvtGet('_ec_dvt','_ec_dvt_custom');
+    if(!newDVT){ toast('Nhập đơn vị tính (ô "ĐVT khác")!','var(--danger)'); document.getElementById('_ec_dvt_custom').focus(); return; }
+    catalogData[i] = Object.assign({}, item, {lot:newLot, exp:newExp, note:newNote, phan_loai:newPL, unit_dose:newDVT});
+    _catApplyDrugMeta(item.drug, newPL, newDVT);
     ov.remove();
     renderCatalog();
     fillDrugSelects();
@@ -6091,6 +6175,8 @@ function editCatalog(i){
   footer.appendChild(btnCancel); footer.appendChild(btnSave);
   box.appendChild(footer);
   ov.appendChild(box); document.body.appendChild(ov);
+  document.getElementById('_ec_pl').value = _catPL(item.drug);
+  _catDvtSet('_ec_dvt','_ec_dvt_custom',_catDVT(item.drug)||'Viên');
   setTimeout(function(){ lotInp.focus(); lotInp.select(); }, 80);
 }
 
@@ -6229,6 +6315,10 @@ function onCatDrugChange(){
   var wrap=document.getElementById('cat-drug-custom-wrap');
   if(!sel||!wrap) return;
   wrap.style.display=(sel.value==='__khac__')?'flex':'none';
+  if(sel.value && sel.value!=='__khac__'){
+    var _cpl=document.getElementById('cat-pl'); if(_cpl) _cpl.value=_catPL(sel.value);
+    _catDvtSet('cat-dvt','cat-dvt-custom',_catDVT(sel.value)||'Viên');
+  }
   if(sel.value!=='__khac__'){
     var inp=document.getElementById('cat-drug-custom');
     if(inp) inp.value='';
