@@ -4182,6 +4182,8 @@ async function saveToSupabase(periodKey, opts){
       }
     }
 
+    // Kỳ vừa có dữ liệu → kỳ kế tiếp không còn là "kỳ đầu tiên" của các đơn vị này: bỏ cache để tính lại
+    try{ rows.forEach(function(x){ var nk = _nextPeriodKey(x.period); if(nk) delete _prevDataUnits[nk]; }); }catch(e){}
     // Vừa lưu/sửa kỳ này → tồn cuối có thể đã đổi → LAN tồn đầu xuống các kỳ sau.
     try{
       if(typeof _scheduleCascade === 'function'){
@@ -4335,7 +4337,9 @@ async function loadFromSupabase(periodKey, silent){
     // Phiếu điều chuyển đã xác nhận của kỳ — cần cho phép TRIỆT TIÊU điều chuyển nội bộ ở các bảng
     // tổng hợp. Tải SONG SONG và CHỜ xong trước khi vẽ (bản cũ không chờ → lần vẽ đầu Nhập/Xuất bị thổi phồng).
     var _txPromise = (!silent || _printTransfersPeriod !== periodKey) ? _cacheTransfers(periodKey).catch(function(){}) : null;
+    var _pdP = _loadPrevDataUnits(periodKey);
     var _results = await Promise.all(_fetchPromises);
+    try{ await _pdP; }catch(e){}
     var r = _results[0], _dc2RParallel = _results[1], srParallel = _results[2], crParallel = _results[3];
     if(_txPromise) await _txPromise;
 
@@ -5589,8 +5593,47 @@ function _periodToNum(key){
   return parseInt(p[0],10)*12 + parseInt(p[1],10);
 }
 
+// ── KỲ ĐẦU TIÊN của đơn vị: kỳ liền trước (cùng loại: tháng/quý) CHƯA có dòng báo cáo nào ──
+// Kỳ sau kỳ đầu tiên: tồn đầu = tồn cuối kỳ trước (tự lan) → KHÔNG ai nhập hay sửa được.
+// _prevDataUnits[kỳ] = {unit_id:1} các đơn vị có dữ liệu ở kỳ liền trước (nạp 1 lần/kỳ/phiên).
+var _prevDataUnits = {}, _prevDataLoading = {};
+function _loadPrevDataUnits(periodKey){
+  if(!_isPeriodKey(periodKey) || !_supaOnline) return Promise.resolve();
+  if(_prevDataUnits[periodKey]) return Promise.resolve();
+  if(_prevDataLoading[periodKey]) return _prevDataLoading[periodKey];
+  var prev = _prevPeriodKey(periodKey);
+  var url = SUPA_URL+'/rest/v1/reports?select=unit_id&period=eq.'+encodeURIComponent(prev);
+  if(currentUser && currentUser.role !== 'admin'){
+    var ids = (typeof _visibleUnitIds==='function') ? _visibleUnitIds() : [];
+    if(ids.length) url += _unitIdsInFilter(ids);
+  }
+  var p = fetch(url, {headers:_supaHdr, cache:'no-store'})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(rows){
+      if(!Array.isArray(rows)) return;
+      var set = {}; rows.forEach(function(x){ if(x.unit_id) set[x.unit_id] = 1; });
+      _prevDataUnits[periodKey] = set;
+    })
+    .catch(function(e){ console.warn('[prevDataUnits]', e); })
+    .finally(function(){ delete _prevDataLoading[periodKey]; });
+  _prevDataLoading[periodKey] = p;
+  return p;
+}
+// true = đơn vị đã có dữ liệu ở kỳ trước (KHÔNG phải kỳ đầu tiên). Chưa biết → coi như có (khóa cho an toàn).
+function _unitHasPrevData(unitRole, periodKey){
+  if(!_isPeriodKey(periodKey)) return false;
+  var set = _prevDataUnits[periodKey];
+  if(!set){ try{ _loadPrevDataUnits(periodKey); }catch(e){} return true; }
+  var uid = null;
+  try{
+    if(unitRole === 'bvph' || unitRole === BVPH) uid = _currentRootId();
+    else uid = _isUuid(unitRole) ? unitRole : _uid(unitRole);
+  }catch(e){}
+  return !!(uid && set[uid]);
+}
+
 // Tồn đầu chỉ được nhập/sửa ở KỲ ĐẦU TIÊN của đơn vị.
-// "Kỳ đầu tiên" = chưa từng có kỳ nào SỚM HƠN được chốt cho đơn vị này (hoặc toàn cục).
+// "Kỳ đầu tiên" = kỳ liền trước chưa có dữ liệu VÀ chưa từng có kỳ nào SỚM HƠN được chốt (hoặc toàn cục).
 // Một khi admin đã chốt báo cáo lần đầu → mọi kỳ sau đó khóa tồn đầu
 // (thuốc cũ: tồn đầu = tồn cuối kỳ trước; thuốc mới: cấp qua cột Nhập, tồn đầu = 0).
 function _hasEarlierLockedPeriod(unitRole, periodKey){
@@ -5598,6 +5641,7 @@ function _hasEarlierLockedPeriod(unitRole, periodKey){
   if(!periodKey) return false;
   var curNum = _periodToNum(periodKey);
   if(!curNum) return false;
+  if(_unitHasPrevData(unitRole, periodKey)) return true;   // không phải kỳ đầu tiên
   // 'bvph' = KHO RIÊNG của node đang xem → ở bản đa tỉnh khóa lưu theo TÊN đơn vị
   var _altTok = null;
   if(unitRole === 'bvph' || unitRole === BVPH){
@@ -10527,9 +10571,10 @@ function _updateOpenInputState(prefix){
              : (currentUser && currentUser.role==='donvi' ? currentUser.unit : '');
   }
   if(!inp) return;
-  // Ô Tồn đầu của dòng nhập mới LUÔN tự động: lô có ở kỳ trước → tồn cuối kỳ trước; thuốc mới → 0.
-  // (Tồn đầu kỳ đầu tiên vẫn sửa được bằng nút Sửa của từng dòng như trước.)
-  var locked = true;
+  // Ô Tồn đầu của dòng nhập: chỉ gõ được ở KỲ ĐẦU TIÊN của đơn vị; kỳ sau tự động
+  // (lô có ở kỳ trước → tồn cuối kỳ trước; thuốc mới → 0).
+  if(prefix !== 'bvph'){ var _bu = document.getElementById('bc-unit'); if(_bu && _bu.value) unitRole = _bu.value; }
+  var locked = !unitRole || _hasEarlierLockedPeriod(unitRole, _currentPeriodKey());
   var lbl = inp.previousElementSibling; // <label>
   if(locked){
     inp.value = 0;
@@ -10539,13 +10584,13 @@ function _updateOpenInputState(prefix){
     inp.style.color = '#94a3b8';
     inp.title = 'Tồn đầu tự động: lô đã có ở kỳ trước → lấy tồn cuối kỳ trước; thuốc/lô mới → 0 (số nhận về nhập ở cột Nhập).';
     inp.value = ''; inp.placeholder = 'tự động';
-    if(lbl && lbl.tagName==='LABEL') lbl.textContent = 'Tồn đầu';
   } else {
     inp.readOnly = false;
     inp.disabled = false;
     inp.style.background = '';
     inp.style.color = '';
-    inp.title = 'Chỉ nhập tồn đầu ở kỳ đầu tiên (trước khi chốt báo cáo lần đầu).';
+    inp.placeholder = '0';
+    inp.title = 'Kỳ đầu tiên của đơn vị: nhập tồn kho ban đầu. Từ kỳ sau tồn đầu tự lấy, không nhập/sửa được.';
     if(lbl && lbl.tagName==='LABEL') lbl.textContent = 'Tồn đầu';
   }
 }
@@ -12209,9 +12254,9 @@ async function addBVPHRow(){
   var lot    = lotSel ? lotSel.value.trim() : '';
   var expRaw = document.getElementById('bvph-exp').value.trim();
   var open   = Math.max(0, parseInt(document.getElementById('bvph-open').value)||0);
-  // Dòng NHẬP MỚI không có tồn đầu gõ tay: lô đã có ở kỳ trước → tự lấy tồn cuối kỳ trước
-  // (applyAutoOpen); thuốc/lô mới → 0, số nhận về nhập qua các cột Nhập.
-  open = 0;
+  // Tồn đầu gõ tay CHỈ ở kỳ đầu tiên. Kỳ sau: lô đã có → tự lấy tồn cuối kỳ trước (applyAutoOpen);
+  // thuốc/lô mới → 0, số nhận về nhập qua các cột Nhập.
+  if(_hasEarlierLockedPeriod('bvph', _currentPeriodKey())) open = 0;
   var _p2   = getSelectedPeriod();
   var mon    = _p2.type==='year' ? _p2.year+'-01' : _p2.val;
   var tinh   = Math.max(0, parseInt(document.getElementById('bvph-tinh').value)||0);
@@ -12316,8 +12361,8 @@ function addBcRow(){
   var lot     = lotSel2 ? lotSel2.value.trim() : '';
   var expRaw = document.getElementById('bc-exp').value.trim();
   var open   = Math.max(0, parseInt(document.getElementById('bc-open').value)||0);
-  // Dòng NHẬP MỚI không có tồn đầu gõ tay (xem addBVPHRow)
-  open = 0;
+  // Tồn đầu gõ tay CHỈ ở kỳ đầu tiên của đơn vị (xem addBVPHRow)
+  if(!unit || _hasEarlierLockedPeriod(unit, _currentPeriodKey())) open = 0;
   var _p    = getSelectedPeriod();
   var mon    = _p.type==='year' ? _p.year+'-01' : _p.val;
   var tinh   = Math.max(0, parseInt(document.getElementById('bc-tinh').value)||0);
