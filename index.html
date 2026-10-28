@@ -428,6 +428,24 @@ tr.grp-sum td{background:#f1f5f9!important;font-weight:800;color:#1e293b;border-
 #bvph-body > tr > td, #bc-body > tr > td, #tp-body > tr > td, #tpc-detail-body > tr > td,
 #mien-body > tr > td, #tq-body > tr > td{height:38px;box-sizing:border-box;vertical-align:middle}
 tr.grp-sum td.gs-lbl{text-align:right;color:#334155}
+/* Dòng NHẬP ở cuối bảng (thay khung "Thêm dòng" phía trên) — dính đáy khung cuộn */
+#form-bvph, #form-donvi{display:none!important}
+.tbl-wrap tfoot tr.inl-row td{background-color:#f0f7ff!important;border-top:2px dashed #3b82f6!important;height:46px;padding:4px 4px;vertical-align:middle}
+.tbl-wrap tfoot tr.inl-row td.inl-open{background-color:#fff8e1!important;border-left:3px solid #f59e0b;border-right:2px solid #f59e0b}
+.tbl-wrap tfoot tr.inl-row td.inl-in{background-color:#e8fbef!important;color:#166534;font-weight:700}
+.tbl-wrap tfoot tr.inl-row td.inl-out{background-color:#fdecec!important;color:#991b1b;font-weight:700}
+.tbl-wrap tfoot tr.inl-row td.inl-fin{background-color:#e5efff!important;color:#1e40af;font-weight:800;border-left:2px solid #3b82f6}
+.tbl-wrap tfoot tr.inl-row td.inl-plus{font-size:18px;font-weight:800;color:#1d4ed8;text-align:center}
+.tbl-wrap tfoot tr.inl-row td.inl-na{color:#94a3b8}
+.tbl-wrap tfoot tr.inl-row input, .tbl-wrap tfoot tr.inl-row select{width:100%!important;min-width:0;box-sizing:border-box;padding:6px 4px;border:1px solid #93c5fd;border-radius:6px;font-size:12.5px;text-align:center;background:#fff;height:32px}
+.tbl-wrap tfoot tr.inl-row select{text-align:left}
+.tbl-wrap tfoot tr.inl-row input:focus, .tbl-wrap tfoot tr.inl-row select:focus{outline:none;border-color:#1d4ed8;box-shadow:0 0 0 3px rgba(59,130,246,.2)}
+.tbl-wrap tfoot tr.inl-row td.inl-act{white-space:nowrap;text-align:center}
+.tbl-wrap tfoot tr.inl-row .inl-btn{padding:6px 12px;font-size:12px;height:32px;background:#1a5276}
+.tbl-wrap tfoot tr.inl-row .inl-nu{padding:6px 8px;font-size:11px;height:32px;background:#e74c3c;color:#fff;margin-left:4px}
+.tbl-wrap tfoot tr.inl-hint td{background-color:#f8fafc!important;color:#475569;font-size:12px;text-align:left;padding:10px 14px;height:auto}
+tr.row-flash td{animation:rowFlash 1.8s ease-out}
+@keyframes rowFlash{0%,40%{background-color:#fef08a}100%{}}
 tr.grp-sum td.gs-open{background:#fdeeb5!important}
 tr.grp-sum td.gs-in{background:#c9f2d7!important;color:#14532d}
 tr.grp-sum td.gs-out{background:#f9cfcf!important;color:#b91c1c}
@@ -1766,6 +1784,26 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
             </tr>
           </thead>
           <tbody id="bvph-body"></tbody>
+          <tfoot id="bvph-inl-foot" class="no-print"><tr class="inl-row" id="bvph-inl-row" onkeydown="if(event.key==='Enter'){event.preventDefault();addBVPHRow();}">
+            <td class="inl-plus">＋</td>
+            <td data-mv="bvph-drug"></td>
+            <td data-mv="bvph-lot-sel"></td>
+            <td data-mv="bvph-exp"></td>
+            <td data-mv="bvph-open" class="inl-open"></td>
+            <td data-mv="bvph-tinh"></td>
+            <td data-mv="bvph-ntk" class="col-ntk"></td>
+            <td data-mv="bvph-dc"></td>
+            <td class="inl-calc inl-in" id="bvph-inl-tin">0</td>
+            <td data-mv="bvph-sd"></td>
+            <td data-mv="bvph-dc2" class="col-dc2"></td>
+            <td data-mv="bvph-dc3" class="col-dc3"></td>
+            <td class="col-dcleaf inl-na" title="Xuất ĐC: thêm dòng xong bấm vào ô Xuất ĐC của dòng đó để tạo phiếu">—</td>
+            <td data-mv="bvph-hh"></td>
+            <td class="inl-calc inl-out" id="bvph-inl-tout">0</td>
+            <td class="inl-calc inl-fin" id="bvph-inl-fin">0</td>
+            <td class="inl-act"><button class="btn btn-primary inl-btn" onclick="addBVPHRow()" title="Thêm dòng (Enter)">＋ Thêm</button>
+              <button class="btn inl-nu" id="bvph-inl-nu" style="display:none" onclick="_noUsageForRoot()" title="Đánh dấu đơn vị KHÔNG có báo cáo kỳ này">📋 Không có BC</button></td>
+          </tr></tfoot>
 
         </table>
       </div>
@@ -1882,6 +1920,26 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
             </tr>
           </thead>
           <tbody id="bc-body"></tbody>
+          <tfoot id="bc-inl-foot" class="no-print">
+          <tr class="inl-row" id="bc-inl-row" onkeydown="if(event.key==='Enter'){event.preventDefault();addBcRow();}">
+            <td class="inl-plus">＋</td>
+            <td data-mv="bc-drug"></td>
+            <td data-mv="bc-lot-sel"></td>
+            <td data-mv="bc-exp"></td>
+            <td data-mv="bc-open" class="inl-open"></td>
+            <td data-mv="bc-tinh"></td>
+            <td data-mv="bc-dc"></td>
+            <td class="inl-calc inl-in" id="bc-inl-tin">0</td>
+            <td data-mv="bc-sd"></td>
+            <td data-mv="bc-dc2"></td>
+            <td data-mv="bc-hh"></td>
+            <td class="inl-calc inl-out" id="bc-inl-tout">0</td>
+            <td class="inl-calc inl-fin" id="bc-inl-fin">0</td>
+            <td class="inl-act"><button class="btn btn-primary inl-btn" onclick="addBcRow()" title="Thêm dòng (Enter)">＋ Thêm</button>
+              <button class="btn inl-nu" onclick="addNoUsageRow()" title="Đánh dấu đơn vị KHÔNG có báo cáo kỳ này">📋 Không có BC</button></td>
+          </tr>
+          <tr class="inl-hint" id="bc-inl-hint"><td colspan="14">＋ Muốn thêm thuốc cho một đơn vị: chọn đơn vị đó ở ô <b>“Dòng chi tiết của đơn vị”</b> phía trên — dòng nhập sẽ hiện ở cuối bảng.</td></tr>
+          </tfoot>
         </table>
       </div>
     </div>
@@ -9245,7 +9303,7 @@ function buildTbl(data, bodyId, prefix){
     var trStyle   = reportLocked ? 'background:#f5f5f5' : (isLocked ? 'background:#f8f9fa' : '');
     var lockBadge = '';
 
-    var tr = '<tr style="'+trStyle+'">';
+    var tr = '<tr data-ri="'+idx+'" style="'+trStyle+'">';
     if(_grpIsFirst[idx]){
       var _rs = _grpCount[idx] + (_grpCount[idx] > 1 ? 1 : 0);   // + dòng tổng của thuốc
       tr += '<td style="text-align:center;color:#888;vertical-align:middle" rowspan="'+_rs+'">'+_grpTT[idx]+'</td>';
@@ -12179,9 +12237,10 @@ async function addBVPHRow(){
       var el=document.getElementById(id); if(el) el.value='';
     });
     renderBVPH();
+    _flashAddedRow('bvph', newRowBV);
     saveLocalCache();
     _syncPeriodToCloud();
-    toast('Đã thêm BVPHP: '+drug+' — Lô '+lot, 'var(--success)');
+    toast('Đã thêm: '+drug+' — Lô '+lot, 'var(--success)');
   }
 
   // Kiểm tra lô đã dùng hết ở kỳ trước → hỏi xác nhận trước khi nhập lại
@@ -12286,6 +12345,7 @@ function addBcRow(){
     if(fm&&mon) fm.value=mon;
     renderBC();
     renderBVPH();
+    _flashAddedRow('bc', newRowBC);
     saveLocalCache();
     _syncPeriodToCloud();
     _logReportActivity('report_new', unit, drug + ' (lô ' + lot + ')');
@@ -13334,6 +13394,82 @@ function updateSaveBtnUI(){
 }
 
 // Ẩn/hiện toàn bộ UI theo trạng thái khóa báo cáo
+// ════════════════════════════════════════════════════════════════════
+// DÒNG NHẬP Ở CUỐI BẢNG — chuyển nguyên các ô của khung "Thêm dòng" (giữ id) xuống tfoot,
+// nên mọi xử lý cũ (addBVPHRow/addBcRow, tự lấy tồn đầu, cảnh báo lô hết, quyền, Hàng 1/2) dùng lại y nguyên.
+// Hiện/ẩn theo đúng trạng thái của khung cũ (form-bvph/form-donvi.style.display do updateLockedUI đặt).
+// ════════════════════════════════════════════════════════════════════
+function _initInlineRows(){
+  document.querySelectorAll('tr.inl-row td[data-mv]').forEach(function(td){
+    var el = document.getElementById(td.getAttribute('data-mv'));
+    if(el && el.parentNode !== td){ el.removeAttribute('style'); td.appendChild(el); }
+  });
+  ['bvph','bc'].forEach(function(p){
+    var ids = p==='bvph' ? ['bvph-open','bvph-tinh','bvph-ntk','bvph-dc','bvph-sd','bvph-dc2','bvph-dc3','bvph-hh']
+                         : ['bc-open','bc-tinh','bc-dc','bc-sd','bc-dc2','bc-hh'];
+    ids.forEach(function(id){ var e=document.getElementById(id); if(e){ e.addEventListener('input', function(){ _inlCalc(p); }); e.addEventListener('change', function(){ _inlCalc(p); }); } });
+  });
+  var c = document.getElementById('bvph-dc2'); if(c){ c.style.borderColor='#27ae60'; c.style.background='#f0fff4'; c.style.cursor='pointer'; }
+  var c3 = document.getElementById('bvph-dc3'); if(c3){ c3.style.borderColor='#8e44ad'; c3.style.background='#f9f0ff'; c3.style.cursor='pointer'; }
+  var c2 = document.getElementById('bc-dc2'); if(c2){ c2.style.borderColor='#f59e0b'; c2.style.background='#fffbeb'; c2.style.cursor='pointer'; }
+  ['bvph-exp','bc-exp'].forEach(function(id){ var e=document.getElementById(id); if(e){ e.style.background='#eef2f7'; } });
+}
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _initInlineRows); else _initInlineRows();
+// Tổng nhập / Tổng xuất / Tồn cuối của dòng đang nhập — tự tính khi gõ
+function _inlCalc(p){
+  var v = function(id){ var e=document.getElementById(id); return Math.max(0, parseInt(e && e.value)||0); };
+  var tin, tout, open;
+  if(p==='bvph'){ open=v('bvph-open'); tin=v('bvph-tinh')+v('bvph-ntk')+v('bvph-dc'); tout=v('bvph-sd')+v('bvph-dc2')+v('bvph-dc3')+v('bvph-hh'); }
+  else { open=v('bc-open'); tin=v('bc-tinh')+v('bc-dc'); tout=v('bc-sd')+v('bc-dc2')+v('bc-hh'); }
+  var set = function(id,x){ var e=document.getElementById(id); if(e) e.textContent = fmtNum(x); };
+  set(p+'-inl-tin', tin); set(p+'-inl-tout', tout); set(p+'-inl-fin', open+tin-tout);
+}
+// Hiện/ẩn dòng nhập theo trạng thái khung nhập cũ + đơn vị đang chọn ở bảng đơn vị trực thuộc
+function _syncInlineRows(){
+  var vis = function(id){ var e=document.getElementById(id); return !!(e && e.style.display !== 'none'); };
+  var _rn = UNIT_BY_ID[_currentRootId()];
+  var rootLeaf = !!(_rn && _isLeafLevel(_rn));
+  // Cấp cơ sở (lá): trước đây nhập qua khung "đơn vị" — nay nhập ngay ở kho riêng của chính đơn vị
+  var leafEntry = rootLeaf && vis('form-donvi') && canEditBVPH();
+  var fb = document.getElementById('bvph-inl-foot');
+  if(fb) fb.style.display = (vis('form-bvph') || leafEntry) ? '' : 'none';
+  var nuB = document.getElementById('bvph-inl-nu');
+  if(nuB) nuB.style.display = leafEntry ? '' : 'none';
+  var fd = document.getElementById('bc-inl-foot'), rowD = document.getElementById('bc-inl-row'), hintD = document.getElementById('bc-inl-hint');
+  if(!fd) return;
+  var showD = vis('form-donvi') && !rootLeaf;
+  var pick = window._bcPickUnit || '';
+  var uName = (pick && pick !== '__all__') ? unitNameById(pick) : '';
+  var sel = document.getElementById('bc-unit'), ok = false;
+  if(showD && uName && sel){
+    for(var i=0;i<sel.options.length;i++){ if(sel.options[i].value === uName){ ok = true; break; } }
+    if(ok && sel.value !== uName) sel.value = uName;
+  }
+  fd.style.display = showD ? '' : 'none';
+  if(rowD) rowD.style.display = (showD && ok) ? '' : 'none';
+  if(hintD) hintD.style.display = (showD && !ok) ? '' : 'none';
+}
+// "Không có báo cáo" cho chính đơn vị đang xem (cấp cơ sở)
+function _noUsageForRoot(){
+  var nm = unitNameById(_currentRootId()), sel = document.getElementById('bc-unit');
+  if(!nm || !sel) return;
+  var has = [].some.call(sel.options, function(o){ return o.value === nm; });
+  if(!has){ var o = document.createElement('option'); o.value = nm; o.textContent = nm; sel.appendChild(o); }
+  sel.value = nm;
+  addNoUsageRow();
+}
+// Sau khi thêm: cuộn tới dòng vừa thêm (đã xếp đúng chỗ theo thuốc/lô) và nháy vàng; con trỏ về ô Tên thuốc
+function _flashAddedRow(prefix, row){
+  try{
+    var list = prefix==='bvph' ? _khoList() : getFilteredBC();
+    var i = list.indexOf(row);
+    var tr = i >= 0 ? document.querySelector('#'+(prefix==='bvph'?'bvph-body':'bc-body')+' tr[data-ri="'+i+'"]') : null;
+    if(tr){ tr.classList.remove('row-flash'); void tr.offsetWidth; tr.classList.add('row-flash'); tr.scrollIntoView({block:'nearest'}); }
+    _inlCalc(prefix==='bvph' ? 'bvph' : 'bc');
+    var d = document.getElementById(prefix==='bvph' ? 'bvph-drug' : 'bc-drug'); if(d) d.focus();
+  }catch(e){}
+}
+
 function updateLockedUI(){
   // Nếu chưa đăng nhập thì không làm gì
   if(!currentUser) return;
@@ -13454,6 +13590,7 @@ function updateLockedUI(){
       td.style.display = locked ? 'none' : '';
     }
   });
+  try{ _syncInlineRows(); }catch(e){}
 }
 
 async function loadSaved(){
