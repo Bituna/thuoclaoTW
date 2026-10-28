@@ -958,6 +958,33 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 /* Ghi đè để khớp layout khi nhúng vào trang index (thay cho body 100vh của NTP) */
 #tk-app{height:100%;min-height:0;width:100%}
 #page-tk{padding:0}
+
+/* ═══ Sơ đồ tổ chức — thiết kế lại (gọn, 1 dòng tên, đường dẫn cây, căn thẳng) ═══ */
+#tk-app .panel{grid-template-columns:310px 1fr}
+#tk-app .tree-body{padding:8px 8px 14px}
+#tk-app .tree-body .tr-row{gap:6px;padding:6px 6px;margin:1px 0;border-radius:8px;border:1px solid transparent;min-height:34px}
+#tk-app .tree-body .tr-row:hover{background:#F2F6FA}
+#tk-app .tree-body .tr-row.sel{background:#E8F1FB;border-color:#C9DDF2}
+#tk-app .tree-body .tr-children{padding-left:0}
+#tk-app .tree-body .tr-children .tr-children{margin-left:12px;padding-left:7px;border-left:1px solid #E1E8F0}
+#tk-app .tree-body .tr-children .tr-children>.tr-row{position:relative}
+#tk-app .tree-body .tr-children .tr-children>.tr-row::before{content:'';position:absolute;left:-7px;top:50%;width:5px;border-top:1px solid #E1E8F0}
+#tk-app .tree-body .tr-chev{width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;color:#8A97A8;border-radius:4px;flex-shrink:0}
+#tk-app .tree-body .tr-row.tr-haskids:hover .tr-chev{background:#E3ECF5;color:var(--t1)}
+#tk-app .tree-body .tr-chev-sp{width:16px;flex-shrink:0}
+#tk-app .tree-body .tr-dot{width:9px;height:9px;border-radius:3px}
+#tk-app .tree-body .tr-dot-sm{width:7px;height:7px;border-radius:50%}
+#tk-app .tree-body .tr-name{font-size:13px;font-weight:700;color:var(--text);min-width:0}
+#tk-app .tree-body .tr-uname{display:flex;flex-direction:column;gap:1px;line-height:1.25;white-space:nowrap;overflow:hidden;min-width:0}
+#tk-app .tree-body .tr-uname b{font-size:12.5px;font-weight:600;white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;line-height:1.3}
+#tk-app .tree-body .tr-uunit{font-size:10.5px;color:#8A97A8;overflow:hidden;text-overflow:ellipsis}
+#tk-app .tree-body .tr-uunit.noacc{color:#C0782A;font-style:italic}
+#tk-app .tree-body .tr-cap{font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;border:1px solid currentColor;background:#fff;line-height:1.3;opacity:.9}
+#tk-app .tree-body .tr-cnt{font-size:10.5px;font-weight:700;color:var(--t1);background:#EAF1F8;padding:2px 8px;border-radius:999px;min-width:26px;text-align:center}
+#tk-app .tree-body .tr-kids{font-size:10px;color:#8A97A8;font-weight:600;flex-shrink:0}
+#tk-app .tree-body .tr-region .tr-name{font-size:12.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--t1)}
+#tk-app .tree-body .tr-root .tr-name{font-size:13.5px}
+
 </style>
 </head>
 <body class="hide-diengiai">
@@ -22285,6 +22312,18 @@ function undoUnitMerge(id){
   showToast('↩️ Đã tách lại (khôi phục nguyên trạng)');
 }
 
+// Tên rút gọn cho cây (tên đầy đủ ở tooltip): Bệnh viện → BV, Trung tâm Y tế → TTYT…
+function _treeShort(n,parent){
+  n=String(n||'');
+  // Bỏ hậu tố " – Hà Nội" nếu trùng địa danh của đơn vị cha (đã thấy qua cây)
+  var m=n.match(/\s+[–-]\s+([^–-]+)$/);
+  if(m && parent && String(parent).indexOf(m[1].trim())>=0) n=n.slice(0,m.index);
+  return n
+    .replace(/^Bệnh viện\s+/i,'BV ')
+    .replace(/^Trung tâm Y tế\s+/i,'TTYT ')
+    .replace(/^Trung tâm Kiểm soát bệnh tật\s+/i,'TTKSBT ')
+    .replace(/^Thành phố\s+/,'TP. ');
+}
 function renderTree(){
   const body=document.getElementById('tree-body');
   if(!accounts.length){body.innerHTML='<div style="color:var(--muted);font-size:12px;padding:20px;text-align:center">Chưa có tài khoản</div>';return;}
@@ -22295,9 +22334,12 @@ function renderTree(){
     const kv=a.tinhCu?` — KV ${tinhCuLabel(a.tinhCu)} cũ`:'';
     const absN=absorbedCountOf(a.id);
     const badge=absN?` <span class="tr-lv" style="color:#7C5CFC;border-color:#D6CCFB" title="Đã hợp nhất ${absN} đơn vị">⛙ +${absN}</span>`:'';
-    let s=`<div class="tr-children"><div class="tr-row tr-unit" onclick="openEdit(${+a.id})" title="${esc(capLabel(a.cap))} · ${esc(a.ten)} (@${esc(a.username)})">
+    const nk=(kids[a.id]||[]).length;
+    const kv2=a.tinhCu?` · KV ${tinhCuLabel(a.tinhCu)} cũ`:'';
+    let s=`<div class="tr-children"><div class="tr-row tr-unit" onclick="openEdit(${+a.id})" title="${esc(capLabel(a.cap))}\n${esc(a.ten)}${a.username?' (@'+esc(a.username)+')':''}${esc(kv)}">
       <div class="tr-dot tr-dot-sm" style="background:${rc.color||'#888'}"></div>
-      <div class="tr-name tr-uname"><b>${esc(a.ten)}</b>${badge}<span class="tr-uunit">${a.username?'@'+esc(a.username):'chưa có tài khoản'}${esc(kv)}</span></div>
+      <div class="tr-name tr-uname"><b>${esc(_treeShort(a.ten,a.parent))}${badge}</b><span class="tr-uunit${a.username?'':' noacc'}">${a.username?'@'+esc(a.username):'chưa có tài khoản'}${esc(kv2)}</span></div>
+      ${nk?`<span class="tr-kids" title="${nk} đơn vị trực thuộc">${nk}</span>`:''}
       <div class="tr-cap" style="color:${rc.color||'#888'}">${capCode(a.cap)}</div></div>`;
     s+=renderSiblings(kids[a.id]||[], kids);
     s+=`</div>`;
@@ -22328,7 +22370,7 @@ function renderTree(){
     displayRegions().forEach(rg=>{
       const list=accounts.filter(a=>rg.members.includes(a.mien) && a.cap!=='kho_tq' && a.status!=='merged' && _acctVisible(a));
       if(!list.length)return;
-      s+=`<div class="tr-children"><div class="tr-row ${filterMien===rg.key?'sel':''}" onclick="setFilter('${rg.key}')">
+      s+=`<div class="tr-children"><div class="tr-row tr-region ${filterMien===rg.key?'sel':''}" onclick="setFilter('${rg.key}')">
         <div class="tr-dot" style="background:var(--t2)"></div>
         <div class="tr-name">${rg.name}${rg.merged?' <span class="tr-lv">gộp</span>':''}</div>
         <div class="tr-cnt">${list.length}</div></div>`;
@@ -22341,7 +22383,7 @@ function renderTree(){
     return s;
   };
 
-  let h=`<div class="tr-row ${filterMien===''?'sel':''}" onclick="setFilter('')">
+  let h=`<div class="tr-row tr-root ${filterMien===''?'sel':''}" onclick="setFilter('')">
     <div class="tr-dot" style="background:var(--t1)"></div>
     <div class="tr-name">Toàn bộ hệ thống</div>
     <div class="tr-cnt">${accounts.length}</div></div>`;
@@ -22350,9 +22392,9 @@ function renderTree(){
   if(c1){
     // C1 ở đỉnh, bao tất cả các miền
     const rc=RC.kho_tq||{};
-    h+=`<div class="tr-children"><div class="tr-row tr-unit" onclick="openEdit(${+c1.id})" title="Kho toàn quốc · ${esc(c1.ten)}">
+    h+=`<div class="tr-children"><div class="tr-row tr-unit" onclick="openEdit(${+c1.id})" title="Kho toàn quốc · ${esc(c1.ten)} — bao quát toàn hệ thống">
         <div class="tr-dot" style="background:${rc.color||'#185070'}"></div>
-        <div class="tr-name tr-uname"><b>${esc(c1.ten)}</b><span class="tr-uunit">@${esc(c1.username)} · bao quát toàn hệ thống (${_liveRegionKeys().length} miền)</span></div>
+        <div class="tr-name tr-uname"><b>${esc(c1.ten)}</b><span class="tr-uunit">@${esc(c1.username)} · ${_liveRegionKeys().length} miền</span></div>
         <div class="tr-cap" style="color:${rc.color||'#185070'}">${capCode('kho_tq')}</div></div>`;
     h+=renderRegions();
     h+='</div>';
@@ -22361,6 +22403,8 @@ function renderTree(){
   }
   body.innerHTML=h;
   setupTreeCollapse();
+  // Lá (không có con): chèn ô trống bằng chiều rộng mũi tên để mọi dòng thẳng hàng
+  body.querySelectorAll('.tr-row').forEach(r=>{ if(!r.querySelector('.tr-chev,.tr-chev-sp')){ const sp=document.createElement('span'); sp.className='tr-chev-sp'; r.insertBefore(sp,r.firstChild); } });
 }
 
 // Thu gọn/sổ cây: bấm vào 1 đơn vị quản lý sẽ sổ ra các đơn vị con của nó.
@@ -22388,7 +22432,7 @@ function setupTreeCollapse(){
     const key=keyOf(row);
     row.dataset.tkey=key;
     row.classList.add('tr-haskids');
-    if(!row.querySelector('.tr-chev')){ const c=document.createElement('span'); c.className='tr-chev'; c.textContent='▸'; row.insertBefore(c,row.firstChild); }
+    if(!row.querySelector('.tr-chev')){ const sp=row.querySelector('.tr-chev-sp'); if(sp) sp.remove(); const c=document.createElement('span'); c.className='tr-chev'; c.textContent='›'; row.insertBefore(c,row.firstChild); }
     wrap.classList.toggle('tr-collapsed', !ES.has(key));
     const oc=row.getAttribute('onclick')||''; const fm=oc.match(/setFilter\('([^']*)'\)/);
     if(oc) row.dataset.oc=oc;
