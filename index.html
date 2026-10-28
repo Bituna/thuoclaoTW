@@ -985,6 +985,28 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 #tk-app .tree-body .tr-region .tr-name{font-size:12.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--t1)}
 #tk-app .tree-body .tr-root .tr-name{font-size:13.5px}
 
+
+/* ═══ Quản lý miền ═══ */
+#tk-app .rgm-warn,.rgm-warn{background:#FFF7E6;border:1px solid #F5C77E;color:#8A5300;border-radius:8px;padding:9px 12px;font-size:12px;margin-bottom:12px}
+.rgm-list{display:flex;flex-direction:column;gap:6px}
+.rgm-item{display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:#F7FAFC;border:1px solid #E3EAF2;border-radius:8px;padding:6px 8px}
+.rgm-ord{width:22px;height:22px;border-radius:50%;background:#E3EEFA;color:#0C4F9C;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.rgm-name{flex:1 1 150px;min-width:120px;padding:6px 8px!important}
+.rgm-meta{font-size:11px;color:#6B7A8C;white-space:nowrap}
+.rgm-btn{padding:5px 8px!important;font-size:12px!important}
+.rgm-btn:disabled{opacity:.4;cursor:not-allowed}
+.rgm-move{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.rgm-move label{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600}
+.rgm-move select{min-width:150px}
+.rgm-arrow{font-size:16px;color:#0C4F9C;font-weight:700}
+.rgm-chk-all{font-size:12px;margin-bottom:6px;color:#5F6B7A}
+.rgm-prov{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;margin-bottom:10px}
+.rgm-pi{display:flex;align-items:center;gap:6px;font-size:12.5px;border:1px solid #E3EAF2;border-radius:8px;padding:7px 9px;cursor:pointer;background:#fff}
+.rgm-pi:hover{border-color:#B3D2EC;background:#F4F9FE}
+.rgm-pi span{flex:1;font-weight:600}
+.rgm-pi em{font-style:normal;font-size:10.5px;color:#1E8E5A;font-weight:600;white-space:nowrap}
+.rgm-pi em.z{color:#9AA6B4;font-weight:500}
+
 </style>
 </head>
 <body class="hide-diengiai">
@@ -2174,6 +2196,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
       <button class="btn btn-ghost tk-admin-btn" onclick="downloadTemplate()">📄 File mẫu</button>
       <button class="btn btn-ghost tk-admin-btn" onclick="document.getElementById('file-import').click()">📤 Nhập Excel</button>
       <button class="btn btn-ghost tk-admin-btn" onclick="exportCSV()">📥 Xuất CSV</button>
+      <button class="btn btn-ghost tk-admin-btn" onclick="openRegionManager()">🗺️ Quản lý miền</button>
       <button class="btn btn-ghost tk-admin-btn" onclick="openProvinceEditor()">🏷️ Sửa tên tỉnh/TP & Miền</button>
       <button class="btn btn-pri tk-admin-btn" onclick="openCreate()">＋ Tạo tài khoản mới</button>
       <input type="file" id="file-import" accept=".xlsx,.xls" style="display:none" onchange="handleImport(this)">
@@ -2969,6 +2992,20 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
         <button class="btn btn-pri" id="pe-foot-r" onclick="saveProvinceEditor()">💾 Lưu thay đổi</button>
       </div>
     </div>
+  </div>
+</div>
+<div class="overlay" id="rgm-overlay" style="display:none" onclick="if(event.target===this)closeRegionManager()">
+  <div class="modal" style="width:680px">
+    <div class="modal-head">
+      <div>
+        <h2>🗺️ Quản lý miền</h2>
+        <div class="mh-sub">Thêm, đổi tên, sắp xếp, xoá miền · chuyển tỉnh (kèm đơn vị) sang miền khác.</div>
+      </div>
+      <button class="modal-close" onclick="closeRegionManager()">×</button>
+    </div>
+    <div class="modal-body" id="rgm-body" style="gap:0"></div>
+    <div class="modal-foot"><div class="mf-hint">Chỉ quản trị viên. Thay đổi áp dụng ngay.</div>
+      <div class="mf-right"><button class="btn btn-ghost" onclick="closeRegionManager()">Đóng</button></div></div>
   </div>
 </div>
 
@@ -22199,6 +22236,7 @@ function _liveRegionKeys(){
 function _syncRegionNames(){
   (window.UNITS_TREE||[]).forEach(m=>{
     if(m.utype!=='kho_mien'||!m.path) return;
+    if(m.mien){ REGIONS[m.mien]=m.name; return; }
     const child=(window.UNITS_TREE||[]).find(u=>u.mien && u.path && u.path.indexOf(m.path+'/')===0);
     if(child && child.mien) REGIONS[child.mien]=m.name;
   });
@@ -22251,6 +22289,234 @@ function removeRegionMerge(id){
   persistRegionMerges();
   renderProvinceEditor(); fillRegions(); renderTree(); renderTable();
   showToast(`↩️ Đã bỏ gộp "${g?g.name:''}"`);
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// QUẢN LÝ MIỀN (thêm / đổi tên / xoá miền · chuyển tỉnh sang miền khác)
+// Cấu hình miền → tỉnh lưu ở settings.key='regions'; đơn vị chuyển miền qua RPC
+// move_units_region (sql/03_quan_ly_mien.sql). Dữ liệu báo cáo theo unit_id ⇒ đi theo đơn vị.
+// ══════════════════════════════════════════════════════════════
+const TINH_34_GOC = JSON.parse(JSON.stringify(TINH_34));
+const TINH_63_GOC = JSON.parse(JSON.stringify(TINH_63));
+const _TINH63_ALIAS = {'Tỉnh Thừa Thiên Huế':'TP. Huế'};
+let REGION_CFG = null;          // [{key,name,provinces:[tên tỉnh 34]}]
+let _rmCfgFromCloud = false;
+
+function _rmSlug(s){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[đĐ]/g,'d').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,''); }
+function _rmKhoNodes(){ return (window.UNITS_TREE||[]).filter(u=>u.utype==='kho_mien'); }
+function _rmKhoKey(u){ return u.mien || (String(u.slug||'').indexOf('mien-')===0 ? String(u.slug).slice(5) : ''); }
+function _rmKhoOf(key){ return _rmKhoNodes().find(u=>_rmKhoKey(u)===key); }
+function _rmDefaultCfg(){
+  const keys=[]; _rmKhoNodes().forEach(u=>{ const k=_rmKhoKey(u); if(k && !keys.includes(k)) keys.push(k); });
+  _liveRegionKeys().forEach(k=>{ if(!keys.includes(k)) keys.push(k); });
+  const order=['bac','trung','nam','dong','tay'];
+  keys.sort((a,b)=>{ const ia=order.indexOf(a), ib=order.indexOf(b); return (ia<0?99:ia)-(ib<0?99:ib) || String(a).localeCompare(String(b)); });
+  const cfg=keys.map(k=>{
+    const kho=_rmKhoOf(k);
+    let prov = TINH_34_GOC[k] ? TINH_34_GOC[k].slice() : (k==='nam' ? [].concat(TINH_34_GOC.dong||[], TINH_34_GOC.tay||[]) : []);
+    return {key:k, name:(kho&&kho.name)||REGIONS[k]||k, provinces:prov};
+  });
+  // Dữ liệu thật thắng danh mục tĩnh: tỉnh đang có đơn vị ở miền nào thì thuộc miền đó
+  const all34=[].concat(...Object.values(TINH_34_GOC));
+  (window.UNITS_TREE||[]).forEach(u=>{
+    if(!u.tinh || u.utype==='kho_mien') return;
+    const kho=_rmKhoNodes().find(x=>x.id===u.parent_id); if(!kho) return;
+    const rk=_rmKhoKey(kho); const r=cfg.find(x=>x.key===rk); if(!r) return;
+    const canon=all34.find(p=>_vmNorm(p)===_vmNorm(u.tinh)); if(!canon) return;
+    cfg.forEach(x=>{ if(x!==r) x.provinces=x.provinces.filter(p=>p!==canon); });
+    if(!r.provinces.includes(canon)) r.provinces.push(canon);
+  });
+  return cfg;
+}
+// Áp cấu hình vào các bảng dùng chung (REGIONS, BASE_REGIONS, TINH_34, TINH_63)
+function _rmApply(cfg){
+  if(!cfg || !cfg.length) return;
+  REGION_CFG = cfg;
+  BASE_REGIONS.length = 0;
+  Object.keys(TINH_34).forEach(k=>delete TINH_34[k]);
+  Object.keys(TINH_63).forEach(k=>delete TINH_63[k]);
+  const p2r = {};
+  cfg.forEach(r=>{
+    BASE_REGIONS.push(r.key); REGIONS[r.key]=r.name;
+    TINH_34[r.key]=r.provinces.slice(); TINH_63[r.key]=[];
+    r.provinces.forEach(p=>p2r[p]=r.key);
+  });
+  Object.keys(TINH_63_GOC).forEach(gk=>{
+    TINH_63_GOC[gk].forEach(o=>{
+      const all34=Object.keys(p2r);
+      const p = _TINH63_ALIAS[o] || all34.find(p=>(MERGE_MAP[p]||[p]).includes(o));
+      const rk = p ? p2r[p] : (TINH_63[gk] ? gk : null);
+      if(rk && !TINH_63[rk].includes(o)) TINH_63[rk].push(o);
+    });
+  });
+}
+async function _rmLoadCfg(){
+  let cfg=null; _rmCfgFromCloud=false;
+  try{
+    const r = await fetch(SUPA_URL+'/rest/v1/settings?key=eq.regions&select=value&limit=1',{headers:_supaHdr,cache:'no-store'});
+    if(r.ok){ const j=await r.json(); if(j && j[0] && j[0].value && Array.isArray(j[0].value.list)){ cfg=j[0].value.list; _rmCfgFromCloud=true; } }
+  }catch(e){ console.warn('[regions] tải cấu hình lỗi', e); }
+  if(!cfg) cfg=_rmDefaultCfg();
+  // miền có Kho miền thật nhưng chưa có trong cấu hình → bổ sung
+  _rmKhoNodes().forEach(u=>{ const k=_rmKhoKey(u); if(k && !cfg.some(x=>x.key===k)) cfg.push({key:k,name:u.name,provinces:[]}); });
+  cfg.forEach(x=>{ const kho=_rmKhoOf(x.key); if(kho) x.name=kho.name; });
+  _rmApply(cfg);
+}
+async function _rmSaveCfg(){
+  const hd = Object.assign({}, _supaHdr, {'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'});
+  const r = await fetch(SUPA_URL+'/rest/v1/settings?on_conflict=key',{method:'POST',headers:hd,
+    body:JSON.stringify([{key:'regions', value:{list:REGION_CFG, updatedAt:new Date().toISOString(), by:(window.currentUser&&window.currentUser.user)||''}}])});
+  if(!r.ok) throw new Error('Lưu cấu hình miền lỗi HTTP '+r.status);
+  _rmCfgFromCloud=true;
+}
+function _rmUnitsOf(key){ return (window.UNITS_TREE||[]).filter(u=>u.mien===key && u.utype!=='kho_mien'); }
+// Tỉnh của miền: theo cấu hình + tỉnh thực có trong dữ liệu (gộp theo tên chuẩn hoá)
+function _rmProvRows(key){
+  const r=(REGION_CFG||[]).find(x=>x.key===key); const rows=[]; const byN={};
+  (r?r.provinces:[]).forEach(p=>{ const o={name:p,raw:[],n:0}; rows.push(o); byN[_vmNorm(p)]=o; });
+  const kho=_rmKhoOf(key);
+  (window.UNITS_TREE||[]).filter(u=>kho && u.parent_id===kho.id && u.tinh).forEach(u=>{
+    const nk=_vmNorm(u.tinh); let o=byN[nk];
+    if(!o){ o={name:u.tinh,raw:[],n:0,extra:true}; rows.push(o); byN[nk]=o; }
+    if(!o.raw.includes(u.tinh)) o.raw.push(u.tinh);
+  });
+  rows.forEach(o=>{ o.n=_rmUnitsOf(key).filter(u=>_vmNorm(u.tinh)===_vmNorm(o.name)).length; });
+  return rows;
+}
+
+let _rmFrom='', _rmTo='';
+async function openRegionManager(){
+  if(!(window.currentUser&&window.currentUser.role==='admin')){ showToast('⚠ Chỉ quản trị viên được quản lý miền'); return; }
+  document.getElementById('rgm-overlay').style.display='flex';
+  document.getElementById('rgm-body').innerHTML='<div class="rm-empty">Đang tải…</div>';
+  try{ await window._loadUnitsTree(); }catch(e){}
+  await _rmLoadCfg();
+  renderRegionManager();
+}
+function closeRegionManager(){ document.getElementById('rgm-overlay').style.display='none'; }
+function renderRegionManager(){
+  const cfg=REGION_CFG||[];
+  const needSql=_rmKhoNodes().some(u=>!u.mien);
+  if(!cfg.some(r=>r.key===_rmFrom)) _rmFrom=(cfg[0]||{}).key||'';
+  if(!cfg.some(r=>r.key===_rmTo) || _rmTo===_rmFrom) _rmTo=((cfg.find(r=>r.key!==_rmFrom))||{}).key||'';
+  let h='';
+  if(needSql) h+=`<div class="rgm-warn">⚠ Cơ sở dữ liệu chưa chạy <b>sql/03_quan_ly_mien.sql</b>. Đổi tên được, nhưng <b>chuyển tỉnh</b> cần chạy file này trong Supabase → SQL Editor trước.</div>`;
+  h+=`<div class="pe-region">Các miền <span class="pe-count">${cfg.length}</span></div><div class="rgm-list">`;
+  cfg.forEach((r,i)=>{
+    const nu=_rmUnitsOf(r.key).length, np=r.provinces.length;
+    h+=`<div class="rgm-item">
+      <span class="rgm-ord">${i+1}</span>
+      <input class="fi rgm-name" id="rgm-n-${esc(r.key)}" value="${esc(r.name)}">
+      <span class="rgm-meta">${np} tỉnh · ${nu} đơn vị</span>
+      <button class="btn btn-ghost rgm-btn" title="Lên" onclick="rmMove('${esc(r.key)}',-1)" ${i===0?'disabled':''}>↑</button>
+      <button class="btn btn-ghost rgm-btn" title="Xuống" onclick="rmMove('${esc(r.key)}',1)" ${i===cfg.length-1?'disabled':''}>↓</button>
+      <button class="btn btn-ghost rgm-btn" onclick="rmRename('${esc(r.key)}')">💾 Lưu tên</button>
+      <button class="btn btn-ghost rgm-btn rgm-del" onclick="rmDelete('${esc(r.key)}')" ${(nu||np)?'disabled title="Còn tỉnh/đơn vị — chuyển hết tỉnh sang miền khác trước"':''}>🗑</button>
+    </div>`;
+  });
+  h+=`</div><div class="rm-name-row" style="margin-top:10px">
+      <input class="fi" id="rgm-new" placeholder="Tên miền mới (vd: Miền Đông)">
+      <button class="btn btn-pri" onclick="rmAdd()">＋ Thêm miền</button></div>`;
+  // Chuyển tỉnh
+  const opt=(sel)=>cfg.map(r=>`<option value="${esc(r.key)}" ${r.key===sel?'selected':''}>${esc(r.name)}</option>`).join('');
+  h+=`<div class="pe-region" style="margin-top:18px">Chuyển tỉnh sang miền khác</div>
+    <div class="rgm-move">
+      <label>Từ <select class="fi" onchange="_rmFrom=this.value;renderRegionManager()">${opt(_rmFrom)}</select></label>
+      <span class="rgm-arrow">→</span>
+      <label>Sang <select class="fi" onchange="_rmTo=this.value;renderRegionManager()">${cfg.filter(r=>r.key!==_rmFrom).map(r=>`<option value="${esc(r.key)}" ${r.key===_rmTo?'selected':''}>${esc(r.name)}</option>`).join('')}</select></label>
+    </div>`;
+  const rows=_rmFrom?_rmProvRows(_rmFrom):[];
+  if(!rows.length) h+=`<div class="rm-empty">Miền này chưa có tỉnh nào.</div>`;
+  else{
+    h+=`<div class="rgm-chk-all"><label><input type="checkbox" onchange="document.querySelectorAll('.rgm-p').forEach(c=>c.checked=this.checked)"> Chọn tất cả</label></div><div class="rgm-prov">`;
+    rows.forEach((o,i)=>{ h+=`<label class="rgm-pi"><input type="checkbox" class="rgm-p" value="${i}"> <span>${esc(o.name)}</span>${o.n?`<em>${o.n} đơn vị</em>`:'<em class="z">chưa có đơn vị</em>'}</label>`; });
+    h+=`</div><div class="rm-name-row" style="justify-content:flex-end"><button class="btn btn-pri" onclick="rmMoveProv()" ${_rmTo?'':'disabled'}>⇄ Chuyển tỉnh đã chọn</button></div>`;
+  }
+  h+=`<div class="rm-hint">Chuyển tỉnh sẽ chuyển luôn các đơn vị của tỉnh đó (cả nhánh con) sang Kho miền mới. Phiếu, báo cáo các kỳ trước đi theo đơn vị. Người dùng thuộc đơn vị bị chuyển nên đăng nhập lại.<br>Tách miền (vd Miền Nam → Đông + Tây): thêm 2 miền mới → chuyển từng tỉnh → xoá miền cũ khi đã trống.</div>`;
+  document.getElementById('rgm-body').innerHTML=h;
+  window.__rmRows=rows;
+}
+async function _rmAfterChange(msg){
+  try{ await window._loadUnitsTree(); }catch(e){}
+  await _rmLoadCfg();
+  try{ await window.tkLoadFromCloud(); }catch(e){}
+  try{ fillRegions(); }catch(e){}
+  renderRegionManager(); if(msg) showToast(msg);
+}
+async function rmRename(key){
+  const name=(document.getElementById('rgm-n-'+key)||{}).value.trim();
+  if(!name){ showToast('⚠ Tên miền không được trống'); return; }
+  const kho=_rmKhoOf(key);
+  try{
+    if(kho){
+      const r=await window._rpc('update_unit',{p_actor:window._authUser,p_actor_pass:window._authPass,p_id:kho.id,p_name:name,p_utype:'kho_mien',p_mien:null,p_tinh:null,p_tinh_cu:null,p_status:kho.status||'active'});
+      if(typeof r==='string' && r.indexOf('ERR')===0) throw new Error(r);
+    }
+    const c=REGION_CFG.find(x=>x.key===key); if(c) c.name=name;
+    await _rmSaveCfg(); await _rmAfterChange('✅ Đã đổi tên: '+name);
+  }catch(e){ showToast('❌ Đổi tên lỗi: '+(e.message||e)); }
+}
+async function rmMove(key,dir){
+  const i=REGION_CFG.findIndex(x=>x.key===key), j=i+dir; if(i<0||j<0||j>=REGION_CFG.length) return;
+  const t=REGION_CFG[i]; REGION_CFG[i]=REGION_CFG[j]; REGION_CFG[j]=t;
+  try{ await _rmSaveCfg(); _rmApply(REGION_CFG); renderRegionManager(); renderTree(); fillRegions(); }catch(e){ showToast('❌ '+(e.message||e)); }
+}
+async function rmAdd(){
+  const name=(document.getElementById('rgm-new').value||'').trim();
+  if(!name){ showToast('⚠ Nhập tên miền mới'); return; }
+  let key=_rmSlug(name).replace(/^mien-/,'').replace(/-/g,'_').slice(0,20);
+  if(!key){ showToast('⚠ Tên không hợp lệ'); return; }
+  if((REGION_CFG||[]).some(x=>x.key===key) || _rmKhoOf(key)){ showToast('⚠ Miền "'+name+'" đã có'); return; }
+  const tq=(window.UNITS_TREE||[]).find(u=>u.utype==='kho_tq');
+  if(!tq){ showToast('❌ Không tìm thấy Kho toàn quốc'); return; }
+  try{
+    const id=await window._rpc('create_unit',{p_actor:window._authUser,p_actor_pass:window._authPass,
+      p_slug:'mien-'+key.replace(/_/g,'-'),p_name:name,p_parent_id:tq.id,p_utype:'kho_mien',p_mien:key,p_tinh:'',p_tinh_cu:''});
+    if(typeof id==='string' && id.indexOf('ERR')===0) throw new Error(id+(id==='ERR_DUP'?' (trùng mã)':''));
+    REGION_CFG.push({key,name,provinces:[]});
+    await _rmSaveCfg(); await _rmAfterChange('✅ Đã thêm '+name);
+  }catch(e){ showToast('❌ Thêm miền lỗi: '+(e.message||e)); }
+}
+async function rmDelete(key){
+  const c=REGION_CFG.find(x=>x.key===key); if(!c) return;
+  if(_rmUnitsOf(key).length || c.provinces.length){ showToast('⚠ Miền còn tỉnh/đơn vị — chuyển hết tỉnh sang miền khác trước'); return; }
+  if(!confirm('Xoá "'+c.name+'"? Kho miền này sẽ bị xoá khỏi cây.')) return;
+  const kho=_rmKhoOf(key);
+  try{
+    if(kho){
+      const r=await window._rpc('delete_unit',{p_actor:window._authUser,p_actor_pass:window._authPass,p_id:kho.id});
+      if(r==='ERR_HAS_DATA') throw new Error('Kho miền đã có dữ liệu báo cáo — không xoá được');
+      if(r==='ERR_HAS_CHILD') throw new Error('Kho miền còn đơn vị con');
+      if(typeof r==='string' && r.indexOf('ERR')===0) throw new Error(r);
+    }
+    REGION_CFG=REGION_CFG.filter(x=>x.key!==key);
+    await _rmSaveCfg(); await _rmAfterChange('🗑️ Đã xoá '+c.name);
+  }catch(e){ showToast('❌ Xoá lỗi: '+(e.message||e)); }
+}
+async function rmMoveProv(){
+  const rows=window.__rmRows||[]; const sel=[...document.querySelectorAll('.rgm-p:checked')].map(c=>rows[+c.value]).filter(Boolean);
+  if(!sel.length){ showToast('⚠ Chọn ít nhất 1 tỉnh'); return; }
+  const from=REGION_CFG.find(x=>x.key===_rmFrom), to=REGION_CFG.find(x=>x.key===_rmTo);
+  if(!from||!to){ showToast('⚠ Chọn miền nguồn và đích'); return; }
+  const nUnits=sel.reduce((s,o)=>s+o.n,0);
+  if(!confirm(`Chuyển ${sel.length} tỉnh (${nUnits} đơn vị) từ ${from.name} sang ${to.name}?\n\n${sel.map(o=>'• '+o.name).join('\n')}`)) return;
+  try{
+    const raw=[].concat(...sel.map(o=>o.raw));
+    if(raw.length){
+      if(!_rmKhoOf(to.key) || !(_rmKhoOf(to.key).mien) || !(_rmKhoOf(from.key).mien)) throw new Error('Cần chạy sql/03_quan_ly_mien.sql trước');
+      const r=await window._rpc('move_units_region',{p_actor:window._authUser,p_actor_pass:window._authPass,p_from:from.key,p_to:to.key,p_tinh:raw});
+      if(typeof r==='string' && r.indexOf('ERR')===0) throw new Error(r);
+    }
+    const names=sel.filter(o=>!o.extra).map(o=>o.name);
+    from.provinces=from.provinces.filter(p=>!names.includes(p));
+    names.forEach(p=>{ if(!to.provinces.includes(p)) to.provinces.push(p); });
+    await _rmSaveCfg(); await _rmAfterChange(`✅ Đã chuyển ${sel.length} tỉnh sang ${to.name}`);
+  }catch(e){
+    const m=String(e.message||e);
+    showToast('❌ Chuyển lỗi: '+(/404|move_units_region/.test(m)&&!/ERR_/.test(m)?'chưa chạy sql/03_quan_ly_mien.sql':m));
+    try{ await _rmAfterChange(); }catch(e2){}
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -22368,7 +22634,7 @@ function renderTree(){
   const renderRegions=()=>{
     let s='';
     displayRegions().forEach(rg=>{
-      const list=accounts.filter(a=>rg.members.includes(a.mien) && a.cap!=='kho_tq' && a.status!=='merged' && _acctVisible(a));
+      const list=accounts.filter(a=>rg.members.includes(a.mien) && a.cap!=='kho_tq' && a.cap!=='kho_mien' && a.status!=='merged' && _acctVisible(a));
       if(!list.length)return;
       s+=`<div class="tr-children"><div class="tr-row tr-region ${filterMien===rg.key?'sel':''}" onclick="setFilter('${rg.key}')">
         <div class="tr-dot" style="background:var(--t2)"></div>
@@ -23875,6 +24141,7 @@ function _tkRenderOnly(){
       usedNames = new Set(accs.map(function(a){return a.user;}));
       window.accounts = arr;
       try{ _syncRegionNames(); }catch(e){}
+      try{ if(typeof _rmLoadCfg==='function') await _rmLoadCfg(); }catch(e){ console.warn('[regions]',e); }
       window.nextId = idseq;
       window.usedNames = usedNames;
       if(window.updateStats) updateStats();
