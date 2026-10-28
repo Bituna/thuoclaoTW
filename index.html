@@ -10527,7 +10527,9 @@ function _updateOpenInputState(prefix){
              : (currentUser && currentUser.role==='donvi' ? currentUser.unit : '');
   }
   if(!inp) return;
-  var locked = unitRole && _hasEarlierLockedPeriod(unitRole, _currentPeriodKey());
+  // Ô Tồn đầu của dòng nhập mới LUÔN tự động: lô có ở kỳ trước → tồn cuối kỳ trước; thuốc mới → 0.
+  // (Tồn đầu kỳ đầu tiên vẫn sửa được bằng nút Sửa của từng dòng như trước.)
+  var locked = true;
   var lbl = inp.previousElementSibling; // <label>
   if(locked){
     inp.value = 0;
@@ -10535,7 +10537,8 @@ function _updateOpenInputState(prefix){
     inp.disabled = true;
     inp.style.background = '#f1f5f9';
     inp.style.color = '#94a3b8';
-    inp.title = 'Tồn đầu tự động từ tồn cuối kỳ trước — kỳ này không nhập tay (thuốc mới cấp qua cột Nhập).';
+    inp.title = 'Tồn đầu tự động: lô đã có ở kỳ trước → lấy tồn cuối kỳ trước; thuốc/lô mới → 0 (số nhận về nhập ở cột Nhập).';
+    inp.value = ''; inp.placeholder = 'tự động';
     if(lbl && lbl.tagName==='LABEL') lbl.textContent = 'Tồn đầu';
   } else {
     inp.readOnly = false;
@@ -12206,8 +12209,9 @@ async function addBVPHRow(){
   var lot    = lotSel ? lotSel.value.trim() : '';
   var expRaw = document.getElementById('bvph-exp').value.trim();
   var open   = Math.max(0, parseInt(document.getElementById('bvph-open').value)||0);
-  // Kỳ tiếp theo: KHÔNG nhận tồn đầu gõ tay (thuốc cũ → rollover, thuốc mới → 0)
-  if(_hasEarlierLockedPeriod('bvph', _currentPeriodKey())) open = 0;
+  // Dòng NHẬP MỚI không có tồn đầu gõ tay: lô đã có ở kỳ trước → tự lấy tồn cuối kỳ trước
+  // (applyAutoOpen); thuốc/lô mới → 0, số nhận về nhập qua các cột Nhập.
+  open = 0;
   var _p2   = getSelectedPeriod();
   var mon    = _p2.type==='year' ? _p2.year+'-01' : _p2.val;
   var tinh   = Math.max(0, parseInt(document.getElementById('bvph-tinh').value)||0);
@@ -12312,8 +12316,8 @@ function addBcRow(){
   var lot     = lotSel2 ? lotSel2.value.trim() : '';
   var expRaw = document.getElementById('bc-exp').value.trim();
   var open   = Math.max(0, parseInt(document.getElementById('bc-open').value)||0);
-  // Kỳ tiếp theo: KHÔNG nhận tồn đầu gõ tay (thuốc cũ → rollover, thuốc mới → 0)
-  if(unit && _hasEarlierLockedPeriod(unit, _currentPeriodKey())) open = 0;
+  // Dòng NHẬP MỚI không có tồn đầu gõ tay (xem addBVPHRow)
+  open = 0;
   var _p    = getSelectedPeriod();
   var mon    = _p.type==='year' ? _p.year+'-01' : _p.val;
   var tinh   = Math.max(0, parseInt(document.getElementById('bc-tinh').value)||0);
