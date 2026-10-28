@@ -422,6 +422,13 @@ td input[type=number]{border-radius:7px}
 /* Bảng cấp C5 (đơn vị cơ sở/kho nội trú): ẩn cột "Nhập tỉnh khác" và "Xuất Tổ CL" — không có ở mẫu cơ sở */
 table.bvph-leaf .col-ntk, table.bvph-leaf .col-dc2, table.bvph-leaf .col-dc3{display:none!important}
 table:not(.bvph-leaf) .col-dcleaf{display:none!important}
+/* Dòng TỔNG theo thuốc (cộng các lô của cùng 1 thuốc) — chỉ hiện khi thuốc có từ 2 lô */
+tr.grp-sum td{background:#f1f5f9!important;font-weight:800;color:#1e293b;border-top:1.5px solid #94a3b8!important;border-bottom:2px solid #94a3b8!important}
+tr.grp-sum td.gs-lbl{text-align:right;color:#334155}
+tr.grp-sum td.gs-open{background:#fdeeb5!important}
+tr.grp-sum td.gs-in{background:#c9f2d7!important;color:#14532d}
+tr.grp-sum td.gs-out{background:#f9cfcf!important;color:#b91c1c}
+tr.grp-sum td.gs-fin{background:#cfe0fb!important;color:#1d4ed8}
 /* Ô bấm được trong bảng tổng hợp Tổng quan */
 .tq-drug-cc{cursor:pointer;transition:box-shadow .12s}
 .tq-drug-cc:hover{box-shadow:inset 0 0 0 2px rgba(41,128,185,.55);border-radius:4px}
@@ -9109,6 +9116,7 @@ function buildTbl(data, bodyId, prefix){
   var _grpCount = {};   // idx dòng đầu -> số dòng liền nhau cùng thuốc
   var _grpTT = {};      // idx dòng đầu -> số thứ tự thuốc
   var _grpIsFirst = {}; // idx -> true nếu là dòng đầu nhóm
+  var _grpLast = {};    // idx dòng CUỐI nhóm (≥2 lô) -> idx dòng đầu nhóm
   (function(){
     var ttc = 0, i = 0;
     while(i < data.length){
@@ -9119,6 +9127,7 @@ function buildTbl(data, bodyId, prefix){
       _grpCount[i] = j - i;
       _grpTT[i] = ttc;
       _grpIsFirst[i] = true;
+      if(j - i > 1) _grpLast[j - 1] = i;          // dòng cuối nhóm → thêm dòng tổng ngay sau
       i = j;
     }
   })();
@@ -9235,8 +9244,9 @@ function buildTbl(data, bodyId, prefix){
 
     var tr = '<tr style="'+trStyle+'">';
     if(_grpIsFirst[idx]){
-      tr += '<td style="text-align:center;color:#888;vertical-align:middle" rowspan="'+_grpCount[idx]+'">'+_grpTT[idx]+'</td>';
-      tr += '<td class="left" style="vertical-align:middle;font-weight:600" rowspan="'+_grpCount[idx]+'">'+escH(row.drug)+lockBadge+'</td>';
+      var _rs = _grpCount[idx] + (_grpCount[idx] > 1 ? 1 : 0);   // + dòng tổng của thuốc
+      tr += '<td style="text-align:center;color:#888;vertical-align:middle" rowspan="'+_rs+'">'+_grpTT[idx]+'</td>';
+      tr += '<td class="left" style="vertical-align:middle;font-weight:600" rowspan="'+_rs+'">'+escH(row.drug)+lockBadge+'</td>';
     }
     tr += '<td>'+escH(row.lot)+'</td>';
     tr += '<td style="'+(expired?'color:var(--danger)':'')+'">'+(expired?'&#9888; ':'')+expDisp+'</td>';
@@ -9309,6 +9319,34 @@ function buildTbl(data, bodyId, prefix){
     tr += '<td class="no-print" style="white-space:nowrap">'+btns+'</td>';
     tr += '</tr>';
     htmlString += tr; // Đổi từ tbody.innerHTML += tr
+    // Dòng TỔNG của thuốc: cộng các lô theo từng cột (cùng cấu trúc cột với dòng lô)
+    if(_grpLast[idx] !== undefined){
+      var _g0 = _grpLast[idx], G = {open:0,tinh:0,ntk:0,dc:0,tin:0,sd:0,dc2:0,dc3:0,hh:0,tout:0,fin:0};
+      for(var _gi=_g0; _gi<=idx; _gi++){
+        var _gr = data[_gi], _gc = calcRow(_gr);
+        G.open+=_gr.open||0; G.tinh+=_gr.tinh||0; G.ntk+=_gr.ntk||0; G.dc+=_gr.dc||0; G.tin+=_gc.tin;
+        G.sd+=_gr.sd||0; G.dc2+=_gr.dc2||0; G.dc3+=_gr.dc3||0; G.hh+=_gr.hh||0; G.tout+=_gc.tout; G.fin+=_gc.final;
+      }
+      var gs = '<tr class="grp-sum">'
+        + '<td class="gs-lbl" colspan="2">Cộng ('+(idx-_g0+1)+' lô)</td>'
+        + '<td class="gs-open">'+fmtNum(G.open)+'</td>'
+        + '<td>'+fmtNum(G.tinh)+'</td>';
+      if(isBVPH) gs += '<td class="col-ntk">'+fmtNum(G.ntk)+'</td>';
+      gs += '<td>'+fmtNum(G.dc)+'</td>'
+        + '<td class="gs-in">'+fmtNum(G.tin)+'</td>'
+        + '<td>'+fmtNum(G.sd)+'</td>';
+      if(isBVPH){
+        gs += '<td class="col-dc2">'+fmtNum(G.dc2)+'</td><td class="col-dc3">'+fmtNum(G.dc3)+'</td><td class="col-dcleaf">'+fmtNum(G.dc2)+'</td>';
+      } else {
+        gs += '<td>'+fmtNum(G.dc2)+'</td>';
+      }
+      gs += '<td>'+fmtNum(G.hh)+'</td>'
+        + '<td class="gs-out">'+fmtNum(G.tout)+'</td>'
+        + '<td class="gs-fin">'+fmtNum(G.fin)+'</td>'
+        + '<td class="no-print"><span></span></td>'
+        + '</tr>';
+      htmlString += gs;
+    }
   }
   tbody.innerHTML = htmlString; // Gọi duy nhất 1 lần SAU KHI VÒNG LẶP KẾT THÚC
   }
@@ -16875,7 +16913,7 @@ function renderTP(){
     _drugCount[dn] = (_drugCount[dn]||0) + 1;
     if(_drugTT[dn] === undefined){ _ttCounter++; _drugTT[dn] = _ttCounter; }
   });
-  var _drugSeen = {};
+  var _drugSeen = {}, _tpGrp = {};
 
   var sO=0,sTW=0,sDC=0,sTIN=0,sSD=0,sDC3=0,sHH=0,sTOUT=0,sFin=0;
 
@@ -16915,8 +16953,8 @@ function renderTP(){
 
     _tpHtml +=
       '<tr>'
-      +(_isFirstOfDrug ? '<td style="text-align:center;color:#888" rowspan="'+_drugCount[_dn]+'">'+_drugTT[_dn]+'</td>' : '')
-      +(_isFirstOfDrug ? '<td class="left" rowspan="'+_drugCount[_dn]+'" style="vertical-align:middle;font-weight:600">'+_dn+'</td>' : '')
+      +(_isFirstOfDrug ? '<td style="text-align:center;color:#888" rowspan="'+(_drugCount[_dn]+(_drugCount[_dn]>1?1:0))+'">'+_drugTT[_dn]+'</td>' : '')
+      +(_isFirstOfDrug ? '<td class="left" rowspan="'+(_drugCount[_dn]+(_drugCount[_dn]>1?1:0))+'" style="vertical-align:middle;font-weight:600">'+_dn+'</td>' : '')
       +'<td>'+m.lot+'</td>'
       +'<td style="'+(exp_?'color:var(--danger)':'')+'">'+(exp_?'&#9888; ':'')+expD+'</td>'
       +'<td'+CC('open')+' style="cursor:pointer" data-cls="open-stock">'+fmtNum(m.open)+'</td>'
@@ -16930,6 +16968,15 @@ function renderTP(){
       +'<td'+CC('fin')+' data-cls="'+fcls+'">'+fmtNum(fin)+'</td>'
 
       +'</tr>';
+    // Dòng TỔNG của thuốc (≥2 lô): cộng các lô theo từng cột
+    var _G = _tpGrp[_dn] || (_tpGrp[_dn] = {n:0,open:0,tw:0,ntk:0,tin:0,sd:0,dc3:0,hh:0,tout:0,fin:0});
+    _G.n++; _G.open+=m.open; _G.tw+=tw; _G.ntk+=ntk; _G.tin+=tin; _G.sd+=sd; _G.dc3+=dc3; _G.hh+=hh; _G.tout+=tout; _G.fin+=fin;
+    if(_G.n === _drugCount[_dn] && _G.n > 1){
+      _tpHtml += '<tr class="grp-sum"><td class="gs-lbl" colspan="2">Cộng ('+_G.n+' lô)</td>'
+        +'<td class="gs-open">'+fmtNum(_G.open)+'</td><td>'+fmtNum(_G.tw)+'</td><td>'+fmtNum(_G.ntk)+'</td>'
+        +'<td class="gs-in">'+fmtNum(_G.tin)+'</td><td>'+fmtNum(_G.sd)+'</td><td>'+fmtNum(_G.dc3)+'</td>'
+        +'<td>'+fmtNum(_G.hh)+'</td><td class="gs-out">'+fmtNum(_G.tout)+'</td><td class="gs-fin">'+fmtNum(_G.fin)+'</td></tr>';
+    }
   });
 
   tbody.innerHTML = _tpHtml;
@@ -17220,15 +17267,16 @@ function _aggTableBody(agg, opts){
   var rows = agg.rows;
   var cnt={}, ttMap={}, c=0;
   rows.forEach(function(r){ cnt[r.drug]=(cnt[r.drug]||0)+1; if(ttMap[r.drug]===undefined){ c++; ttMap[r.drug]=c; } });
-  var seen={}, h='';
+  var seen={}, h='', grp={};
   rows.forEach(function(r){
     var first=!seen[r.drug]; seen[r.drug]=true;
     var fcls = r.fin<0 ? 'final-neg' : (r.fin<threshold.low ? 'final-low' : 'final-ok');
     var exp_ = isExpiredStr(r.exp), expD = expToMMYYYY(r.exp);
     h+='<tr>';
     if(first){
-      h+='<td style="text-align:center;color:#888;vertical-align:middle" rowspan="'+cnt[r.drug]+'">'+ttMap[r.drug]+'</td>';
-      h+='<td class="left" style="vertical-align:middle;font-weight:600" rowspan="'+cnt[r.drug]+'">'+escH(r.drug)+'</td>';
+      var _rsA = cnt[r.drug] + (cnt[r.drug] > 1 ? 1 : 0);   // + dòng tổng của thuốc
+      h+='<td style="text-align:center;color:#888;vertical-align:middle" rowspan="'+_rsA+'">'+ttMap[r.drug]+'</td>';
+      h+='<td class="left" style="vertical-align:middle;font-weight:600" rowspan="'+_rsA+'">'+escH(r.drug)+'</td>';
     }
     h+='<td>'+escH(r.lot)+'</td>';
     h+='<td style="'+(exp_?'color:var(--danger)':'')+'">'+(exp_?'&#9888; ':'')+expD+'</td>';
@@ -17239,6 +17287,16 @@ function _aggTableBody(agg, opts){
     h+='<td>'+fmtNum(r.hh)+'</td><td class="calc-out"><strong>'+fmtNum(r.tout)+'</strong></td>';
     h+='<td class="'+fcls+'">'+fmtNum(r.fin)+'</td>';
     h+='</tr>';
+    // Dòng TỔNG của thuốc (≥2 lô)
+    var g = grp[r.drug] || (grp[r.drug] = {n:0,open:0,tw:0,ntk:0,tin:0,sd:0,xn:0,hh:0,tout:0,fin:0});
+    g.n++; ['open','tw','ntk','tin','sd','xn','hh','tout','fin'].forEach(function(f){ g[f] += (r[f]||0); });
+    if(g.n === cnt[r.drug] && g.n > 1){
+      h+='<tr class="grp-sum"><td class="gs-lbl" colspan="2">Cộng ('+g.n+' lô)</td>'
+        +'<td class="gs-open">'+fmtNum(g.open)+'</td><td>'+fmtNum(g.tw)+'</td><td>'+fmtNum(g.ntk)+'</td>'
+        +'<td class="gs-in">'+fmtNum(g.tin)+'</td><td>'+fmtNum(g.sd)+'</td>'
+        +(noXn ? '' : '<td>'+fmtNum(g.xn)+'</td>')
+        +'<td>'+fmtNum(g.hh)+'</td><td class="gs-out">'+fmtNum(g.tout)+'</td><td class="gs-fin">'+fmtNum(g.fin)+'</td></tr>';
+    }
   });
   var t=agg.tot||{};
   h+='<tr style="background:#f8fafc;font-weight:700;border-top:2px solid #cbd5e0">';
