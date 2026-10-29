@@ -3507,6 +3507,20 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
     if (!/\/rest\/v1\/reports$/.test(sp.base)) return u;
     var changed = false;
     var ps = sp.ps.map(function (p) {
+      // Tên cột phía code (t0, n1…n4, x1…x4) trong select / order / bộ lọc → tên cột DB
+      var eqi = p.indexOf('=');
+      if (eqi > 0) {
+        var pk = p.slice(0, eqi), pv = p.slice(eqi + 1);
+        if (pk === 'select' || pk === 'order') {
+          var mv = pv.split(',').map(function (t) {
+            var tm = t.match(/^([A-Za-z0-9_]+)(.*)$/);
+            return (tm && CODE2DB.hasOwnProperty(tm[1])) ? CODE2DB[tm[1]] + tm[2] : t;
+          }).join(',');
+          if (mv !== pv) { changed = true; p = pk + '=' + mv; }
+        } else if (CODE2DB.hasOwnProperty(pk) && CODE2DB[pk] !== pk) {
+          changed = true; p = CODE2DB[pk] + '=' + pv;
+        }
+      }
       var m = p.match(/^unit=eq\.(.*)$/);
       if (m) {
         var name; try { name = decodeURIComponent(m[1]); } catch (e) { name = m[1]; }
