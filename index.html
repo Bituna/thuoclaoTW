@@ -2263,77 +2263,6 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
   </div>
   </div><!-- /page-accounts -->
 
-  <!-- ══════════ TRANG BÁO CÁO XUẤT NHẬP TỒN ══════════ -->
-  <div class="tk-page" id="page-report">
-    <div class="rpt-wrap">
-
-      <!-- TOOLBAR -->
-      <div class="rpt-toolbar">
-        <div class="rpt-toolbar-left">
-          <label class="rpt-lbl">Kỳ báo cáo:</label>
-          <select class="fsel rpt-sel" id="rpt-period" onchange="rptRender()">
-            <option value="Q1-2025">Quý 1 / 2025</option>
-            <option value="Q2-2025">Quý 2 / 2025</option>
-            <option value="Q3-2025" selected>Quý 3 / 2025</option>
-            <option value="Q4-2025">Quý 4 / 2025</option>
-            <option value="Q1-2026">Quý 1 / 2026</option>
-            <option value="Q2-2026">Quý 2 / 2026</option>
-          </select>
-          <label class="rpt-lbl" style="margin-left:12px">Cấp:</label>
-          <select class="fsel rpt-sel" id="rpt-cap" onchange="rptRender()">
-            <option value="">Tất cả</option>
-            <option value="kho_tq">C1 — Kho toàn quốc</option>
-            <option value="kho_mien">C2 — Kho miền</option>
-            <option value="bv_dm_mien">C3.1 — BV đầu mối miền</option>
-            <option value="bv_ngoai">C3.2 — BV ngoài</option>
-            <option value="ttksbt_mien">C3.3 — TT KSBT đầu mối miền</option>
-            <option value="bv_dm_tinh">C3.4 — BV đầu mối tỉnh/TP</option>
-            <option value="bv_kv_tinh">C4.1 — BV đầu mối khu vực</option>
-            <option value="ttksbt_tinh">C4.2 — TT KSBT tỉnh</option>
-            <option value="kho_noitru">C5.1 — Kho nội trú BV</option>
-            <option value="dvcs">C5.2 — Đơn vị cơ sở</option>
-          </select>
-          <label class="rpt-lbl" style="margin-left:12px">Miền:</label>
-          <select class="fsel rpt-sel" id="rpt-mien" onchange="rptRender()">
-            <option value="">Tất cả</option>
-            <option value="bac">Miền Bắc</option>
-            <option value="trung">Miền Trung</option>
-            <option value="dong">Miền Đông</option>
-            <option value="tay">Miền Tây</option>
-          </select>
-        </div>
-        <div class="rpt-toolbar-right">
-          <button class="btn btn-ghost" onclick="rptExportExcel()">
-            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-            Xuất Excel
-          </button>
-          <button class="btn btn-ghost" onclick="rptPrint()">
-            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-            In / PDF
-          </button>
-          <button class="btn btn-pri" onclick="rptSaveAll()">
-            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-            Lưu tất cả
-          </button>
-        </div>
-      </div>
-
-      <!-- SUMMARY CARDS -->
-      <div class="rpt-cards" id="rpt-cards"></div>
-
-      <!-- TABLES BY CAP -->
-      <div id="rpt-tables"></div>
-
-      <!-- EMPTY STATE -->
-      <div class="rpt-empty" id="rpt-empty" style="display:none">
-        <div style="font-size:48px;margin-bottom:12px">📭</div>
-        <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px">Chưa có tài khoản</div>
-        <div style="font-size:13px;color:var(--muted)">Thêm tài khoản ở mục Quản lý tài khoản trước, sau đó quay lại đây để nhập số liệu.</div>
-      </div>
-
-    </div>
-  </div><!-- /page-report -->
-
 
   <!-- ══════════ TRANG HƯỚNG DẪN ══════════ -->
   <div class="tk-page" id="page-guide">
@@ -3410,7 +3339,7 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
   //    nhìn giống nhưng vô hại (< → ‹, > → ›, ` → ʼ). Các trường văn bản thường được nối
   //    vào HTML/thuộc tính (thuốc, lô, hạn, ghi chú, tên...) thay thêm " → ” và ' → ’.
   //    Làm 1 chỗ ở lớp fetch → mọi bảng/hàm render phía sau đều an toàn.
-  var XSS_URL = /\/rest\/v1\/(reports|transfers|patients|cap_phat|catalog|settings|units)(\?|$)|\/rest\/v1\/rpc\/list_accounts\b/;
+  var XSS_URL = /\/rest\/v1\/(reports|transfers|patients|cap_phat|catalog|settings|units)(\?|$)|\/rest\/v1\/rpc\/(list_accounts|cascade_opening_stock)\b/;
   var Q_KEYS = { drug:1, lot:1, exp:1, note:1, ghi_chu:1, ly_do:1, reason:1, name:1, ten:1, ho_ten:1,
                  unit:1, from_unit:1, to_unit:1, display_unit:1, dia_chi:1, address:1, email:1, phone:1,
                  user_id:1, username:1, slug:1, mien:1, tinh:1, tinh_cu:1, phan_loai:1, period:1 };
@@ -3842,7 +3771,10 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
       try { init = normalizeWrite(url, method, init); } catch (e) { /* giữ nguyên */ }
       if (/\/rest\/v1\/transfers(\?|$)/.test(url) && init && typeof init.body === 'string'
           && init.body.indexOf('receive_date') >= 0) return secRetry(function (i) { return transfersWrite(url, i); }, init);
-      return secRetry(function (i) { return writeFetch(url, i); }, init);
+      var wp = secRetry(function (i) { return writeFetch(url, i); }, init);
+      // RPC trả dữ liệu tồn kho (thuốc/lô) → lọc ký tự phá HTML như mọi lần đọc khác
+      if (/\/rest\/v1\/rpc\/cascade_opening_stock\b/.test(url)) return wp.then(function (r) { return sanitizeRes(url, r); });
+      return wp;
     }
 
     var bodyKey = (method === 'POST' && init && typeof init.body === 'string') ? init.body : '';
@@ -7813,47 +7745,6 @@ function changeRole(i){
   openModal('modal-role');
 }
 
-// Lưu ACCOUNTS lên Supabase settings
-async function _saveAccountsToCloud(){
-  if(!_supaOnline){
-    toast('⚠ Đang offline — KHÔNG thể lưu mật khẩu mới. Cần kết nối cloud rồi thử lại.','var(--danger)');
-    return false;
-  }
-  try{
-    // PATCH-first: ghi đè đúng dòng key=ACCOUNTS
-    var pr = await fetch(SUPA_URL+'/rest/v1/settings?key=eq.ACCOUNTS', {
-      method:'PATCH',
-      headers: Object.assign({}, _supaHdr, {'Content-Type':'application/json','Prefer':'return=representation'}),
-      body:JSON.stringify({value:ACCOUNTS})
-    });
-    if(!pr.ok){
-      var pErr = await pr.text();
-      toast('❌ Lưu tài khoản lên cloud THẤT BẠI (PATCH '+pr.status+'). Mật khẩu sẽ về cũ khi tải lại. '+pErr.slice(0,100),'var(--danger)');
-      console.error('_saveAccountsToCloud PATCH', pr.status, pErr);
-      return false;
-    }
-    var updated = await pr.json();
-    if(!updated.length){
-      // Chưa có dòng ACCOUNTS → tạo mới
-      var ins = await fetch(SUPA_URL+'/rest/v1/settings', {
-        method:'POST',
-        headers: Object.assign({}, _supaHdr, {'Content-Type':'application/json','Prefer':'return=minimal'}),
-        body:JSON.stringify([{key:'ACCOUNTS', value:ACCOUNTS}])
-      });
-      if(!ins.ok){
-        var iErr = await ins.text();
-        toast('❌ Lưu tài khoản lên cloud THẤT BẠI (POST '+ins.status+'). '+iErr.slice(0,100),'var(--danger)');
-        console.error('_saveAccountsToCloud POST', ins.status, iErr);
-        return false;
-      }
-    }
-    return true;
-  }catch(e){
-    toast('❌ Lỗi lưu tài khoản: '+(e&&e.message||e),'var(--danger)');
-    console.warn('Save accounts error:',e);
-    return false;
-  }
-}
 
 function saveRole(){
   if(!_acctOnline()) return;
@@ -10325,41 +10216,75 @@ function _cpShowImportResult(added, skipDrugs, badUnits, replaced){
   document.body.appendChild(ov);
 }
 
-async function saveCapPhat(){
+// Ảnh chụp các dòng cap_phat đã biết trên máy chủ (key → {id, qty}), lấy từ lần tải/lưu gần nhất.
+// Lưu chỉ gửi phần KHÁC so với ảnh chụp: dòng mới/đổi số lượng → upsert; dòng có trong ảnh chụp
+// nhưng đã bị xoá khỏi bộ nhớ → xoá theo id. Dòng người khác vừa thêm (máy này chưa biết) không bị đụng tới.
+var _capPhatServer = {};
+var _capPhatSaveChain = Promise.resolve(true);
+function _cpRowOf(r){ return {bc_month:r.bcMonth||'', drug:r.drug||'', lot:String(r.lot==null?'':r.lot), exp:r.exp||'', unit:r.unit||'', qty:Number(r.qty)||0}; }
+function _cpKeyOf(r){ return (r.bc_month||'')+'|'+(r.drug||'')+'|'+(r.lot||'')+'|'+(r.exp||'')+'|'+(r.unit||''); }
+function _cpSetServer(dbRows){
+  _capPhatServer = {};
+  (dbRows||[]).forEach(function(x){ _capPhatServer[_cpKeyOf(x)] = {id:x.id, qty:Number(x.qty)||0}; });
+}
+
+// Trả về true nếu lưu xong, false nếu lỗi (đã báo toast). Các lần gọi liên tiếp chạy lần lượt.
+function saveCapPhat(){
+  _capPhatSaveChain = _capPhatSaveChain.then(_saveCapPhatNow, _saveCapPhatNow);
+  return _capPhatSaveChain;
+}
+async function _saveCapPhatNow(){
   // KHÔNG lưu localStorage — chạy 100% online. Chỉ lưu lên Supabase.
-  if(!_supaOnline){ toast('⚠ Đang offline — cấp phát CHƯA được lưu. Cần kết nối cloud.','var(--danger)'); return; }
+  if(!_supaOnline){ toast('⚠ Đang offline — cấp phát CHƯA được lưu. Cần kết nối cloud.','var(--danger)'); return false; }
   try{
     var hd=Object.assign({}, _supaHdr, {'Content-Type':'application/json'});
-    function rowOf(r){ return {bc_month:r.bcMonth||'', drug:r.drug||'', lot:String(r.lot==null?'':r.lot), exp:r.exp||'', unit:r.unit||'', qty:Number(r.qty)||0}; }
-    function keyOf(r){ return (r.bc_month||'')+'|'+(r.drug||'')+'|'+(r.lot||'')+'|'+(r.exp||'')+'|'+(r.unit||''); }
-    var rows=(capPhatData||[]).map(rowOf);
-    // 1) Upsert mọi dòng hiện có (thêm mới / cập nhật số lượng) — chống x2
-    if(rows.length){
-      await fetch(SUPA_URL+'/rest/v1/cap_phat?on_conflict=bc_month,drug,lot,exp,unit',{method:'POST',
-        headers:Object.assign({},hd,{'Prefer':'resolution=merge-duplicates,return=minimal'}),
-        body:JSON.stringify(rows)});
-    }
-    // 2) Xóa dòng thừa trên DB (đã bị xóa khỏi bộ nhớ)
-    var memKeys={}; rows.forEach(function(r){ memKeys[keyOf(r)]=1; });
-    var ex=await fetch(SUPA_URL+'/rest/v1/cap_phat?select=id,bc_month,drug,lot,exp,unit',{headers:_supaHdr, cache:'no-store'});
-    if(ex.ok){
-      var dbrows=await ex.json();
-      var orphans=(dbrows||[]).filter(function(r){ return !memKeys[keyOf(r)]; }).map(function(r){ return r.id; });
-      if(orphans.length){
-        await fetch(SUPA_URL+'/rest/v1/cap_phat?id=in.('+orphans.join(',')+')',{method:'DELETE',headers:_supaHdr});
+    var memByKey={};
+    (capPhatData||[]).forEach(function(r){ var o=_cpRowOf(r); memByKey[_cpKeyOf(o)]=o; });
+    // 1) Dòng mới hoặc đổi số lượng → upsert
+    var changed=Object.keys(memByKey).filter(function(k){
+      var s=_capPhatServer[k]; return !s || s.qty!==memByKey[k].qty;
+    }).map(function(k){ return memByKey[k]; });
+    if(changed.length){
+      var up=await fetch(SUPA_URL+'/rest/v1/cap_phat?on_conflict=bc_month,drug,lot,exp,unit',{method:'POST',
+        headers:Object.assign({},hd,{'Prefer':'resolution=merge-duplicates,return=representation'}),
+        body:JSON.stringify(changed)});
+      if(!up.ok){
+        var ut=await up.text().catch(function(){ return ''; });
+        toast('❌ Lưu cấp phát THẤT BẠI ('+up.status+'): '+ut.slice(0,120),'var(--danger)');
+        return false;
       }
+      var saved=await up.json().catch(function(){ return []; });
+      (saved||[]).forEach(function(x){ _capPhatServer[_cpKeyOf(x)]={id:x.id, qty:Number(x.qty)||0}; });
     }
-  }catch(e){ console.warn('saveCapPhat error',e); }
+    // 2) Dòng máy này đã biết trên máy chủ nhưng người dùng vừa xoá → xoá theo id
+    var gone=Object.keys(_capPhatServer).filter(function(k){ return !memByKey[k] && _capPhatServer[k].id!=null; });
+    if(gone.length){
+      var ids=gone.map(function(k){ return _capPhatServer[k].id; });
+      var del=await fetch(SUPA_URL+'/rest/v1/cap_phat?id=in.('+ids.join(',')+')',{method:'DELETE',headers:_supaHdr});
+      if(!del.ok){
+        var dt=await del.text().catch(function(){ return ''; });
+        toast('❌ Xoá dòng cấp phát THẤT BẠI ('+del.status+'): '+dt.slice(0,120),'var(--danger)');
+        return false;
+      }
+      gone.forEach(function(k){ delete _capPhatServer[k]; });
+    }
+    return true;
+  }catch(e){
+    console.warn('saveCapPhat error',e);
+    toast('❌ Không lưu được cấp phát: '+(e&&e.message||e),'var(--danger)');
+    return false;
+  }
 }
 
 async function loadCapPhat(){
   // KHÔNG đọc localStorage — chỉ lấy từ Supabase.
   if(_supaOnline){
     try{
-      var r=await fetch(SUPA_URL+'/rest/v1/cap_phat?select=bc_month,drug,lot,exp,unit,qty',{headers:_supaHdr, cache:'no-store'});
+      var r=await fetch(SUPA_URL+'/rest/v1/cap_phat?select=id,bc_month,drug,lot,exp,unit,qty',{headers:_supaHdr, cache:'no-store'});
       if(r.ok){
         var j=await r.json();
         if(Array.isArray(j)){
+          _cpSetServer(j);
           if(j.length){
             capPhatData=j.map(function(x){ return {bcMonth:x.bc_month, drug:x.drug, lot:x.lot, exp:x.exp||'', unit:x.unit, qty:Number(x.qty)||0}; });
           } else {
@@ -10373,10 +10298,13 @@ async function loadCapPhat(){
             }catch(e){}
             if(fromOld && fromOld.length){
               capPhatData=fromOld;
-              await saveCapPhat();
-              try{ var hd2=Object.assign({}, _supaHdr, {'Content-Type':'application/json'});
-                await fetch(SUPA_URL+'/rest/v1/settings?key=eq.capPhat',{method:'PATCH',headers:hd2,body:JSON.stringify({value:[]})});
-              }catch(e2){}
+              // Chỉ xoá bản cũ khi đã chép sang bảng cap_phat thành công — tránh mất dữ liệu
+              var okSave = await saveCapPhat();
+              if(okSave){
+                try{ var hd2=Object.assign({}, _supaHdr, {'Content-Type':'application/json'});
+                  await fetch(SUPA_URL+'/rest/v1/settings?key=eq.capPhat',{method:'PATCH',headers:hd2,body:JSON.stringify({value:[]})});
+                }catch(e2){}
+              }
             } else {
               capPhatData=[];
             }
@@ -10842,76 +10770,7 @@ function renderBC(){
 // ============================================================
 function checkMismatch(){
   var el=document.getElementById('bvph-mismatch'); if(!el) return;
-  el.innerHTML=''; return; /* Đã TẮT đối chiếu cũ (Khớp/không khớp) — thay bằng khu Cấp phát thuốc */
-
-  // Lọc theo kỳ báo cáo đang chọn (năm hoặc tháng)
-  var bvphFiltered = bvphData.filter(matchPeriod);
-  var bcFiltered   = bcData.filter(matchPeriod);
-
-  // So sánh theo KEY = drug + lot + exp (đã chuẩn hóa, cùng kỳ báo cáo)
-  // dc2 (Xuất Tổ CL) phải = tổng tinh (nhập tỉnh cấp) của các đơn vị
-  var KEY = function(r){ return _normStr(r.drug)+'|'+_normStr(r.lot)+'|'+_normExp(r.exp); };
-
-  // Gom Xuất Tổ CL của BVPH theo key (dc2 = tự tính từ tổng tinh đơn vị)
-  var bvphBySrc = {};
-  bvphFiltered.forEach(function(r){
-    var k = KEY(r);
-    if(!bvphBySrc[k]) bvphBySrc[k]={drug:r.drug,lot:r.lot,exp:r.exp,val:0};
-    bvphBySrc[k].val += (r.dc2||0);
-  });
-
-  // Gom Nhập tỉnh cấp của các đơn vị theo key drug+lot+exp (tinh)
-  var otherByKey = {};
-  bcFiltered.forEach(function(r){
-    var k = KEY(r);
-    if(!otherByKey[k]) otherByKey[k]={drug:r.drug,lot:r.lot,exp:r.exp,val:0};
-    otherByKey[k].val += (r.tinh||0);
-  });
-
-  // Gộp tất cả keys
-  var allKeys={};
-  Object.keys(bvphBySrc).forEach(function(k){allKeys[k]=1;});
-  Object.keys(otherByKey).forEach(function(k){allKeys[k]=1;});
-
-  var drugsOK=[], drugsErr=[];
-  Object.keys(allKeys).forEach(function(k){
-    var bvphOut=(bvphBySrc[k]||{val:0}).val;
-    var unitIn =(otherByKey[k]||{val:0}).val;
-    var meta   =bvphBySrc[k]||otherByKey[k];
-    if(bvphOut===0&&unitIn===0) return;
-    if(bvphOut===unitIn){
-      drugsOK.push({drug:meta.drug,lot:meta.lot,exp:meta.exp,val:bvphOut});
-    } else {
-      drugsErr.push({drug:meta.drug,lot:meta.lot,exp:meta.exp,bvph:bvphOut,unit:unitIn,diff:bvphOut-unitIn});
-    }
-  });
-
-  var html='';
-  if(drugsErr.length>0){
-    var errRows = drugsErr.map(function(m){
-      return '<tr><td style="padding:3px 8px;font-weight:600">'+m.drug+'</td>'
-        +'<td style="padding:3px 8px;font-size:11px;color:var(--muted)">'+m.lot+'</td>'
-        +'<td style="padding:3px 8px;font-size:11px;color:var(--muted)">'+expToMMYYYY(m.exp)+'</td>'
-        +'<td style="padding:3px 8px;text-align:right;color:#1a5276">'+m.bvph+'</td>'
-        +'<td style="padding:3px 8px;text-align:right;color:var(--success)">'+_displayUnit(m.unit)+'</td>'
-        +'<td style="padding:3px 8px;text-align:right;color:var(--danger);font-weight:700">'+(m.diff>0?'+':'')+m.diff+'</td></tr>';
-    }).join('');
-    html += '<div class="mismatch-box warn" style="flex-direction:column;gap:6px">'
-      +'<div style="font-weight:700">⚠ Không khớp (đối chiếu theo thuốc + lô + hạn dùng):</div>'
-      +'<table style="width:100%;border-collapse:collapse;font-size:11px">'
-      +'<tr style="color:var(--muted)"><th style="padding:2px 8px;text-align:left">Thuốc</th>'
-      +'<th style="padding:2px 8px;text-align:left">Số lô</th>'
-      +'<th style="padding:2px 8px;text-align:left">Hạn dùng</th>'
-      +'<th style="padding:2px 8px;text-align:right">BVPHP xuất</th>'
-      +'<th style="padding:2px 8px;text-align:right">Đơn vị nhập</th>'
-      +'<th style="padding:2px 8px;text-align:right">Chênh</th></tr>'
-      + errRows + '</table></div>';
-  }
-  if(drugsOK.length>0){
-    var okList = drugsOK.map(function(m){ return m.drug+' ['+m.lot+'] ('+m.val+' viên)'; }).join(', ');
-    html += '<div class="mismatch-box ok" style="font-size:12px">✓ Khớp: '+okList+'</div>';
-  }
-  el.innerHTML = html || '';
+  el.innerHTML=''; /* Đã TẮT đối chiếu cũ (Khớp/không khớp) — thay bằng khu Cấp phát thuốc */
 }
 
 // ============================================================
@@ -23128,7 +22987,7 @@ function setPassMode(m){
   if(m==='manual'){const inp=document.getElementById('inp-pass');if(!inp.value)inp.value='Ctclqg@2026';}
   checkReady();
 }
-function genPass(){const c='ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#!';let p='';for(let i=0;i<10;i++)p+=c[Math.floor(Math.random()*c.length)];document.getElementById('inp-pass').value=p;checkReady();}
+function genPass(){document.getElementById('inp-pass').value=genRandPass();checkReady();}
 function onToggleSts(cb){
   document.getElementById('sts-badge').textContent=cb.checked?'Hoạt động':'Vô hiệu hóa';
   document.getElementById('sts-badge').className='sts-badge '+(cb.checked?'sts-on':'sts-off');
@@ -23364,8 +23223,14 @@ function tkDeleteAccount(id){
 // ══ RESET MK ══
 // ══ RESET MK ══
 function genRandPass(){
+  // Dùng bộ sinh số ngẫu nhiên an toàn của trình duyệt (Math.random đoán được)
   const c='ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#!';
-  let p='';for(let i=0;i<10;i++)p+=c[Math.floor(Math.random()*c.length)];return p;
+  const lim=256-(256%c.length); let p='';
+  while(p.length<12){
+    const buf=new Uint8Array(32); crypto.getRandomValues(buf);
+    for(let i=0;i<buf.length && p.length<12;i++){ if(buf[i]<lim) p+=c[buf[i]%c.length]; }
+  }
+  return p;
 }
 function openRM(id){
   const _aRM = accounts.find(x=>x.id===id);
@@ -23423,352 +23288,6 @@ function showToast(msg){
 
 
 
-// ══════════════════════════════════════════════
-// BÁO CÁO XUẤT NHẬP TỒN — C5 (và các cấp khác)
-// ══════════════════════════════════════════════
-
-// Kho dữ liệu báo cáo: { key: { ton_dau, tinh_cap, dieu_chuyen, su_dung, xuat_dc, hong_hh } }
-// key = `${accountId}_${period}_${drug}_${lo}`
-const RPT_DATA = {};
-
-// Danh sách thuốc mẫu dùng cho C5 (sẽ thay bằng Supabase sau)
-const SAMPLE_DRUGS_C5 = [
-  { ten: 'Amikacin 500mg/2ml', los: [
-      { lo: 'A084BC', han: '08/2027' },
-      { lo: 'TMC23172', han: '11/2026' },
-  ]},
-  { ten: 'Isoniazid 300mg', los: [
-      { lo: 'INH2401', han: '06/2026' },
-      { lo: 'INH2402', han: '12/2026' },
-  ]},
-  { ten: 'Rifampicin 300mg', los: [
-      { lo: 'RIF-A01', han: '03/2027' },
-  ]},
-  { ten: 'Pyrazinamide 500mg', los: [
-      { lo: 'PZA-B12', han: '09/2026' },
-      { lo: 'PZA-C01', han: '01/2027' },
-  ]},
-];
-
-// Danh sách thuốc mẫu dùng cho C3/C4 (nhập tổng hợp, không chia lô)
-const SAMPLE_DRUGS_HIGH = [
-  { ten: 'Amikacin 500mg/2ml' },
-  { ten: 'Isoniazid 300mg' },
-  { ten: 'Rifampicin 300mg' },
-  { ten: 'Pyrazinamide 500mg' },
-  { ten: 'Ethambutol 400mg' },
-];
-
-// Xác định cấp "thấp" (C5) hay "cao" (C1-C4)
-function isC5(cap){ return cap==='kho_noitru'||cap==='dvcs'; }
-
-// Lấy / tạo key dữ liệu ô
-function rptKey(accId, period, drug, lo){
-  return `${accId}||${period}||${drug}||${lo||''}`;
-}
-function rptGet(key){
-  return RPT_DATA[key] || {ton_dau:0, tinh_cap:0, dieu_chuyen:0, su_dung:0, xuat_dc:0, hong_hh:0};
-}
-function rptSet(key, field, val){
-  if(!RPT_DATA[key]) RPT_DATA[key]={ton_dau:0, tinh_cap:0, dieu_chuyen:0, su_dung:0, xuat_dc:0, hong_hh:0};
-  RPT_DATA[key][field]=val;
-}
-
-// Helper: số → hiển thị (0 mờ)
-function rptN(v){ return `<span class="${v===0?'zero':''}">${v}</span>`; }
-
-// Helper: tính tổng nhập, tổng xuất, tồn cuối
-function rptCalc(d){
-  const tong_nhap = d.tinh_cap + d.dieu_chuyen;
-  const tong_xuat = d.su_dung + d.xuat_dc + d.hong_hh;
-  const ton_cuoi  = d.ton_dau + tong_nhap - tong_xuat;
-  return { ...d, tong_nhap, tong_xuat, ton_cuoi };
-}
-
-// ── Render input cell (editable) ──
-function rptCell(key, field, val, extraClass=''){
-  return `<td class="${extraClass}"><input class="rpt-inp" type="number" min="0"
-    value="${val||''}" placeholder="0"
-    onchange="rptOnChange('${key}','${field}',this)"
-    oninput="rptRecompute('${key}',this.closest('tr'))"
-    /></td>`;
-}
-
-// ── Khi user nhập ──
-function rptOnChange(key, field, inp){
-  const v = parseInt(inp.value)||0;
-  rptSet(key, field, v);
-  inp.classList.toggle('changed', v!==0);
-}
-
-// ── Tính lại tổng nhập / tổng xuất / tồn cuối trên hàng đó ──
-function rptRecompute(key, tr){
-  const get = f => parseInt(tr.querySelector(`[data-f="${f}"]`)?.value)||0;
-  const ton_dau = get('ton_dau');
-  const tinh_cap = get('tinh_cap'); const dieu_chuyen = get('dieu_chuyen');
-  const su_dung = get('su_dung'); const xuat_dc = get('xuat_dc'); const hong_hh = get('hong_hh');
-  const tong_nhap = tinh_cap + dieu_chuyen;
-  const tong_xuat = su_dung + xuat_dc + hong_hh;
-  const ton_cuoi  = ton_dau + tong_nhap - tong_xuat;
-  const setEl = (cls, v) => { const el=tr.querySelector('.'+cls); if(el) el.textContent=v; };
-  setEl('rpt-tong-nhap', tong_nhap);
-  setEl('rpt-tong-xuat', tong_xuat);
-  setEl('rpt-ton-cuoi',  ton_cuoi);
-  // cập nhật màu zero
-  [['rpt-tong-nhap',tong_nhap],['rpt-tong-xuat',tong_xuat],['rpt-ton-cuoi',ton_cuoi]].forEach(([c,v])=>{
-    const el=tr.querySelector('.'+c); if(el){ el.classList.toggle('zero',v===0); }
-  });
-}
-
-// ── Build bảng C5 (thuốc × lô, header 2 tầng đúng mẫu) ──
-function buildTableC5(acc, period){
-  const drugs = SAMPLE_DRUGS_C5;
-  let rows = '';
-  drugs.forEach((drug, di) => {
-    const nlo = drug.los.length;
-    drug.los.forEach((lo, li) => {
-      const key = rptKey(acc.id, period, drug.ten, lo.lo);
-      const d   = rptCalc(rptGet(key));
-      const sttCell = li===0
-        ? `<td class="td-stt" rowspan="${nlo}">${di+1}</td><td class="td-drug" rowspan="${nlo}">${drug.ten}</td>`
-        : '';
-      rows += `<tr>
-        ${sttCell}
-        <td class="td-left">${lo.lo}</td>
-        <td>${lo.han}</td>
-        <td class="td-ton-dau"><input class="rpt-inp" type="number" min="0" data-f="ton_dau"
-          value="${d.ton_dau||''}" placeholder="0"
-          onchange="rptSet('${key}','ton_dau',parseInt(this.value)||0)"
-          oninput="rptRecompute('${key}',this.closest('tr'))"/></td>
-        <td><input class="rpt-inp" type="number" min="0" data-f="tinh_cap"
-          value="${d.tinh_cap||''}" placeholder="0"
-          onchange="rptSet('${key}','tinh_cap',parseInt(this.value)||0)"
-          oninput="rptRecompute('${key}',this.closest('tr'))"/></td>
-        <td><input class="rpt-inp" type="number" min="0" data-f="dieu_chuyen"
-          value="${d.dieu_chuyen||''}" placeholder="0"
-          onchange="rptSet('${key}','dieu_chuyen',parseInt(this.value)||0)"
-          oninput="rptRecompute('${key}',this.closest('tr'))"/></td>
-        <td class="td-tong-nhap"><span class="rpt-tong-nhap ${d.tong_nhap===0?'zero':''}">${d.tong_nhap}</span></td>
-        <td><input class="rpt-inp" type="number" min="0" data-f="su_dung"
-          value="${d.su_dung||''}" placeholder="0"
-          onchange="rptSet('${key}','su_dung',parseInt(this.value)||0)"
-          oninput="rptRecompute('${key}',this.closest('tr'))"/></td>
-        <td><input class="rpt-inp" type="number" min="0" data-f="xuat_dc"
-          value="${d.xuat_dc||''}" placeholder="0"
-          onchange="rptSet('${key}','xuat_dc',parseInt(this.value)||0)"
-          oninput="rptRecompute('${key}',this.closest('tr'))"/></td>
-        <td><input class="rpt-inp" type="number" min="0" data-f="hong_hh"
-          value="${d.hong_hh||''}" placeholder="0"
-          onchange="rptSet('${key}','hong_hh',parseInt(this.value)||0)"
-          oninput="rptRecompute('${key}',this.closest('tr'))"/></td>
-        <td class="td-tong-xuat"><span class="rpt-tong-xuat ${d.tong_xuat===0?'zero':''}">${d.tong_xuat}</span></td>
-        <td class="td-ton-cuoi"><span class="rpt-ton-cuoi ${d.ton_cuoi===0?'zero':''}">${d.ton_cuoi}</span></td>
-      </tr>`;
-    });
-  });
-
-  return `
-    <div class="rpt-tbl-wrap">
-    <table class="rpt-tbl">
-      <thead>
-        <tr class="rpt-h1">
-          <th class="th-base" rowspan="2" style="width:36px">TT</th>
-          <th class="th-base" rowspan="2" style="min-width:160px">Tên thuốc</th>
-          <th class="th-base" rowspan="2" style="width:80px">Số lô</th>
-          <th class="th-base" rowspan="2" style="width:72px">Hạn dùng</th>
-          <th class="th-ton"  rowspan="2" style="width:64px">Tồn đầu</th>
-          <th class="th-nhap" colspan="3">Nhập trong kỳ</th>
-          <th class="th-xuat" colspan="4">Xuất trong kỳ</th>
-          <th class="th-ton"  rowspan="2" style="width:64px">Tồn cuối</th>
-        </tr>
-        <tr class="rpt-h2">
-          <th class="th-nhap" style="width:72px">Tinh cấp</th>
-          <th class="th-nhap" style="width:80px">Điều chuyển</th>
-          <th class="th-nhap" style="width:80px">Tổng nhập</th>
-          <th class="th-xuat" style="width:72px">Sử dụng</th>
-          <th class="th-xuat" style="width:72px">Xuất ĐC</th>
-          <th class="th-xuat" style="width:72px">Hỏng/HH</th>
-          <th class="th-xuat" style="width:80px">Tổng xuất</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-    </div>`;
-}
-
-// ── Build bảng cấp cao (C1–C4): không chia lô, nhập gộp ──
-function buildTableHigh(acc, period){
-  const drugs = SAMPLE_DRUGS_HIGH;
-  let rows = '';
-  drugs.forEach((drug, di) => {
-    const key = rptKey(acc.id, period, drug.ten, '');
-    const d   = rptCalc(rptGet(key));
-    rows += `<tr>
-      <td class="td-stt" style="border-right:2px solid var(--border)">${di+1}</td>
-      <td class="td-drug">${drug.ten}</td>
-      <td class="td-ton-dau"><input class="rpt-inp" type="number" min="0" data-f="ton_dau"
-        value="${d.ton_dau||''}" placeholder="0"
-        onchange="rptSet('${key}','ton_dau',parseInt(this.value)||0)"
-        oninput="rptRecompute('${key}',this.closest('tr'))"/></td>
-      <td><input class="rpt-inp" type="number" min="0" data-f="tinh_cap"
-        value="${d.tinh_cap||''}" placeholder="0"
-        onchange="rptSet('${key}','tinh_cap',parseInt(this.value)||0)"
-        oninput="rptRecompute('${key}',this.closest('tr'))"/></td>
-      <td><input class="rpt-inp" type="number" min="0" data-f="dieu_chuyen"
-        value="${d.dieu_chuyen||''}" placeholder="0"
-        onchange="rptSet('${key}','dieu_chuyen',parseInt(this.value)||0)"
-        oninput="rptRecompute('${key}',this.closest('tr'))"/></td>
-      <td class="td-tong-nhap"><span class="rpt-tong-nhap ${d.tong_nhap===0?'zero':''}">${d.tong_nhap}</span></td>
-      <td><input class="rpt-inp" type="number" min="0" data-f="su_dung"
-        value="${d.su_dung||''}" placeholder="0"
-        onchange="rptSet('${key}','su_dung',parseInt(this.value)||0)"
-        oninput="rptRecompute('${key}',this.closest('tr'))"/></td>
-      <td><input class="rpt-inp" type="number" min="0" data-f="xuat_dc"
-        value="${d.xuat_dc||''}" placeholder="0"
-        onchange="rptSet('${key}','xuat_dc',parseInt(this.value)||0)"
-        oninput="rptRecompute('${key}',this.closest('tr'))"/></td>
-      <td><input class="rpt-inp" type="number" min="0" data-f="hong_hh"
-        value="${d.hong_hh||''}" placeholder="0"
-        onchange="rptSet('${key}','hong_hh',parseInt(this.value)||0)"
-        oninput="rptRecompute('${key}',this.closest('tr'))"/></td>
-      <td class="td-tong-xuat"><span class="rpt-tong-xuat ${d.tong_xuat===0?'zero':''}">${d.tong_xuat}</span></td>
-      <td class="td-ton-cuoi"><span class="rpt-ton-cuoi ${d.ton_cuoi===0?'zero':''}">${d.ton_cuoi}</span></td>
-    </tr>`;
-  });
-
-  return `
-    <div class="rpt-tbl-wrap">
-    <table class="rpt-tbl">
-      <thead>
-        <tr class="rpt-h1">
-          <th class="th-base" rowspan="2" style="width:36px">TT</th>
-          <th class="th-base" rowspan="2" style="min-width:180px">Tên thuốc</th>
-          <th class="th-ton"  rowspan="2" style="width:72px">Tồn đầu</th>
-          <th class="th-nhap" colspan="3">Nhập trong kỳ</th>
-          <th class="th-xuat" colspan="4">Xuất trong kỳ</th>
-          <th class="th-ton"  rowspan="2" style="width:72px">Tồn cuối</th>
-        </tr>
-        <tr class="rpt-h2">
-          <th class="th-nhap" style="width:80px">Tinh cấp</th>
-          <th class="th-nhap" style="width:88px">Điều chuyển</th>
-          <th class="th-nhap" style="width:88px">Tổng nhập</th>
-          <th class="th-xuat" style="width:80px">Sử dụng</th>
-          <th class="th-xuat" style="width:80px">Xuất ĐC</th>
-          <th class="th-xuat" style="width:80px">Hỏng/HH</th>
-          <th class="th-xuat" style="width:88px">Tổng xuất</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-    </div>`;
-}
-
-// ── Render toàn bộ trang báo cáo ──
-function rptRender(){
-  const period = document.getElementById('rpt-period')?.value || '';
-  const capFil  = document.getElementById('rpt-cap')?.value  || '';
-  const mienFil = document.getElementById('rpt-mien')?.value || '';
-
-  let filtered = accounts.filter(a =>
-    (!capFil  || a.cap===capFil) &&
-    (!mienFil || a.mien===mienFil)
-  );
-
-  const tablesEl = document.getElementById('rpt-tables');
-  const emptyEl  = document.getElementById('rpt-empty');
-  const cardsEl  = document.getElementById('rpt-cards');
-
-  if(!filtered.length){
-    tablesEl.innerHTML=''; cardsEl.innerHTML='';
-    emptyEl.style.display='flex'; return;
-  }
-  emptyEl.style.display='none';
-
-  // Summary cards
-  const nAcc = filtered.length;
-  const caps = [...new Set(filtered.map(a=>a.cap))].length;
-  cardsEl.innerHTML = `
-    <div class="rpt-card" style="border-color:#1B4F72">
-      <div class="rpt-card-num" style="color:#1B4F72">${nAcc}</div>
-      <div class="rpt-card-lbl">Đơn vị báo cáo</div>
-      <div class="rpt-card-sub">${capFil ? capLabel(capFil) : caps + ' cấp'}</div>
-    </div>
-    <div class="rpt-card" style="border-color:#1E8449">
-      <div class="rpt-card-num" style="color:#1E8449">${isC5(capFil)||!capFil ? SAMPLE_DRUGS_C5.reduce((s,d)=>s+d.los.length,0)*nAcc : SAMPLE_DRUGS_HIGH.length*nAcc}</div>
-      <div class="rpt-card-lbl">Tổng dòng số liệu</div>
-      <div class="rpt-card-sub">thuốc × lô × đơn vị</div>
-    </div>
-    <div class="rpt-card" style="border-color:#784212">
-      <div class="rpt-card-num" style="color:#784212">${period}</div>
-      <div class="rpt-card-lbl">Kỳ báo cáo</div>
-      <div class="rpt-card-sub">Dữ liệu stub — chờ Supabase</div>
-    </div>
-    <div class="rpt-card" style="border-color:#922B21">
-      <div class="rpt-card-num" style="color:#922B21">${Object.keys(RPT_DATA).filter(k=>k.includes('||'+period+'||')).length}</div>
-      <div class="rpt-card-lbl">Ô đã nhập</div>
-      <div class="rpt-card-sub">trong kỳ này</div>
-    </div>`;
-
-  // Tables
-  tablesEl.innerHTML = filtered.map(acc => {
-    const rc = RC[acc.cap] || {color:'#185070', bg:'#E1F5EE'};
-    const tbl = isC5(acc.cap) ? buildTableC5(acc, period) : buildTableHigh(acc, period);
-    return `
-      <div class="rpt-section">
-        <div class="rpt-sec-head">
-          <span class="rpt-sec-badge" style="color:${rc.color};background:${rc.bg};border-color:${rc.color}30">
-            ${capCode(acc.cap)||capLabel(acc.cap)}
-          </span>
-          <div>
-            <div class="rpt-sec-title">${acc.ten||acc.username}</div>
-            <div class="rpt-sec-acc" style="margin-top:2px">@${acc.username} · ${acc.mien ? (REGIONS[acc.mien]||acc.mien) : ''}</div>
-          </div>
-        </div>
-        ${tbl}
-      </div>`;
-  }).join('');
-}
-
-// ── Lưu tất cả (stub) ──
-function rptSaveAll(){
-  showToast('✅ Đã lưu (stub) — tích hợp Supabase sau');
-}
-
-// ── Xuất Excel ──
-function rptExportExcel(){
-  if(typeof XLSX==='undefined'){ showToast('⚠ Chưa tải thư viện Excel'); return; }
-  const period = document.getElementById('rpt-period')?.value || 'kỳ';
-  const wb = XLSX.utils.book_new();
-  const capFil  = document.getElementById('rpt-cap')?.value  || '';
-  const mienFil = document.getElementById('rpt-mien')?.value || '';
-  const filtered = accounts.filter(a=>(!capFil||a.cap===capFil)&&(!mienFil||a.mien===mienFil));
-
-  filtered.forEach(acc => {
-    const drugs = isC5(acc.cap) ? SAMPLE_DRUGS_C5 : SAMPLE_DRUGS_HIGH;
-    const rows = [['TT','Tên thuốc','Số lô','Hạn dùng','Tồn đầu','Tinh cấp','Điều chuyển','Tổng nhập','Sử dụng','Xuất ĐC','Hỏng/HH','Tổng xuất','Tồn cuối']];
-    let stt = 1;
-    drugs.forEach(drug => {
-      const items = drug.los || [{ lo:'', han:'' }];
-      items.forEach(lo => {
-        const key = rptKey(acc.id, period, drug.ten, lo.lo||'');
-        const d   = rptCalc(rptGet(key));
-        rows.push([stt, drug.ten, lo.lo||'', lo.han||'', d.ton_dau, d.tinh_cap, d.dieu_chuyen, d.tong_nhap, d.su_dung, d.xuat_dc, d.hong_hh, d.tong_xuat, d.ton_cuoi]);
-      });
-      stt++;
-    });
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    const shName = (acc.ten||acc.username).substring(0,28).replace(/[\\/\*\?\[\]:]/g,'');
-    XLSX.utils.book_append_sheet(wb, ws, shName||'Sheet');
-  });
-
-  XLSX.writeFile(wb, `BaoCaoXNT_${period}.xlsx`);
-  showToast('📥 Đã xuất Excel');
-}
-
-// ── In / PDF ──
-function rptPrint(){
-  window.print();
-}
 
 
 // ══ CHUYỂN TRANG ══
@@ -23777,17 +23296,14 @@ function showPage(p){
   var _q=function(id){return document.getElementById(id);};
   document.querySelectorAll('#tk-app .tk-page').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('#tk-app .sb-item').forEach(el=>el.classList.remove('active'));
-  document.getElementById('page-'+p).classList.add('active');
-  document.getElementById('nav-'+p).classList.add('active');
+  var _pg=_q('page-'+p); if(!_pg) return;
+  _pg.classList.add('active');
+  var _nv=_q('nav-'+p); if(_nv) _nv.classList.add('active');
   const tb=document.querySelector('#tk-app .topbar-left');
   const acts=document.querySelector('#tk-app .topbar-right');
   if(p==='guide'){
     tb.innerHTML='<div class="bc">Trợ giúp \u203a Hướng dẫn sử dụng</div><h1>Hướng dẫn sử dụng</h1>';
     acts.style.display='none';
-  }else if(p==='report'){
-    tb.innerHTML='<div class="bc">Hệ thống \u203a Báo cáo</div><h1>Báo cáo xuất nhập tồn dược</h1>';
-    acts.style.display='none';
-    rptRender();
   }else{
     tb.innerHTML='<div class="bc">Hệ thống \u203a Quản lý tài khoản</div><h1>Quản lý tài khoản</h1>';
     acts.style.display='flex';
