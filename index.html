@@ -164,6 +164,16 @@ body{font-family:'Be Vietnam Pro',sans-serif;background:var(--bg);color:var(--te
 .ts-mos{display:inline-block;padding:1px 7px;border-radius:9px;font-size:11px;font-weight:700}
 .ts-mos.ok{background:#dcfce7;color:#166534}.ts-mos.warn{background:#fef3c7;color:#92400e}.ts-mos.bad{background:#fee2e2;color:#b91c1c}
 .ts-note{font-size:11px;color:#64748b;padding:6px 12px}
+.ts-sum{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
+.ts-lvl{margin-left:auto;display:inline-flex;gap:4px;align-items:center}
+.ts-lvl button{border:1px solid #cbd5e0;background:#fff;border-radius:14px;padding:2px 10px;font-size:11px;font-weight:600;cursor:pointer;color:#334155}
+.ts-lvl button.act{background:#1a5276;border-color:#1a5276;color:#fff}
+.ts-grp{cursor:pointer;background:#f8fafc}
+.ts-grp:hover td{background:#eef7ff}
+.ts-caret{display:inline-block;width:12px;color:#0e7490}
+.ts-sub td:first-child{padding-left:26px}
+.ts-tier{display:inline-block;padding:1px 7px;border-radius:9px;font-size:11px;font-weight:600}
+.ts-tier.t0{background:#dcfce7;color:#166534}.ts-tier.t1{background:#e0f2fe;color:#075985}.ts-tier.t2{background:#fef3c7;color:#92400e}.ts-tier.t3{background:#fee2e2;color:#b91c1c}
 .tqa-card{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:12px;margin-bottom:14px}
 .tqa-head{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;margin-bottom:10px}
 .tqa-title{font-size:14px;font-weight:700;color:#1a2332}
@@ -1173,6 +1183,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
         <option value="10">Tháng 10</option>
         <option value="11">Tháng 11</option>
         <option value="12">Tháng 12</option>
+        <optgroup label="Theo quý"><option value="Q1">Quý 1</option><option value="Q2">Quý 2</option><option value="Q3">Quý 3</option><option value="Q4">Quý 4</option></optgroup>
       </select>
     </div>
   </div>
@@ -1480,15 +1491,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
     <div class="tbl-hd-bar">
       <h3>Bảng tổng hợp tồn kho — các đơn vị &nbsp;<span id="thuoc-month-label" style="font-size:12px;font-weight:400;color:var(--accent)"></span></h3>
       <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
-        <div class="fg">
-          <label for="thuoc-month">Lọc theo tháng</label>
-          <input type="month" id="thuoc-month" aria-label="Lọc theo tháng" value="2026-05" style="padding:6px 8px;font-size:12px"
-            oninput="renderDrugTable()" onchange="renderDrugTable()">
-        </div>
-        <div class="fg" style="margin-top:auto">
-          <button class="btn btn-outline btn-sm" title="Đồng bộ với kỳ báo cáo đang chọn"
-            onclick="syncDrugMonth()" style="font-size:11px;white-space:nowrap">⇄ Theo kỳ BC</button>
-        </div>
+        <span style="font-size:12px;color:var(--muted);align-self:center">Kỳ: theo kỳ báo cáo chung (chọn ở Tổng quan / Báo cáo thuốc)</span>
         <div style="position:relative;width:220px;margin-top:auto">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);pointer-events:none"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
           <input type="text" id="search-drug" aria-label="Tìm kiếm thuốc" placeholder="Tìm kiếm thuốc..." autocomplete="off" style="width:100%;box-sizing:border-box;padding:8px 14px 8px 32px;border:1px solid #cbd5e1;border-radius:20px;font-size:12px;background:white;color:#374151;transition:border-color .2s,box-shadow .2s;outline:none" onfocus="this.style.borderColor='#2980b9';this.style.boxShadow='0 0 0 3px rgba(41,128,185,.15)'" onblur="this.style.borderColor='#cbd5e1';this.style.boxShadow='none'" oninput="filterDrugTable()">
@@ -5298,18 +5301,10 @@ function onPLChange(){
   onGlobalMonthChange();
 }
 
-// Kỳ đang xem trong tab Tổng quan (dùng tq-year/tq-month)
-function _tqCurrentPeriodKey(){
-  try{
-    var yearEl  = document.getElementById('tq-year');
-    var monthEl = document.getElementById('tq-month');
-    if(!yearEl || !monthEl) return _currentPeriodKey();
-    var year  = yearEl.value  || '2026';
-    var month = monthEl.value || '05';
-    if(month === '__year__') return year;
-    return year + '-' + month;
-  }catch(e){ return _currentPeriodKey(); }
-}
+// Kỳ đang xem trong tab Tổng quan = kỳ chung (ô tq-year/tq-month chỉ là bản sao hiển thị)
+// KỲ CHUNG cho toàn ứng dụng: Tổng quan, Báo cáo thuốc, Danh sách thuốc, bản đồ, phân tích
+// đều đọc cùng một kỳ (ô chọn ở trang Báo cáo; ô ở Tổng quan là bản sao, đổi bên nào cũng đồng bộ).
+function _tqCurrentPeriodKey(){ return _currentPeriodKey(); }
 // Lưu lockedPeriods lên Supabase settings (PATCH-first)
 async function _saveLockedPeriodsToCloud(){
   if(!_supaOnline){ toast('⚠ Offline — trạng thái khóa chỉ lưu tạm, sẽ mất khi tải lại.','var(--warning)'); return false; }
@@ -7255,12 +7250,6 @@ function initApp(){
   // Hub hoá tài khoản đầu mối tỉnh (donvi có đơn vị con): tab + dropdown đơn vị con
   try{ _regateHubUI(); }catch(e){ console.warn('[hubUI]', e); }
 
-  // Đồng bộ thuoc-month với kỳ báo cáo mặc định khi khởi động
-  var _initPeriod = getSelectedPeriod();
-  var _tmEl = document.getElementById('thuoc-month');
-  if(_tmEl && _initPeriod.type === 'month') {
-    if(currentUser && currentUser.role === 'admin') _tmEl.value = _initPeriod.val;
-  }
 
   loadSaved();
   // lockedPeriods sẽ được _autoLoadOnLogin nạp đúng từ cloud theo role
@@ -7850,14 +7839,7 @@ function deleteAccount(i){
 // ============================================================
 // KỲ THỐNG KÊ TỔNG QUAN (độc lập với kỳ báo cáo BC)
 // ============================================================
-function getTQPeriod(){
-  var yearEl  = document.getElementById('tq-year');
-  var monthEl = document.getElementById('tq-month');
-  var year  = yearEl  ? yearEl.value  : '2026';
-  var month = monthEl ? monthEl.value : '05';
-  if(month === '__year__') return { type:'year', year:year, val:year };
-  return { type:'month', year:year, val:year+'-'+month };
-}
+function getTQPeriod(){ return getSelectedPeriod(); }   // kỳ chung
 
 var _tqPeriodMemo = null;
 function matchTQPeriod(r){
@@ -7866,6 +7848,8 @@ function matchTQPeriod(r){
   if(!r.bcMonth) return true;
   if(r._agg) return false;         // dòng tổng hợp quý (chỉ dùng ở trang Báo cáo) không tính ở Tổng quan
   if(p.type==='year') return r.bcMonth.startsWith(p.year+'-') || r.bcMonth===p.year;
+  // Quý: 3 tháng của quý (Hàng 2) + chính kỳ quý (Hàng 1). Tồn đầu/cuối lấy kỳ sớm/muộn nhất (_aggScopeTotals)
+  if(p.type==='quarter') return r.bcMonth === p.val || (p.months||[]).indexOf(r.bcMonth) >= 0;
   return r.bcMonth === p.val;
 }
 
@@ -7881,8 +7865,7 @@ function onTQPeriodChange(){
   if(tqMonth && selMonth) selMonth.value = tqMonth.value;
   // Cập nhật datalist năm
   if(tqYear) _yearInput(tqYear, 'sel-year-list', null);
-  renderTQ();
-  // Render lại báo cáo theo kỳ mới
+  // Áp kỳ chung (vẽ lại Báo cáo + Tổng quan + Danh sách thuốc)
   onGlobalMonthChange();
 }
 
@@ -8013,7 +7996,7 @@ function renderTQ(){
   var mNames = ['','Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
                 'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
   var periodLabel = tqP.type==='year' ? 'Cả năm '+tqP.year :
-    mNames[parseInt(tqP.val.split('-')[1]||'0')]+'/'+tqP.year;
+    (tqP.type==='quarter' ? _keyToLabel(tqP.val) : mNames[parseInt(tqP.val.split('-')[1]||'0')]+'/'+tqP.year);
   var subEl = document.getElementById('tq-sub');
   var _rnTQ = (function(){ try{ var id=_currentRootId(); var u=id&&UNIT_BY_ID[id]; return u?u.name:''; }catch(e){ return ''; } })();
   if(subEl) subEl.textContent = periodLabel + (_rnTQ ? ' — '+_rnTQ : '');
@@ -9005,9 +8988,15 @@ function _showTQAlert(which){
 // ============================================================
 
 // Lấy tháng đang chọn ở trang Danh sách thuốc
+var _drugMonthMemo = null;
 function getDrugMonth(){
-  var el = document.getElementById('thuoc-month');
-  return el ? el.value : ''; // dạng "YYYY-MM" hoặc "" = tất cả
+  // Kỳ chung: tháng → chính tháng đó; quý / cả năm → tháng có dữ liệu gần nhất (tồn là số tại 1 thời điểm)
+  // Ghi nhớ trong 1 lượt vẽ (hàm được gọi cho TỪNG dòng)
+  if(_drugMonthMemo === null){
+    try{ _drugMonthMemo = _amcMonthKey(_currentPeriodKey()); }catch(e){ _drugMonthMemo = ''; }
+    Promise.resolve().then(function(){ _drugMonthMemo = null; });
+  }
+  return _drugMonthMemo;
 }
 
 // So khớp tháng cho bảng danh sách thuốc
@@ -9035,8 +9024,9 @@ function renderDrugTable(){
   if(labelEl){
     if(!mon){ labelEl.textContent = 'Tất cả kỳ'; }
     else {
-      var p = mon.split('-');
-      labelEl.textContent = 'Tháng '+parseInt(p[1])+'/'+p[0];
+      var p = mon.split('-'), _gk = _currentPeriodKey();
+      labelEl.textContent = 'Tháng '+parseInt(p[1])+'/'+p[0]
+        + (_isMKey(_gk) ? '' : ' (tháng có dữ liệu gần nhất của '+(_isQKey(_gk)?_keyToLabel(_gk):'năm '+_gk)+')');
     }
   }
 
@@ -9185,20 +9175,8 @@ function filterDrugTable(){
   _buildDrugTableRows(_drugTableAllRows, q);
 }
 
-// Đồng bộ tháng bảng Danh sách thuốc với kỳ báo cáo đang chọn
-function syncDrugMonth(){
-  var p = getSelectedPeriod();
-  var el = document.getElementById('thuoc-month');
-  if(!el) return;
-  if(p.type === 'year'){
-    el.value = p.year + '-01'; // cả năm → để tháng 1 làm đại diện
-    toast('Đã đồng bộ: hiển thị cả năm ' + p.year, 'var(--accent)');
-  } else {
-    el.value = p.val; // "YYYY-MM"
-    toast('Đã đồng bộ kỳ báo cáo: ' + document.getElementById('bc-period-label').textContent, 'var(--accent)');
-  }
-  renderDrugTable();
-}
+// (Đã bỏ syncDrugMonth — Danh sách thuốc dùng kỳ chung)
+function syncDrugMonth(){ renderDrugTable(); }
 
 // Tính Xuất Tổ CL của BVPH theo từng thuốc = tổng tinh (nhập tỉnh cấp) của bcData cùng tên thuốc
 // Tính tổng tinh của bcData theo drug+lot+exp (3 chiều)
@@ -9579,10 +9557,6 @@ function onGlobalMonthChange(){
   renderBVPH();
   renderBC();
   renderTP();
-  var tmEl = document.getElementById('thuoc-month');
-  if(tmEl && p.type === 'month') {
-    if(currentUser && currentUser.role === 'admin') tmEl.value = p.val;
-  }
   renderDrugTable();
   updateSaveBtnUI();
   // Đồng bộ ngược lên Tổng quan
@@ -9592,8 +9566,7 @@ function onGlobalMonthChange(){
   if(tqYear && selYear) tqYear.value = selYear.value;
   if(tqMonth){
     var selMonth = document.getElementById('sel-month');
-    // Tổng quan chỉ có tháng/cả năm → kỳ quý thì để nguyên Tổng quan
-    if(selMonth && p.type !== 'quarter') tqMonth.value = selMonth.value;
+    if(selMonth) tqMonth.value = selMonth.value;   // tháng / quý / cả năm — một kỳ chung
   }
   renderTQ();
   // Tự động tải data kỳ mới từ cloud
@@ -18093,14 +18066,16 @@ function _h1Match(r, unitFilter){
 // Tháng dùng cho phân tích tồn/AMC: "Cả năm" → tháng có dữ liệu gần nhất của năm đó
 function _amcMonthKey(pk){
   if(_isMKey(pk)) return pk;
-  if(/^\d{4}$/.test(pk)){
-    var last = '';
-    bvphData.concat(bcData).forEach(function(r){ if(_isMKey(r.bcMonth) && r.bcMonth.indexOf(pk+'-') === 0 && r.bcMonth > last) last = r.bcMonth; });
-    if(last) return last;
-    var now = new Date();
-    return (String(now.getFullYear()) === pk) ? pk + '-' + ('0'+(now.getMonth()+1)).slice(-2) : pk + '-12';
-  }
-  return pk;
+  var months = null;
+  if(/^\d{4}$/.test(pk)){ months = []; for(var i=1;i<=12;i++) months.push(pk+'-'+('0'+i).slice(-2)); }
+  else if(_isQKey(pk)) months = _monthsOfQ(pk);
+  if(!months) return pk;
+  // tháng có dữ liệu gần nhất trong kỳ; chưa có → tháng hiện tại nếu thuộc kỳ, không thì tháng cuối kỳ
+  var last = '';
+  bvphData.concat(bcData).forEach(function(r){ if(_isMKey(r.bcMonth) && months.indexOf(r.bcMonth) >= 0 && r.bcMonth > last) last = r.bcMonth; });
+  if(last) return last;
+  var now = new Date(), cur = now.getFullYear() + '-' + ('0'+(now.getMonth()+1)).slice(-2);
+  return months.indexOf(cur) >= 0 ? cur : months[months.length-1];
 }
 
 // Tính AMC điều chỉnh theo WHO:
@@ -18854,135 +18829,201 @@ function _sameDrugName(a, b){
   var st=function(x){ var m=String(x||'').toLowerCase().replace(/\s+/g,'').match(/(\d+(?:[.,]\d+)?)(mg|g|ml)/); return m? m[1].replace(',','.')+m[2] : ''; };
   return w(a)===w(b) && st(a)===st(b);
 }
+// ══════════════════════════════════════════════════════════════════════
+// ĐỀ XUẤT ĐIỀU CHUYỂN THUỐC
+//  • Tính theo ĐƠN VỊ × THUỐC (mọi lô): nhu cầu/tháng = BN đang điều trị (không có → AMC).
+//    Dư  = tồn − 3 tháng nhu cầu (đơn vị luôn giữ đủ 3 tháng).  Thiếu = 1 tháng nhu cầu − tồn.
+//  • Ghép: đơn vị thiếu gấp nhất trước; nguồn ưu tiên CÙNG TỈNH → TỈNH GIÁP RANH → CÙNG MIỀN
+//    → MIỀN KHÁC (cùng mức thì gần hơn trước). Tổng chuyển đi của 1 nguồn ≤ phần dư của nó;
+//    mỗi nơi nhận chỉ nhận tới khi đủ. Lô gửi đi: hạn dùng gần nhất trước.
+//  • Chỉ trong phạm vi đang xem; hiển thị gộp theo cấp con của người xem (TW: miền/tỉnh…).
+// ══════════════════════════════════════════════════════════════════════
+var _TS_TIER = ['Cùng tỉnh','Tỉnh giáp ranh','Cùng miền','Miền khác'];
+var _provGeoCache = null;
+// Tỉnh (34) giáp ranh + tâm (kinh/vĩ độ) — suy từ ranh giới bản đồ (2 tỉnh chung 1 đoạn biên = giáp ranh)
+function _provGeo(){
+  if(_provGeoCache) return _provGeoCache;
+  var adj = {}, cen = {}, arcOwners = {};
+  try{
+    var geos = VN_TOPO.objects.vn34.geometries;
+    geos.forEach(function(g){
+      if(g.properties.isl) return;
+      var name = g.properties.p34, polys = g.type==='Polygon' ? [g.arcs] : (g.type==='MultiPolygon' ? g.arcs : []);
+      polys.forEach(function(pl){ pl.forEach(function(r){ r.forEach(function(i){ var k = i < 0 ? ~i : i; (arcOwners[k] = arcOwners[k] || {})[name] = 1; }); }); });
+    });
+    Object.keys(arcOwners).forEach(function(k){
+      var ns = Object.keys(arcOwners[k]);
+      ns.forEach(function(x){ ns.forEach(function(y){ if(x !== y){ (adj[x] = adj[x] || {})[y] = 1; } }); });
+    });
+    _vmDecode('vn34').forEach(function(f){
+      if(f.isl) return;
+      var best = null, ba = 0;
+      f.rings.forEach(function(r){
+        var A = 0, cx = 0, cy = 0;
+        for(var i = 0, j = r.length-1; i < r.length; j = i++){ var q = r[j], w = r[i], k = q[0]*w[1]-w[0]*q[1]; A += k; cx += (q[0]+w[0])*k; cy += (q[1]+w[1])*k; }
+        if(Math.abs(A) > ba && A){ ba = Math.abs(A); best = [cx/(3*A), cy/(3*A)]; }
+      });
+      if(best) cen[f.name] = best;
+    });
+  }catch(e){ console.warn('[provGeo]', e); }
+  _provGeoCache = {adj:adj, cen:cen};
+  return _provGeoCache;
+}
+function _kmBetween(a, b){
+  if(!a || !b) return 99999;
+  var R = 6371, t = Math.PI/180, dLa = (b[1]-a[1])*t, dLo = (b[0]-a[0])*t;
+  var h = Math.sin(dLa/2)*Math.sin(dLa/2) + Math.cos(a[1]*t)*Math.cos(b[1]*t)*Math.sin(dLo/2)*Math.sin(dLo/2);
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function _unitMien(uid){ var u = UNIT_BY_ID[uid], g = 0; while(u && !u.mien && g++ < 20) u = u.parent_id ? UNIT_BY_ID[u.parent_id] : null; return u ? u.mien : ''; }
+function _unitProv(uid){ try{ var pv = (typeof _vmProvOf === 'function') ? _vmProvOf(uid) : null; return pv ? pv.p34 : ''; }catch(e){ return ''; } }
+// Tổ tiên của uid ở tầng thứ `depth` dưới gốc (1 = con trực tiếp của gốc)
+function _ancestorAt(uid, rootId, depth){
+  var chain = [], u = UNIT_BY_ID[uid], g = 0;
+  while(u && g++ < 30){ chain.unshift(u.id); if(u.id === rootId) break; u = u.parent_id ? UNIT_BY_ID[u.parent_id] : null; }
+  if(chain[0] !== rootId) return null;
+  return chain[Math.min(depth, chain.length-1)] || null;
+}
+
 function renderTransferSuggestions(){
   var el = document.getElementById('amc-transfer-sugg');
   if(!el) return;
-  var periodKey = _currentPeriodKey();
+  var periodKey = _amcMonthKey(_currentPeriodKey());   // kỳ chung (quý / cả năm → tháng có dữ liệu gần nhất)
   var nMonths = 3;
+  var rid = _currentRootId(), root = rid ? UNIT_BY_ID[rid] : null;
+  var inScope = function(uid){ var u = uid && UNIT_BY_ID[uid]; return !!(u && root && _pathIn(u.path, root.path)); };
 
-  // Thu thập tất cả thuốc đang có trong kỳ
-  // KHÓA = thuốc + lô + HẠN DÙNG (bắt buộc — cùng lô khác hạn là 2 mặt hàng riêng)
-  var allDrugs = {};
-  var allData = bvphData.concat(bcData).filter(function(r){ return r.bcMonth===periodKey; });
-  allData.forEach(function(r){
-    if(!r.drug || !r.lot) return;
-    var k = r.drug + '||' + r.lot + '||' + _normExp(r.exp);
-    if(!allDrugs[k]) allDrugs[k] = {drug:r.drug, lot:r.lot, exp:r.exp||'', units:[]};
-    // Tồn cuối = open + tinh + dc - sd - dc2 - dc3 - hh
-    var tonCuoi = Math.max(0, (r.open||0)+(r.tinh||0)+(r.dc||0)-(r.sd||0)-(r.dc2||0)-(r.dc3||0)-(r.hh||0));
-    allDrugs[k].units.push({unit:r.unit, ton:tonCuoi, r:r});
+  // 1) Tồn theo đơn vị × thuốc (gồm các lô), kỳ đang xem; Hàng 1 lấy theo quý gần nhất
+  var UD = {};
+  var addRow = function(r){
+    if(!r.drug || !r.unitId || !inScope(r.unitId)) return;
+    var u = UNIT_BY_ID[r.unitId]; if(!u || u.utype === 'kho_tq' || u.utype === 'kho_mien') return;
+    var fin = Math.max(0, calcRow(r).final);
+    var k = r.unitId + '||' + r.drug;
+    var o = UD[k] || (UD[k] = {uid:r.unitId, unit:u.name, drug:r.drug, ton:0, lots:{}});
+    o.ton += fin;
+    if(fin > 0 && r.lot){ var lk = r.lot + '||' + _normExp(r.exp); var L = o.lots[lk] || (o.lots[lk] = {lot:r.lot, exp:r.exp||'', qty:0}); L.qty += fin; }
+  };
+  bvphData.concat(bcData).forEach(function(r){ if(r.bcMonth === periodKey && !r._agg) addRow(r); });
+  ((typeof _h1Ctx !== 'undefined' && _h1Ctx.rows) || []).forEach(function(r){ if(_h1Only(r.drug, periodKey)) addRow(r); });
+
+  // 2) Nhu cầu/tháng theo BN đang điều trị (không có → AMC lịch sử)
+  var now2 = new Date(); now2.setHours(0,0,0,0);
+  var bnByUnit = {};
+  (BN_DATA || []).forEach(function(b){
+    if(getRealStatus(b) !== 'Đang điều trị') return;
+    var uid = (typeof _vmBnUid === 'function') ? _vmBnUid(b) : null; if(!uid) return;
+    (bnByUnit[uid] = bnByUnit[uid] || []).push(b);
+  });
+  Object.keys(UD).forEach(function(k){
+    var o = UD[k], need = 0, using = 0;
+    (bnByUnit[o.uid] || []).forEach(function(b){
+      var drugs = b.customDrugs && b.customDrugs.length > 0 ? b.customDrugs
+        : (typeof getDrugsByWeight==='function' ? getDrugsByWeight(b.pd||b.phacDo, b.weight, b.age, b.ageMonths) : []);
+      var _sd = new Date(b.startDate||b.ngayBD||b.ngayBatDau||'');
+      var _mIdx = isNaN(_sd) ? 0 : (now2.getFullYear()-_sd.getFullYear())*12 + (now2.getMonth()-_sd.getMonth());
+      var used = false;
+      (drugs||[]).forEach(function(d){
+        var nm = d.drug||d.d||'';
+        if(!_sameDrugName(nm, o.drug)) return;
+        var rg = d.ranges && d.ranges.length ? d.ranges : (nm.indexOf('Bedaquiline')>=0 ? [{startMonth:0,endMonth:6}] : null);
+        if(rg && !rg.some(function(x){ return _mIdx >= (x.startMonth||0) && _mIdx < (x.endMonth==null?999:x.endMonth); })) return;
+        var perMonth = (d.monthTotal != null && d.monthTotal !== '') ? +d.monthTotal
+                     : ((d.daily || d.dose || d.lieuNgay || 0) * 26 || (d.qty||0));
+        if(!(perMonth > 0)) return;
+        need += perMonth; used = true;
+      });
+      if(used) using++;
+    });
+    o.bnUsing = using;
+    o.amc = Math.round(need) > 0 ? Math.round(need) : _calcAMC(o.drug, o.unit, nMonths, periodKey).amc;
+    o.surplus = Math.floor(o.ton - 3*o.amc);
+    o.deficit = Math.ceil(o.amc - o.ton);
+    o.prov = _unitProv(o.uid); o.mien = _unitMien(o.uid);
   });
 
-  var suggestions = [];
-
-  Object.keys(allDrugs).forEach(function(k){
-    var item = allDrugs[k];
-    var units = item.units.filter(function(u){ return u.unit !== BVPH && u.unit !== 'bvph'; });
-    if(units.length < 2) return; // cần ít nhất 2 đơn vị tuyến
-
-    // Tính nhu cầu thực tế từ BN đang điều trị (needByBN) + AMC lịch sử
-    var now2 = new Date(); now2.setHours(0,0,0,0);
-    var withAmc = units.map(function(u){
-      var amcHist = _calcAMC(item.drug, u.unit, nMonths, periodKey).amc;
-
-      // BN đang điều trị tại đơn vị này
-      var unitBN = BN_DATA ? BN_DATA.filter(function(b){
-        if(getRealStatus(b) !== 'Đang điều trị') return false;
-        return normalizeUnit(b.unit||b.donVi||'') === normalizeUnit(u.unit);
-      }) : [];
-
-      // Tính nhu cầu thuốc này từ danh sách BN (liều/tháng × số BN dùng thuốc này)
-      var needPerMonth = 0;
-      var bnUsingDrug = 0;
-      unitBN.forEach(function(b){
-        var drugs = b.customDrugs && b.customDrugs.length > 0 ? b.customDrugs
-          : (typeof getDrugsByWeight==='function' ? getDrugsByWeight(b.pd||b.phacDo, b.weight, b.age, b.ageMonths) : []);
-        if(!drugs) return;
-        // Tháng điều trị thứ mấy (0 = tháng đầu) → áp giới hạn số tháng dùng (VD Bedaquiline 6 tháng)
-        var _sd = new Date(b.startDate||b.ngayBD||b.ngayBatDau||'');
-        var _mIdx = isNaN(_sd) ? 0 : (now2.getFullYear()-_sd.getFullYear())*12 + (now2.getMonth()-_sd.getMonth());
-        var _used = false;
-        drugs.forEach(function(d){
-          var nm = d.drug||d.d||'';
-          if(!_sameDrugName(nm, item.drug)) return;
-          var rg = d.ranges && d.ranges.length ? d.ranges : (nm.indexOf('Bedaquiline')>=0 ? [{startMonth:0,endMonth:6}] : null);
-          if(rg && !rg.some(function(x){ return _mIdx >= (x.startMonth||0) && _mIdx < (x.endMonth==null?999:x.endMonth); })) return;
-          // Số viên/tháng: customDrugs lưu monthTotal; phác đồ chuẩn có daily (× 26 ngày)
-          var perMonth = (d.monthTotal != null && d.monthTotal !== '') ? +d.monthTotal
-                       : ((d.daily || d.dose || d.lieuNgay || 0) * 26 || (d.qty||0));
-          if(!(perMonth > 0)) return;
-          needPerMonth += perMonth;
-          _used = true;
+  // 3) Ghép theo thuốc: nơi thiếu gấp nhất trước, nguồn gần nhất trước, tổng chuyển ≤ phần dư
+  var G = _provGeo(), suggestions = [], byDrug = {};
+  Object.keys(UD).forEach(function(k){ var o = UD[k]; if(o.amc > 0 && o.bnUsing > 0) (byDrug[o.drug] = byDrug[o.drug] || []).push(o); });
+  var tierOf = function(a, b){
+    if(a.prov && a.prov === b.prov) return 0;
+    if(a.prov && b.prov && G.adj[a.prov] && G.adj[a.prov][b.prov]) return 1;
+    if(a.mien && a.mien === b.mien) return 2;
+    return 3;
+  };
+  Object.keys(byDrug).forEach(function(drug){
+    var list = byDrug[drug];
+    var donors = list.filter(function(o){ return o.surplus > 0; }).map(function(o){ o.left = o.surplus; return o; });
+    var recv = list.filter(function(o){ return o.deficit > 0; }).sort(function(a,b){ return (a.ton/a.amc) - (b.ton/b.amc) || b.deficit - a.deficit; });
+    recv.forEach(function(r){
+      var want = r.deficit;
+      donors.filter(function(d){ return d.uid !== r.uid && d.left > 0; })
+        .map(function(d){ return {d:d, tier:tierOf(d, r), km:_kmBetween(G.cen[d.prov], G.cen[r.prov])}; })
+        .sort(function(x,y){ return x.tier - y.tier || x.km - y.km || y.d.left - x.d.left; })
+        .forEach(function(c){
+          if(want <= 0) return;
+          var qty = Math.min(want, c.d.left);
+          if(qty < 10 && qty < want) return;              // bỏ mẩu quá nhỏ (trừ khi đủ lấp chỗ thiếu)
+          // Lô gửi đi: hạn dùng gần nhất trước (FEFO), không vượt số còn của lô
+          var lots = Object.keys(c.d.lots).map(function(k){ return c.d.lots[k]; }).filter(function(L){ return L.qty > 0; })
+            .sort(function(x,y){ return String(_normExp(x.exp)).localeCompare(String(_normExp(y.exp))); });
+          var rest = qty;
+          lots.forEach(function(L){
+            if(rest <= 0) return;
+            var q = Math.min(rest, L.qty); L.qty -= q; rest -= q;
+            suggestions.push({drug:drug, lot:L.lot, exp:L.exp, fromUid:c.d.uid, toUid:r.uid, from:c.d.unit, to:r.unit,
+              fromTon:c.d.ton, toTon:r.ton, fromAmc:c.d.amc, toAmc:r.amc, qty:q, tier:c.tier, km:c.km,
+              bnUsingDrug:c.d.bnUsing, toBnUsing:r.bnUsing,
+              mosSrc: Math.round(c.d.ton/c.d.amc*10)/10, mosDst: Math.round(r.ton/r.amc*10)/10});
+          });
+          var sent = qty - rest; c.d.left -= sent; want -= sent;
         });
-        if(_used) bnUsingDrug++;
-      });
-
-      // Kết hợp: ưu tiên needByBN nếu có BN, fallback AMC lịch sử
-      var bnCount = unitBN.length;
-      var needFromBN = Math.round(needPerMonth); // nhu cầu tính từ BN + liều dùng
-      var amc = needFromBN > 0 ? needFromBN : amcHist; // dùng needByBN nếu có, fallback AMC
-
-      var need1m = amc;
-      var need3m = amc * 3;
-      var surplus = u.ton - need3m;
-      var deficit = need1m - u.ton;
-      return {
-        unit:u.unit, ton:u.ton, amc:amc, amcHist:amcHist, needFromBN:needFromBN,
-        bn:bnCount, bnUsingDrug:bnUsingDrug,
-        need1m:need1m, need3m:need3m, surplus:surplus, deficit:deficit
-      };
-    });
-
-    // Tìm đơn vị DƯ và THIẾU — chỉ xét đơn vị có BN đang dùng thuốc này
-    var surplus = withAmc.filter(function(u){ return u.surplus > 30 && u.amc > 0 && u.bnUsingDrug > 0; })
-                         .sort(function(a,b){ return b.surplus - a.surplus; });
-    var deficit = withAmc.filter(function(u){ return u.deficit > 0 && u.amc > 0 && u.bnUsingDrug > 0; })
-                         .sort(function(a,b){ return b.deficit - a.deficit; });
-
-    surplus.forEach(function(s){
-      deficit.forEach(function(d){
-        if(s.unit === d.unit) return;
-        var qty = Math.min(Math.round(s.surplus * 0.5), d.deficit); // chuyển tối đa 50% phần dư
-        if(qty < 10) return; // bỏ qua đề xuất quá nhỏ
-        suggestions.push({
-          drug: item.drug, lot: item.lot, exp: item.exp||'',
-          from: s.unit, fromTon: s.ton, fromSurplus: s.surplus, fromAmc: s.amc, fromBn: s.bn,
-          bnUsingDrug: s.bnUsingDrug, fromNeedBN: s.needFromBN,
-          to: d.unit, toTon: d.ton, toDeficit: d.deficit, toAmc: d.amc, toBn: d.bn,
-          toNeedBN: d.needFromBN, toBnUsing: d.bnUsingDrug,
-          qty: qty,
-          mosSrc: s.amc>0 ? Math.round(s.ton/s.amc*10)/10 : 0,
-          mosDst: d.amc>0 ? Math.round(d.ton/d.amc*10)/10 : 0
-        });
-      });
     });
   });
 
+  window._TS = window._TS || {sel:null, lvl:1, open:{}};
+  window._TS.sugg = suggestions; window._TS.rootId = rid;
   if(!suggestions.length){
     el.innerHTML='<div style="display:flex;align-items:center;gap:10px;padding:14px 16px;background:#f0fdf4;border-radius:10px;border:1px solid #bbf7d0">'
       +'<span style="color:#15803d;font-size:13px;font-weight:600">✓ Không có đề xuất điều chuyển — phân bổ thuốc đang cân bằng</span></div>';
     return;
   }
-
-  window._TS = window._TS || {sel:null};
-  window._TS.sugg = suggestions;
   _tsPaint();
 }
 
-// Giao diện gọn: lưới ô thuốc (4 cột) → bấm 1 thuốc mới hiện bảng đề xuất của thuốc đó
+// Giao diện gọn: lưới ô thuốc (4 cột) → bấm 1 thuốc → bảng gộp theo cấp → bấm ▸ xem từng đơn vị
 function _tsShortUnit(u){ return String(_displayUnit(u)||u||'').replace('Trung tâm Y tế ','TTYT ').replace('Trại giam ','TG ').replace('Phòng khám ','PK '); }
-function _tsPick(drug){ window._TS.sel = (window._TS.sel === drug ? null : drug); _tsPaint(); }
+function _tsPick(drug){ window._TS.sel = (window._TS.sel === drug ? null : drug); window._TS.open = {}; _tsPaint(); }
+function _tsLvl(n){ window._TS.lvl = n; window._TS.open = {}; _tsPaint(); }
+function _tsToggle(k){ window._TS.open[k] = !window._TS.open[k]; _tsPaint(); }
+// Các cấp gộp có thể chọn: tầng 1, 2 dưới gốc (chỉ những tầng thật sự có đơn vị khác nhau)
+function _tsLevels(rid, sugg){
+  var out = [];
+  [1,2].forEach(function(dp){
+    var g = {}, types = {};
+    sugg.forEach(function(x){ [x.fromUid, x.toUid].forEach(function(u){ var a = _ancestorAt(u, rid, dp); if(a){ g[a] = 1; types[UNIT_BY_ID[a].utype] = 1; } }); });
+    if(Object.keys(g).length < 2) return;
+    if(out.length && out[out.length-1].sig === Object.keys(g).sort().join()) return;
+    var t = Object.keys(types), lbl = t.length === 1 ? ({kho_mien:'miền', bv_dm_tinh:'tỉnh', bv_kv_tinh:'khu vực', ttksbt_tinh:'khu vực'})[t[0]] || 'đơn vị' : 'đơn vị';
+    out.push({depth:dp, label:lbl, sig:Object.keys(g).sort().join()});
+  });
+  return out;
+}
 function _tsPaint(){
   var el = document.getElementById('amc-transfer-sugg'); if(!el || !window._TS) return;
-  var E = escH, sugg = window._TS.sugg || [];
+  var E = escH, T = window._TS, sugg = T.sugg || [], rid = T.rootId;
   var by = {}, order = [];
   sugg.forEach(function(x){ if(!by[x.drug]){ by[x.drug] = []; order.push(x.drug); } by[x.drug].push(x); });
   order.sort(function(a,b){ return a.localeCompare(b,'vi'); });
-  if(window._TS.sel && !by[window._TS.sel]) window._TS.sel = null;
-  var sel = window._TS.sel;
+  if(T.sel && !by[T.sel]) T.sel = null;
+  var sel = T.sel;
   var mosCls = function(m){ return m>=3 ? 'ok' : (m>=1 ? 'warn' : 'bad'); };
+  var levels = _tsLevels(rid, sugg);
+  if(!levels.some(function(l){ return l.depth === T.lvl; })) T.lvl = levels.length ? levels[0].depth : 0;
 
-  var h = '<div class="ts-sum">'+sugg.length+' đề xuất · '+order.length+' thuốc — bấm vào thuốc để xem chi tiết</div><div class="ts-grid">';
+  var h = '<div class="ts-sum">'+sugg.length+' đề xuất · '+order.length+' thuốc — bấm vào thuốc để xem chi tiết'
+    + (levels.length > 1 ? '<span class="ts-lvl">Gộp: '+levels.map(function(l){ return '<button type="button" class="'+(l.depth===T.lvl?'act':'')+'" onclick="_tsLvl('+l.depth+')">Theo '+E(l.label)+'</button>'; }).join('')+'</span>' : '')
+    + '</div><div class="ts-grid">';
   order.forEach(function(d){
     var rs = by[d], lots = {}, tot = 0;
     rs.forEach(function(x){ lots[x.lot+'|'+x.exp] = 1; tot += x.qty; });
@@ -18993,27 +19034,42 @@ function _tsPaint(){
   });
   h += '</div>';
 
-  if(!sel){
-    h += '<div class="ts-hint">Chọn một thuốc ở trên để xem đề xuất điều chuyển.</div>';
+  if(!sel){ el.innerHTML = h + '<div class="ts-hint">Chọn một thuốc ở trên để xem đề xuất điều chuyển.</div>'; return; }
+
+  var rows = by[sel];
+  var unitRow = function(x){
+    var _ne = x.exp ? String(_normExp(x.exp)) : '', _m = _ne.match(/^(\d{4})-(\d{2})/);
+    var hd = _m ? _m[2]+'/'+_m[1] : (x.exp || '—');
+    return '<tr class="ts-sub"><td class="l">'+E(_tsShortUnit(x.from))+'</td><td>'+fmtNum(x.fromTon)+'</td><td><span class="ts-mos '+mosCls(x.mosSrc)+'">'+x.mosSrc+' th</span></td>'
+      + '<td><b class="ts-move">'+fmtNum(x.qty)+' →</b></td>'
+      + '<td class="l">'+E(_tsShortUnit(x.to))+'</td><td>'+fmtNum(x.toTon)+'</td><td><span class="ts-mos '+mosCls(x.mosDst)+'">'+x.mosDst+' th</span></td>'
+      + '<td class="l">'+E(x.lot)+' · '+E(hd)+'</td><td class="l"><span class="ts-tier t'+x.tier+'">'+_TS_TIER[x.tier]+'</span></td></tr>';
+  };
+  var head = '<thead><tr><th class="l">Chuyển từ (dư)</th><th>Tồn</th><th>Dự trữ</th><th>Số lượng</th><th class="l">Đến (thiếu)</th><th>Tồn</th><th>Dự trữ</th><th class="l">Lô · Hạn</th><th class="l">Khoảng cách</th></tr></thead>';
+  var body = '';
+  if(T.lvl){
+    var groups = {}, gOrder = [];
+    rows.forEach(function(x){
+      var a = _ancestorAt(x.fromUid, rid, T.lvl), b = _ancestorAt(x.toUid, rid, T.lvl), k = a+'>'+b;
+      if(!groups[k]){ groups[k] = {a:a, b:b, qty:0, rows:[]}; gOrder.push(k); }
+      groups[k].qty += x.qty; groups[k].rows.push(x);
+    });
+    gOrder.sort(function(x,y){ var gx = groups[x], gy = groups[y]; return ((gx.a===gx.b)-(gy.a===gy.b)) || gy.qty - gx.qty; });
+    gOrder.forEach(function(k){
+      var g = groups[k], open = !!T.open[k], nm = function(id){ var u = UNIT_BY_ID[id]; return u ? _unitDistinctName(u) : '?'; };
+      var lbl = g.a === g.b ? 'Trong nội bộ '+nm(g.a) : nm(g.a)+' → '+nm(g.b);
+      body += '<tr class="ts-grp" onclick="_tsToggle(\''+k.replace(/'/g,'')+'\')"><td class="l" colspan="3"><span class="ts-caret">'+(open?'▾':'▸')+'</span> <b>'+E(lbl)+'</b></td>'
+        + '<td><b class="ts-move">'+fmtNum(g.qty)+'</b></td><td class="l" colspan="5" style="color:#64748b">'+g.rows.length+' đề xuất · bấm để '+(open?'thu gọn':'xem chi tiết đơn vị')+'</td></tr>';
+      if(open) body += g.rows.map(unitRow).join('');
+    });
   } else {
-    var rows = by[sel].slice().sort(function(a,b){ return a.mosDst - b.mosDst || b.qty - a.qty; });
-    h += '<div class="ts-detail"><div class="ts-dhead"><b>'+E(sel)+'</b><span>'+rows.length+' đề xuất</span>'
-      + '<button type="button" onclick="_tsPick(window._TS.sel)">✕ Đóng</button></div>'
-      + '<div class="ts-tblwrap"><table class="ts-tbl"><thead><tr>'
-      + '<th class="l">Lô · Hạn dùng</th><th class="l">Chuyển từ (dư)</th><th>Tồn</th><th>Dự trữ</th>'
-      + '<th>Số lượng</th><th class="l">Đến (thiếu)</th><th>Tồn</th><th>Dự trữ</th><th>BN dùng</th></tr></thead><tbody>'
-      + rows.map(function(x){
-          var _ne = x.exp ? String(_normExp(x.exp)) : '', _m = _ne.match(/^(\d{4})-(\d{2})/);
-          var hd = _m ? _m[2]+'/'+_m[1] : (x.exp || '—');
-          return '<tr><td class="l">'+E(x.lot)+' · '+E(hd)+'</td>'
-            + '<td class="l">'+E(_tsShortUnit(x.from))+'</td><td>'+fmtNum(x.fromTon)+'</td><td><span class="ts-mos '+mosCls(x.mosSrc)+'">'+x.mosSrc+' th</span></td>'
-            + '<td><b class="ts-move">'+fmtNum(x.qty)+' →</b></td>'
-            + '<td class="l">'+E(_tsShortUnit(x.to))+'</td><td>'+fmtNum(x.toTon)+'</td><td><span class="ts-mos '+mosCls(x.mosDst)+'">'+x.mosDst+' th</span></td>'
-            + '<td>'+(x.bnUsingDrug||0)+' → '+(x.toBnUsing||0)+'</td></tr>';
-        }).join('')
-      + '</tbody></table></div>'
-      + '<div class="ts-note">Dự trữ = tồn ÷ nhu cầu tháng (theo BN đang điều trị, không có thì theo AMC). Chỉ xét đơn vị có BN dùng thuốc này; chuyển tối đa 50% phần dư so với 3 tháng dự trữ.</div></div>';
+    body = rows.map(unitRow).join('');
   }
+  h += '<div class="ts-detail"><div class="ts-dhead"><b>'+E(sel)+'</b><span>'+rows.length+' đề xuất</span>'
+    + '<button type="button" onclick="_tsPick(window._TS.sel)">✕ Đóng</button></div>'
+    + '<div class="ts-tblwrap"><table class="ts-tbl">'+head+'<tbody>'+body+'</tbody></table></div>'
+    + '<div class="ts-note">Dư = tồn vượt 3 tháng nhu cầu (nơi chuyển luôn giữ đủ 3 tháng); tổng chuyển đi không vượt phần dư. Nơi thiếu = dưới 1 tháng. '
+    + 'Ưu tiên nguồn cùng tỉnh → tỉnh giáp ranh → cùng miền → miền khác. Nhu cầu theo BN đang điều trị (không có thì theo AMC).</div></div>';
   el.innerHTML = h;
 }
 
@@ -24370,11 +24426,9 @@ function _vmProvOf(uid){
 // ── Kỳ dùng cho bản đồ ──
 function _vmPeriod(){
   var pk=_tqCurrentPeriodKey();
-  if(/^\d{4}$/.test(pk)){
-    var last=''; bvphData.concat(bcData).forEach(function(r){ if(r.bcMonth && _isMKey(r.bcMonth) && r.bcMonth.indexOf(pk+'-')===0 && r.bcMonth>last) last=r.bcMonth; });
-    return {pk:last||pk+'-12', note:'Chế độ "Cả năm": bản đồ dùng tháng có dữ liệu gần nhất ('+(last?last.split('-').reverse().join('/'):'—')+')'};
-  }
-  return {pk:pk, note:''};
+  if(_isMKey(pk)) return {pk:pk, note:''};
+  var m=_amcMonthKey(pk);
+  return {pk:m, note:'Kỳ '+(_isQKey(pk)?_keyToLabel(pk):'cả năm '+pk)+': bản đồ dùng tháng có dữ liệu gần nhất ('+m.split('-').reverse().join('/')+')'};
 }
 function _vmPrevPeriods(pk,n){
   var p=pk.split('-'), y=+p[0], m=+p[1], out=[];
