@@ -3401,6 +3401,31 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
     });
   }
 
+  // ── (14) TÊN BIẾN TRONG CODE ↔ TÊN CỘT DATABASE (bảng reports) ──
+  //    Trong code dùng tên mới (t0 tồn đầu · n1..n3 nhập · x1..x4 xuất); database GIỮ tên cột cũ.
+  //    Đây là chỗ DUY NHẤT dịch: dữ liệu đọc về (DB → code) và dữ liệu ghi lên (code → DB).
+  //    Chuỗi truy vấn URL (select=, lọc) vẫn viết theo TÊN CỘT DATABASE.
+  var CODE2DB = { t0:'open', n1:'tinh', n2:'ntk', n3:'dc', x1:'sd', x2:'dc2', x3:'dc3', x4:'hh' };
+  var DB2CODE = {}; Object.keys(CODE2DB).forEach(function (k) { DB2CODE[CODE2DB[k]] = k; });
+  window.__COL_CODE2DB = CODE2DB; window.__COL_DB2CODE = DB2CODE;
+  function renameKeys(o, map) {
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return o;
+    var out = {};
+    for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) out[map[k] || k] = o[k];
+    return out;
+  }
+  function rowsRename(data, map) { return Array.isArray(data) ? data.map(function (o) { return renameKeys(o, map); }) : renameKeys(data, map); }
+  var REP_URL = /\/rest\/v1\/reports(\?|$)/, CAS_URL = /\/rest\/v1\/rpc\/cascade_opening_stock\b/;
+  async function toCodeRes(url, res) {
+    if (!res || !res.ok || (!REP_URL.test(url) && !CAS_URL.test(url))) return res;
+    var txt; try { txt = await res.clone().text(); } catch (e) { return res; }
+    if (!txt) return res;
+    var data; try { data = JSON.parse(txt); } catch (e) { return res; }
+    if (CAS_URL.test(url)) { if (data && data.view_rows) data.view_rows = rowsRename(data.view_rows, DB2CODE); }
+    else data = rowsRename(data, DB2CODE);
+    return new Response(JSON.stringify(data), { status: res.status, statusText: res.statusText, headers: res.headers });
+  }
+
   // ── (12) CHỐNG XSS TỪ DỮ LIỆU CLOUD: thay ký tự phá HTML trong chuỗi trả về bằng ký tự
   //    nhìn giống nhưng vô hại (< → ‹, > → ›, ` → ʼ). Các trường văn bản thường được nối
   //    vào HTML/thuộc tính (thuốc, lô, hạn, ghi chú, tên...) thay thêm " → ” và ' → ’.
@@ -3739,7 +3764,8 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
         if (fillUnitNames(rows)) res = jsonResponse(rows);
       } catch (e) { /* để nguyên */ }
     }
-    return sanitizeRes(url, res);
+    res = await sanitizeRes(url, res);
+    return toCodeRes(url, res);
   }
 
   // Ghi có danh sách in.(...) quá dài (vd DELETE id=in.(...)) → tách tuần tự
@@ -3784,6 +3810,7 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
     if (!/\/rest\/v1\/reports(\?|$)/.test(url)) return init;
     if (method !== 'POST' && method !== 'PATCH') return init;
     var b; try { b = JSON.parse(init.body); } catch (e) { return init; }
+    b = rowsRename(b, CODE2DB);                       // tên biến code → tên cột database
     var nb = Array.isArray(b) ? b.map(function (o) { return normReportObj(o, method === 'PATCH'); })
                               : normReportObj(b, method === 'PATCH');
     var s = JSON.stringify(nb);
@@ -3839,7 +3866,8 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
           && init.body.indexOf('receive_date') >= 0) return secRetry(function (i) { return transfersWrite(url, i); }, init);
       var wp = secRetry(function (i) { return writeFetch(url, i); }, init);
       // RPC trả dữ liệu tồn kho (thuốc/lô) → lọc ký tự phá HTML như mọi lần đọc khác
-      if (/\/rest\/v1\/rpc\/cascade_opening_stock\b/.test(url)) return wp.then(function (r) { return sanitizeRes(url, r); });
+      if (CAS_URL.test(url)) return wp.then(function (r) { return sanitizeRes(url, r); }).then(function (r) { return toCodeRes(url, r); });
+      if (REP_URL.test(url)) return wp.then(function (r) { return toCodeRes(url, r); });
       return wp;
     }
 
@@ -4086,8 +4114,8 @@ async function saveToSupabase(periodKey, opts){
       var _per = (r.bcMonth && _isPeriodKey(r.bcMonth)) ? r.bcMonth : periodKey;
       var _o = {period:_per, unit:unitName, unitId:_id, phanLoai:r.phanLoai, periodType:r.periodType,
         drug:r.drug, lot:r.lot,
-        exp:r.exp||'', open:r.open||0, tinh:r.tinh||0, ntk:r.ntk||0, dc:r.dc||0, sd:r.sd||0,
-        dc2:r.dc2||0, dc3:r.dc3||0, hh:r.hh||0, locked:!!r.locked, bc_month:_per};
+        exp:r.exp||'', t0:r.t0||0, n1:r.n1||0, n2:r.n2||0, n3:r.n3||0, x1:r.x1||0,
+        x2:r.x2||0, x3:r.x3||0, x4:r.x4||0, locked:!!r.locked, bc_month:_per};
       // Chống ghi đè: gửi kèm mốc edited_at đã đọc. Máy chủ thấy khác → ERR_CONFLICT (người khác vừa sửa).
       if(_SEC_V2 && r._ts) _o.base_edited_at = r._ts;
       rows.push(_o);
@@ -4239,7 +4267,7 @@ async function saveToSupabase(periodKey, opts){
             var _ram = _byKey[_keyDb(c)];
             if(_fresh && _ram){
               var _m = _mapRow(_fresh);
-              ['open','tinh','ntk','dc','sd','dc2','dc3','hh','locked','_ts'].forEach(function(f){ _ram[f] = _m[f]; });
+              ['t0','n1','n2','n3','x1','x2','x3','x4','locked','_ts'].forEach(function(f){ _ram[f] = _m[f]; });
             }
           }catch(_e){ console.warn('[saveToSupabase] tải lại dòng xung đột lỗi:', _e); }
         }
@@ -4331,8 +4359,8 @@ function _quickDataHash(bvph, bc){
       // Bản cũ băm r.tin/r.tout/r.final — các trường KHÔNG tồn tại trên dòng dữ liệu →
       // người khác sửa Nhập/Sử dụng/Hỏng… thì auto-refresh coi như "không đổi", không vẽ lại.
       _addStr(r.drug); _addStr(r.lot); _addStr(r.exp); _addStr(r.unitId||r.unit); _addStr(r.bcMonth);
-      _addNum(r.open); _addNum(r.tinh); _addNum(r.ntk); _addNum(r.dc); _addNum(r.sd);
-      _addNum(r.dc2); _addNum(r.dc3); _addNum(r.hh); _addNum(r.locked?1:0);
+      _addNum(r.t0); _addNum(r.n1); _addNum(r.n2); _addNum(r.n3); _addNum(r.x1);
+      _addNum(r.x2); _addNum(r.x3); _addNum(r.x4); _addNum(r.locked?1:0);
     }
   }
   _hashRows(bvph||[]); _hashRows(bc||[]);
@@ -4576,16 +4604,16 @@ function _aggQuarterRows(rows, qk){
     var a = g[k];
     if(!a){
       a = g[k] = { unitId:u, unit:r.unit || (u ? unitNameById(u) : ''), drug:r.drug, lot:r.lot, exp:r.exp||'',
-        phanLoai:'h2', periodType:'quarter', open:0, tinh:0, ntk:0, dc:0, sd:0, dc2:0, dc3:0, hh:0,
+        phanLoai:'h2', periodType:'quarter', t0:0, n1:0, n2:0, n3:0, x1:0, x2:0, x3:0, x4:0,
         locked:true, editing:false, openLocked:true, bcMonth:qk, _agg:true, _first:99, _months:{} };
       order.push(k);
     }
     var i = mi[r.bcMonth];
     if(a._months[r.bcMonth]) return;            // trùng dòng cùng tháng → chỉ cộng 1 lần
     a._months[r.bcMonth] = 1;
-    if(i < a._first){ a._first = i; a.open = r.open||0; }
-    a.tinh += r.tinh||0; a.ntk += r.ntk||0; a.dc += r.dc||0;
-    a.sd += r.sd||0; a.dc2 += r.dc2||0; a.dc3 += r.dc3||0; a.hh += r.hh||0;
+    if(i < a._first){ a._first = i; a.t0 = r.t0||0; }
+    a.n1 += r.n1||0; a.n2 += r.n2||0; a.n3 += r.n3||0;
+    a.x1 += r.x1||0; a.x2 += r.x2||0; a.x3 += r.x3||0; a.x4 += r.x4||0;
   });
   return order.map(function(k){ var a = g[k]; delete a._first; delete a._months; return a; });
 }
@@ -4634,8 +4662,8 @@ function _mapRow(r){
   return {
     unitId: uid, unit:unitVal, drug:r.drug, lot:r.lot, exp:r.exp||'',
     phanLoai: r.phan_loai || 'h2', periodType: r.period_type || 'month',
-    open:_num(r.open), tinh:_num(r.tinh), ntk:_num(r.ntk), dc:_num(r.dc), sd:_num(r.sd),
-    dc2:_num(r.dc2), dc3:_num(r.dc3), hh:_num(r.hh),
+    t0:_num(r.t0), n1:_num(r.n1), n2:_num(r.n2), n3:_num(r.n3), x1:_num(r.x1),
+    x2:_num(r.x2), x3:_num(r.x3), x4:_num(r.x4),
     locked:!!r.locked, editing:false, bcMonth:r.period||r.bc_month,
     openLocked:!!r.locked,
     _ts: r.edited_at || null     // mốc "lần sửa số liệu cuối" trên cloud → chống ghi đè
@@ -5726,14 +5754,22 @@ function fmtNum(n){
 
 // Số an toàn: "12" → 12, null/""/chữ → 0 (tránh phép + thành nối chuỗi "5"+"3"="53")
 function _num(v){ v = Number(v); return isFinite(v) ? v : 0; }
+// ── QUY ƯỚC TÊN BIẾN SỐ LIỆU (trong code; hiển thị không đổi; cột database giữ tên cũ) ──
+//   t0 Tồn đầu (DB: open)
+//   n1 Nhập tuyến trên / Nhập TW / Tỉnh cấp (DB: tinh)   n2 Nhập tỉnh khác / nguồn khác (DB: ntk)
+//   n3 Nhập điều chuyển – Nhập ĐC (DB: dc)
+//   x1 Xuất sử dụng (DB: sd)   x2 Xuất Tổ CL / Xuất ĐC (DB: dc2)   x3 Xuất tỉnh khác (DB: dc3)   x4 Hỏng/HH (DB: hh)
+//   nTong Tổng nhập · xTong Tổng xuất · tonCuoi Tồn cuối
+//   Bảng Tổng hợp (đã triệt tiêu điều chuyển nội bộ): n1Ngoai Nhập tuyến trên · n23Ngoai Nhập nguồn khác · x23Ngoai Xuất nơi khác
+//   Dịch tên code ↔ cột database: duy nhất tại lớp fetch (CODE2DB / DB2CODE).
 function calcRow(r){
-  // Tổng nhập  = Nhập TW (tinh) + Nhập tỉnh khác (ntk, chỉ kho chính) + Nhập ĐC từ đơn vị (dc)
-  var totalIn  = _num(r.tinh) + _num(r.ntk) + _num(r.dc);
-  // Tổng xuất  = Sử dụng + Xuất Tổ CL (dc2) + Xuất tỉnh khác (dc3) + Hỏng/HH
-  var totalOut = _num(r.sd) + _num(r.dc2) + _num(r.dc3) + _num(r.hh);
-  // Tồn cuối   = Tồn đầu + Tổng nhập - Tổng xuất
-  var final    = _num(r.open) + totalIn - totalOut;
-  return {tin:totalIn, tout:totalOut, final:final};
+  // Tổng nhập  = n1 + n2 + n3
+  var totalIn  = _num(r.n1) + _num(r.n2) + _num(r.n3);
+  // Tổng xuất  = x1 + x2 + x3 + x4
+  var totalOut = _num(r.x1) + _num(r.x2) + _num(r.x3) + _num(r.x4);
+  // Tồn cuối   = t0 + Tổng nhập − Tổng xuất
+  var tonCuoi  = _num(r.t0) + totalIn - totalOut;
+  return {nTong:totalIn, xTong:totalOut, tonCuoi:tonCuoi};
 }
 
 function expFmt(s){return s?s.split('-').reverse().join('/'):'—';}
@@ -6500,7 +6536,7 @@ function getLotCityFinal(drug, lot, exp){
   bvphData.concat(bcData).forEach(function(r){
     if(r._agg) return;
     if(r.drug===drug && r.lot===lot && r.exp===exp){
-      total += calcRow(r).final;
+      total += calcRow(r).tonCuoi;
       found = true;
     }
   });
@@ -7876,7 +7912,7 @@ function getSubmittedUnits(){
   function _hasActivity(r){
     if(r.locked === true) return true;
     if(r.submitted === true) return true;
-    var act = (r.tinh||0)+(r.ntk||0)+(r.dc||0)+(r.sd||0)+(r.dc2||0)+(r.dc3||0)+(r.hh||0);
+    var act = (r.n1||0)+(r.n2||0)+(r.n3||0)+(r.x1||0)+(r.x2||0)+(r.x3||0)+(r.x4||0);
     return act > 0;
   }
   var set={};
@@ -7940,51 +7976,6 @@ function _tqMonKey(){
 //   - Tồn cuối = Tồn đầu + Nhập − Xuất
 // Trả về { byLot: {key->{drug,lot,exp,open,tin,tout,final}}, byDrug: {drug->{open,tin,tout,final}} }
 // ────────────────────────────────────────────────────────────
-function _aggProvince(bvphRows, bcRows){
-  var KEY = function(r){ return (r.drug||'')+'|'+(r.lot||'')+'|'+(r.exp||''); };
-  var map = {};
-
-  // BVPH: lấy đủ tw, ntk, dc2, dc3, hh, sd, dc, open
-  bvphRows.forEach(function(r){
-    var k = KEY(r);
-    if(!map[k]) map[k] = {drug:r.drug, lot:r.lot, exp:r.exp, open:0, tw:0, ntk:0, dc:0, sd:0, dc2:0, dc3:0, hh:0};
-    map[k].open += (r.open||0);
-    map[k].tw   += (r.tinh||0);
-    map[k].ntk  += (r.ntk||0);
-    map[k].dc   += (r.dc||0);
-    map[k].sd   += (r.sd||0);
-    map[k].dc2  += (r.dc2||0);
-    map[k].dc3  += (r.dc3||0);
-    map[k].hh   += (r.hh||0);
-  });
-
-  // 22ĐV: chỉ open, sd, dc (nội bộ). tinh/ntk/dc3/hh của tuyến KHÔNG vào toàn tỉnh.
-  bcRows.forEach(function(r){
-    var k = KEY(r);
-    if(!map[k]) map[k] = {drug:r.drug, lot:r.lot, exp:r.exp, open:0, tw:0, ntk:0, dc:0, sd:0, dc2:0, dc3:0, hh:0};
-    map[k].open += (r.open||0);
-    map[k].sd   += (r.sd||0);
-    map[k].dc   += (r.dc||0);
-  });
-
-  var byLot = {}, byDrug = {};
-  Object.keys(map).forEach(function(k){
-    var m   = map[k];
-    var tin  = m.tw + m.ntk;          // nhập từ ngoài TP
-    var tout = m.sd + m.dc3 + m.hh;   // xuất thật (sử dụng + tỉnh khác + hỏng), KHÔNG dc2
-    var fin  = m.open + tin - tout;
-    byLot[k] = {drug:m.drug, lot:m.lot, exp:m.exp, open:m.open, tin:tin, tout:tout, final:fin};
-
-    var d = m.drug || '(không tên)';
-    if(!byDrug[d]) byDrug[d] = {open:0, tin:0, tout:0, final:0};
-    byDrug[d].open  += m.open;
-    byDrug[d].tin   += tin;
-    byDrug[d].tout  += tout;
-    byDrug[d].final += fin;
-  });
-
-  return {byLot:byLot, byDrug:byDrug};
-}
 
 function _pageActive(id){ var e=document.getElementById('page-'+id); return !e || e.classList.contains('active'); }
 function renderTQ(){
@@ -8025,7 +8016,7 @@ function renderTQ(){
   //  → Tổng nhập luôn = 0, Nhập TW của các tỉnh và Hỏng/Xuất tỉnh khác bị bỏ → tồn cuối SAI.)
   var _rootTQ = _currentRootId();
   var _aggTQ = _aggScopeTotals(_rootTQ, {match: matchTQPeriod});
-  var tongTon = _aggTQ.tot.fin, tongNhap = _aggTQ.tot.tin, tongXuat = _aggTQ.tot.tout;
+  var tongTon = _aggTQ.tot.tonCuoi, tongNhap = _aggTQ.tot.nTong, tongXuat = _aggTQ.tot.xTong;
   var _dtEl = document.getElementById('tq-drug-title');
   var _hasH1 = tqP.type==='month' && (catalogData||[]).some(function(c){ return c.phan_loai==='h1'; });
   if(_dtEl) _dtEl.textContent = 'Tổng hợp theo thuốc ('+(_rnTQ || 'toàn phạm vi')+')'
@@ -8072,7 +8063,7 @@ function renderTQ(){
         var ur = _byU[u] || [];
         var nd = {}; ur.forEach(function(r){nd[r.drug]=1;});
         var _lp = {}; ur.forEach(function(r){ var sk=_stockKey(r); if(!(sk in _lp) || (r.bcMonth||'') > _lp[sk]) _lp[sk]=r.bcMonth||''; });
-        var tc = ur.reduce(function(s,r){ return (r.bcMonth||'')===_lp[_stockKey(r)] ? s+calcRow(r).final : s; },0);
+        var tc = ur.reduce(function(s,r){ return (r.bcMonth||'')===_lp[_stockKey(r)] ? s+calcRow(r).tonCuoi : s; },0);
         var tip = Object.keys(nd).length+' thuốc — tồn '+tc.toLocaleString()+' viên';
         return '<span title="'+tip+'" style="display:inline-flex;align-items:center;gap:5px;background:#f0fff4;border:1px solid #9ae6b4;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600;color:#1a6f3e;cursor:default">'
           +'<span style="width:7px;height:7px;border-radius:50%;background:#27ae60;flex-shrink:0;display:inline-block"></span>'+_displayUnit(u)+'</span>';
@@ -8169,7 +8160,7 @@ function _renderTQDrugTable(agg){
     if(!_tqDrugDetail[d]) _tqDrugDetail[d] = [];
     _tqDrugDetail[d].push({
       lot: L.lot||'—', exp: L.exp||'',
-      ton: L.fin, nhap: L.tin, xuat: L.tout
+      ton: L.tonCuoi, nhap: L.nTong, xuat: L.xTong
     });
   });
 
@@ -8196,9 +8187,9 @@ function _renderTQDrugTable(agg){
       + '<td onclick="_showTQDrugDetail(\''+safe+'\',\'ton\')" class="tq-drug-cc" '
       +   'style="padding:9px 12px;text-align:center;font-weight:600;color:#1a5276;cursor:pointer" '
       +   'title="Bấm xem chi tiết tồn cuối từng lô">'+d+'</td>'
-      + cell(d,'ton',  s.final, '#1a5276')
-      + cell(d,'nhap', s.tin,   '#1a9e75')
-      + cell(d,'xuat', s.tout,  '#d85a30')
+      + cell(d,'ton',  s.tonCuoi, '#1a5276')
+      + cell(d,'nhap', s.nTong,   '#1a9e75')
+      + cell(d,'xuat', s.xTong,  '#d85a30')
       + '</tr>';
   }).join('');
 }
@@ -8425,7 +8416,7 @@ async function _fetchAndRenderTQTransfers(el, periodKey){
     }
     // Cột báo cáo mà phiếu rơi vào bên NHẬN
     function _txRecField(t){
-      return (t.type === 'dc3_to_tinh') ? 'tinh' : (t.type === 'dc3_province' ? 'ntk' : 'dc');
+      return (t.type === 'dc3_to_tinh') ? 'n1' : (t.type === 'dc3_province' ? 'n2' : 'n3');
     }
 
     var expectedMap = {}, siblingsMap = {};
@@ -8502,7 +8493,7 @@ async function _fetchAndRenderTQTransfers(el, periodKey){
         if(det.status==='yes'){
           // Khớp → ghi rõ đã vào báo cáo THÁNG NÀO (kỳ ghi nhận thực tế)
           var _pv = det.recPeriod ? _fmtPeriodVN(det.recPeriod).replace('Tháng ','T') : '';
-          var _fldTxt = det.recField==='tinh' ? 'Tỉnh cấp' : 'Nhập ĐC';
+          var _fldTxt = det.recField==='n1' ? 'Tỉnh cấp' : 'Nhập ĐC';
           matchCell='<span'+clickAttr+'display:inline-flex;align-items:center;gap:3px;background:#e7f7ee;color:#1a8a4f;border:1px solid #a3e0bf;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700" '
             +'title="Đã cộng vào cột '+_fldTxt+' của báo cáo '+(det.recPeriod?_fmtPeriodVN(det.recPeriod):'')+' — bấm xem chi tiết">✓ Khớp '+_pv+'</span>';
         }
@@ -8808,7 +8799,7 @@ function updateAlerts(){
   var lowMap={};
   allRows.forEach(function(r){
     var c=calcRow(r);
-    lowMap[r.drug]=(lowMap[r.drug]||0)+c.final;
+    lowMap[r.drug]=(lowMap[r.drug]||0)+c.tonCuoi;
   });
   var lowList=[];
   Object.keys(lowMap).forEach(function(d){
@@ -8836,10 +8827,10 @@ function updateAlerts(){
     var key=r.lot+'-'+r.drug;
     var ml=monthsLeft(r.exp);
     if(ml>=threshold.expMonths) return;
-    var fin=calcRow(r).final;
+    var tonCuoi=calcRow(r).tonCuoi;
     if(!expMap[key]) expMap[key]={name:r.drug,lot:r.lot,exp:r.exp,months:ml,unit:r.unit||BVPH,qty:0,units:{}};
-    expMap[key].qty+=fin;
-    if(fin>0) expMap[key].units[r.unit||BVPH]=1;
+    expMap[key].qty+=tonCuoi;
+    if(tonCuoi>0) expMap[key].units[r.unit||BVPH]=1;
   });
   var expList=[];
   Object.keys(expMap).forEach(function(k){
@@ -9099,13 +9090,13 @@ function _buildDrugTableRows(all, q){
   var htmlString = '';
   filtered.forEach(function(r, _idx){
     var c=calcRow(r);
-    totOpen+=r.open; totIn+=c.tin; totOut+=c.tout; totFinal+=c.final;
+    totOpen+=r.t0; totIn+=c.nTong; totOut+=c.xTong; totFinal+=c.tonCuoi;
     uniqueLots[r.drug+'||'+r.lot+'||'+(r.exp||'')] = true;
     var expired=isExpiredStr(r.exp);
-    var fcls = c.final<0 ? 'final-neg' : (c.final<threshold.low?'final-low':'final-ok');
+    var fcls = c.tonCuoi<0 ? 'final-neg' : (c.tonCuoi<threshold.low?'final-low':'final-ok');
     var st=expired
       ?'<span class="badge badge-y">Đã HH</span>'
-      :(c.final<threshold.low
+      :(c.tonCuoi<threshold.low
         ?'<span class="badge badge-r">Sắp hết</span>'
         :'<span class="badge badge-g">Đủ kho</span>');
     var unitCell=_displayUnit(r.unit||BVPH);
@@ -9120,15 +9111,15 @@ function _buildDrugTableRows(all, q){
       _unitCellHtml = '<td style="font-size:11px;color:var(--muted);white-space:nowrap;vertical-align:middle" rowspan="'+_uCount[_idx]+'" title="'+unitCell+'">'+unitCell+'</td>';
     }
     htmlString += '<tr data-drug="'+r.drug.toLowerCase()+'"'
-      +' data-open="'+r.open+'" data-in="'+c.tin+'" data-out="'+c.tout+'" data-final="'+c.final+'">'
+      +' data-open="'+r.t0+'" data-in="'+c.nTong+'" data-out="'+c.xTong+'" data-final="'+c.tonCuoi+'">'
       +_ttCells
       +_unitCellHtml
       +'<td>'+r.lot+'</td>'
       +'<td style="'+(expired?'color:var(--danger)':'')+'">'+(expired?'⚠ ':'')+expFmt(r.exp)+'</td>'
-      +'<td class="open-stock">'+r.open+'</td>'
-      +'<td class="calc-in"><strong>'+fmtNum(c.tin)+'</strong></td>'
-      +'<td class="calc-out"><strong>'+fmtNum(c.tout)+'</strong></td>'
-      +'<td class="'+fcls+'">'+fmtNum(c.final)+'</td>'
+      +'<td class="open-stock">'+r.t0+'</td>'
+      +'<td class="calc-in"><strong>'+fmtNum(c.nTong)+'</strong></td>'
+      +'<td class="calc-out"><strong>'+fmtNum(c.xTong)+'</strong></td>'
+      +'<td class="'+fcls+'">'+fmtNum(c.tonCuoi)+'</td>'
       +'<td>'+st+'</td>'
       +'</tr>';
   });
@@ -9234,20 +9225,20 @@ function buildTbl(data, bodyId, prefix){
     // (do _syncBVPHDc2FromUnits / _syncBVPHDc2ToCloud ghi vào row.dc2) — ô readonly
     var res = calcRow(row);
 
-    sumOpen  += (row.open||0);
-    sumTinh  += (row.tinh||0);
-    sumDC    += (row.dc||0);
-    sumTIN   += res.tin;
-    sumSD    += (row.sd||0);
-    sumDC2   += (row.dc2||0);
-    sumDC3   += (row.dc3||0);
-    sumHH    += (row.hh||0);
-    sumTOUT  += res.tout;
-    sumFinal += res.final;
+    sumOpen  += (row.t0||0);
+    sumTinh  += (row.n1||0);
+    sumDC    += (row.n3||0);
+    sumTIN   += res.nTong;
+    sumSD    += (row.x1||0);
+    sumDC2   += (row.x2||0);
+    sumDC3   += (row.x3||0);
+    sumHH    += (row.x4||0);
+    sumTOUT  += res.xTong;
+    sumFinal += res.tonCuoi;
 
     var expired   = isExpiredStr(row.exp);
     // Tồn ÂM = xuất nhiều hơn (tồn đầu + nhập) → dữ liệu SAI, phải nổi bật hơn 'tồn thấp'
-    var finalCls  = res.final < 0 ? 'final-neg' : (res.final < threshold.low ? 'final-low' : 'final-ok');
+    var finalCls  = res.tonCuoi < 0 ? 'final-neg' : (res.tonCuoi < threshold.low ? 'final-low' : 'final-ok');
     var canEdit   = currentUser ? (isBVPH ? canEditBVPH() : canEditUnit(row.unit)) : false;
     var isLocked  = (row.locked  === true);
     var isEditing = (row.editing === true) || (_bulkEditBC && canEdit && !isLocked);
@@ -9288,7 +9279,7 @@ function buildTbl(data, bodyId, prefix){
       if(isEditing && canEdit && !locked){
         // dc2: BVPH = Xuất Tổ CL → rơi vào Tỉnh cấp 22ĐV
         //       22ĐV = Xuất điều chuyển → rơi vào dc đơn vị nhận
-        if(field === 'dc2'){
+        if(field === 'x2'){
           var onch = 'updField(\'' + prefix + '\',' + rowIdx + ',\'' + field + '\',this.value)';
           var _kho = isBVPH && !_leafKho;
           var dc2Fn = _kho ? 'onDc2BVPHChange' : 'showDcOutDetail';
@@ -9308,7 +9299,7 @@ function buildTbl(data, bodyId, prefix){
             + '>';
         }
         // dc3: BVPH = Tỉnh khác (gõ text tỉnh, chỉ tính xuất)
-        if(field === 'dc3'){
+        if(field === 'x3'){
           var onch3 = 'updField(\'' + prefix + '\',' + rowIdx + ',\'' + field + '\',this.value)';
           return '<input type="number" min="0" value="' + val + '"'
             + ' data-prefix="' + prefix + '" data-rowidx="' + rowIdx + '" data-fld="' + field + '"'
@@ -9357,21 +9348,21 @@ function buildTbl(data, bodyId, prefix){
     }
 
 
-    tr += clickCell('open', row.open, 'open-stock', openRO);
-    tr += clickCell('tinh', row.tinh||0, '');
+    tr += clickCell('t0', row.t0, 'open-stock', openRO);
+    tr += clickCell('n1', row.n1||0, '');
     if(isBVPH){
-      tr += clickCell('ntk', row.ntk||0, 'col-ntk');
+      tr += clickCell('n2', row.n2||0, 'col-ntk');
     }
     // dc = Nhập điều chuyển: luôn bấm được xem chi tiết
-    var dcVal = row.dc||0;
+    var dcVal = row.n3||0;
     var dcOnc = 'showDcDetail(\''+prefix+'\','+idx+')';
     tr += '<td onclick="'+dcOnc+'" title="Bấm xem chi tiết điều chuyển vào" style="cursor:pointer" class="bvph-cc">'+fmtNum(dcVal)+'</td>';
 
     // Tổng nhập
-    var tinOnc = 'showBVPHDetail(\''+prefix+'\','+idx+',\'tin\')';
-    tr += '<td class="calc-in bvph-cc" onclick="'+tinOnc+'" title="Bấm xem chi tiết tổng nhập" style="cursor:pointer"><strong>'+fmtNum(res.tin)+'</strong></td>';
+    var tinOnc = 'showBVPHDetail(\''+prefix+'\','+idx+',\'nTong\')';
+    tr += '<td class="calc-in bvph-cc" onclick="'+tinOnc+'" title="Bấm xem chi tiết tổng nhập" style="cursor:pointer"><strong>'+fmtNum(res.nTong)+'</strong></td>';
 
-    tr += clickCell('sd', row.sd||0, '');
+    tr += clickCell('x1', row.x1||0, '');
     if(isBVPH){
       // dc2 cell BVPH: trả về [tdStyle, innerHtml] để đổ màu nền trực tiếp lên td
       (function(){
@@ -9381,61 +9372,61 @@ function buildTbl(data, bodyId, prefix){
         } else if(_dc2 && typeof _dc2 === 'string'){
           tr += '<td class="col-dc2">'+_dc2+'</td>';
         } else {
-          tr += '<td class="col-dc2">'+makeCell('dc2', row.dc2||0, false)+'</td>';
+          tr += '<td class="col-dc2">'+makeCell('x2', row.x2||0, false)+'</td>';
         }
       })();
-      tr += clickCell('dc3', row.dc3||0, 'col-dc3');
+      tr += clickCell('x3', row.x3||0, 'col-dc3');
       // Cột "Xuất ĐC" của kho riêng cấp cơ sở (= dc2) — chỉ hiện khi bảng ở chế độ cơ sở
       (function(){
-        var _v=row.dc2||0;
-        if(isEditing && canEdit) tr += '<td class="col-dcleaf">'+makeCell('dc2', _v, false)+'</td>';
+        var _v=row.x2||0;
+        if(isEditing && canEdit) tr += '<td class="col-dcleaf">'+makeCell('x2', _v, false)+'</td>';
         else tr += '<td class="col-dcleaf bvph-cc" onclick="showDcOutDetail(\''+prefix+'\','+idx+')" title="Bấm xem chi tiết xuất điều chuyển" style="cursor:pointer">'+fmtNum(_v)+'</td>';
       })();
     } else {
       // dc2 đơn vị tuyến = Xuất điều chuyển → bấm xem xuất đi đơn vị nào
       var dc2OnUnit = 'showDcOutDetail(\''+prefix+'\','+idx+')';
-      var dc2ValUnit = row.dc2||0;
+      var dc2ValUnit = row.x2||0;
       if(isEditing && canEdit){
-        tr += '<td>'+makeCell('dc2', dc2ValUnit, false)+'</td>';
+        tr += '<td>'+makeCell('x2', dc2ValUnit, false)+'</td>';
       } else {
         tr += '<td onclick="'+dc2OnUnit+'" title="Bấm xem chi tiết xuất điều chuyển" style="cursor:pointer" class="bvph-cc">'+fmtNum(dc2ValUnit)+'</td>';
       }
     }
-    tr += clickCell('hh', row.hh||0, '');
-    var toutOnc = 'showBVPHDetail(\''+prefix+'\','+idx+',\'tout\')';
-    tr += '<td class="calc-out bvph-cc" onclick="'+toutOnc+'" title="Bấm xem chi tiết tổng xuất" style="cursor:pointer"><strong>'+fmtNum(res.tout)+'</strong></td>';
-    var finalOnc = 'showBVPHDetail(\''+prefix+'\','+idx+',\'final\')';
-    var finalTip = res.final < 0
+    tr += clickCell('x4', row.x4||0, '');
+    var toutOnc = 'showBVPHDetail(\''+prefix+'\','+idx+',\'xTong\')';
+    tr += '<td class="calc-out bvph-cc" onclick="'+toutOnc+'" title="Bấm xem chi tiết tổng xuất" style="cursor:pointer"><strong>'+fmtNum(res.xTong)+'</strong></td>';
+    var finalOnc = 'showBVPHDetail(\''+prefix+'\','+idx+',\'tonCuoi\')';
+    var finalTip = res.tonCuoi < 0
       ? '⚠ TỒN ÂM — tổng xuất vượt quá (tồn đầu + tổng nhập). Kiểm tra lại số liệu Sử dụng / Xuất / Tồn đầu của dòng này.'
       : 'Bấm xem chi tiết tồn cuối';
-    tr += '<td class="'+finalCls+' bvph-cc" onclick="'+finalOnc+'" title="'+finalTip+'" style="cursor:pointer">'+fmtNum(res.final)+'</td>';
+    tr += '<td class="'+finalCls+' bvph-cc" onclick="'+finalOnc+'" title="'+finalTip+'" style="cursor:pointer">'+fmtNum(res.tonCuoi)+'</td>';
     tr += '<td class="no-print" style="white-space:nowrap">'+btns+'</td>';
     tr += '</tr>';
     htmlString += tr; // Đổi từ tbody.innerHTML += tr
     // Dòng TỔNG của thuốc: cộng các lô theo từng cột (cùng cấu trúc cột với dòng lô)
     if(_grpLast[idx] !== undefined){
-      var _g0 = _grpLast[idx], G = {open:0,tinh:0,ntk:0,dc:0,tin:0,sd:0,dc2:0,dc3:0,hh:0,tout:0,fin:0};
+      var _g0 = _grpLast[idx], G = {t0:0,n1:0,n2:0,n3:0,nTong:0,x1:0,x2:0,x3:0,x4:0,xTong:0,tonCuoi:0};
       for(var _gi=_g0; _gi<=idx; _gi++){
         var _gr = data[_gi], _gc = calcRow(_gr);
-        G.open+=_gr.open||0; G.tinh+=_gr.tinh||0; G.ntk+=_gr.ntk||0; G.dc+=_gr.dc||0; G.tin+=_gc.tin;
-        G.sd+=_gr.sd||0; G.dc2+=_gr.dc2||0; G.dc3+=_gr.dc3||0; G.hh+=_gr.hh||0; G.tout+=_gc.tout; G.fin+=_gc.final;
+        G.t0+=_gr.t0||0; G.n1+=_gr.n1||0; G.n2+=_gr.n2||0; G.n3+=_gr.n3||0; G.nTong+=_gc.nTong;
+        G.x1+=_gr.x1||0; G.x2+=_gr.x2||0; G.x3+=_gr.x3||0; G.x4+=_gr.x4||0; G.xTong+=_gc.xTong; G.tonCuoi+=_gc.tonCuoi;
       }
       var gs = '<tr class="grp-sum">'
         + '<td class="gs-lbl" colspan="2">Cộng ('+(idx-_g0+1)+' lô)</td>'
-        + '<td class="open-stock gs-open">'+fmtNum(G.open)+'</td>'
-        + '<td>'+fmtNum(G.tinh)+'</td>';
-      if(isBVPH) gs += '<td class="col-ntk">'+fmtNum(G.ntk)+'</td>';
-      gs += '<td>'+fmtNum(G.dc)+'</td>'
-        + '<td class="calc-in gs-in">'+fmtNum(G.tin)+'</td>'
-        + '<td>'+fmtNum(G.sd)+'</td>';
+        + '<td class="open-stock gs-open">'+fmtNum(G.t0)+'</td>'
+        + '<td>'+fmtNum(G.n1)+'</td>';
+      if(isBVPH) gs += '<td class="col-ntk">'+fmtNum(G.n2)+'</td>';
+      gs += '<td>'+fmtNum(G.n3)+'</td>'
+        + '<td class="calc-in gs-in">'+fmtNum(G.nTong)+'</td>'
+        + '<td>'+fmtNum(G.x1)+'</td>';
       if(isBVPH){
-        gs += '<td class="col-dc2">'+fmtNum(G.dc2)+'</td><td class="col-dc3">'+fmtNum(G.dc3)+'</td><td class="col-dcleaf">'+fmtNum(G.dc2)+'</td>';
+        gs += '<td class="col-dc2">'+fmtNum(G.x2)+'</td><td class="col-dc3">'+fmtNum(G.x3)+'</td><td class="col-dcleaf">'+fmtNum(G.x2)+'</td>';
       } else {
-        gs += '<td>'+fmtNum(G.dc2)+'</td>';
+        gs += '<td>'+fmtNum(G.x2)+'</td>';
       }
-      gs += '<td>'+fmtNum(G.hh)+'</td>'
-        + '<td class="calc-out gs-out">'+fmtNum(G.tout)+'</td>'
-        + '<td class="final-ok gs-fin">'+fmtNum(G.fin)+'</td>'
+      gs += '<td>'+fmtNum(G.x4)+'</td>'
+        + '<td class="calc-out gs-out">'+fmtNum(G.xTong)+'</td>'
+        + '<td class="final-ok gs-fin">'+fmtNum(G.tonCuoi)+'</td>'
         + '<td class="no-print"><span></span></td>'
         + '</tr>';
       htmlString += gs;
@@ -9601,7 +9592,7 @@ function _cpCompareForPeriod(){
   (capPhatData||[]).filter(matchPeriod).forEach(function(r){ eu(ensure(r), r.unit).declared += (Number(r.qty)||0); });
   (bcData||[]).filter(matchPeriod).forEach(function(r){
     if(r.unit===BVPH) return;
-    eu(ensure(r), r.unit).reported += (Number(r.tinh)||0);
+    eu(ensure(r), r.unit).reported += (Number(r.n1)||0);
   });
   return out;
 }
@@ -9626,7 +9617,7 @@ function _cpStatusForRow(row){
 
 // Ô "Xuất Tổ CL" của Kho chính: hiển thị số, tô màu theo đối chiếu, bấm xem chi tiết
 function _cpDc2Cell(row, rowIdx){
-  var v=row.dc2||0, st;
+  var v=row.x2||0, st;
   try{ st=_cpStatusForRow(row); }catch(e){ st={state:'none'}; }
   var bg, col, pfx='', ck='';
   if(st.state==='ok'){
@@ -9836,7 +9827,7 @@ function _cpPushReportRows(rows){
     var hd=Object.assign({}, _supaHdr, {'Content-Type':'application/json'});
     var pk=(typeof _currentPeriodKey==='function')?_currentPeriodKey():getSelectedPeriod().val;
     var payload=rows.map(function(r){ return {period:pk, unit:(r.unit===BVPH?'bvph':r.unit), drug:r.drug, lot:r.lot, exp:r.exp||'',
-      open:r.open||0, tinh:r.tinh||0, ntk:r.ntk||0, dc:r.dc||0, sd:r.sd||0, dc2:r.dc2||0, dc3:r.dc3||0, hh:r.hh||0, locked:!!r.locked, bc_month:pk}; });
+      t0:r.t0||0, n1:r.n1||0, n2:r.n2||0, n3:r.n3||0, x1:r.x1||0, x2:r.x2||0, x3:r.x3||0, x4:r.x4||0, locked:!!r.locked, bc_month:pk}; });
     fetch(SUPA_URL+'/rest/v1/reports?on_conflict=unit_id,period,phan_loai,drug,lot,exp',{method:'POST',
       headers:Object.assign({},hd,{'Prefer':'resolution=merge-duplicates,return=minimal'}), body:JSON.stringify(_toDbRows(payload))}).catch(function(){});
   }catch(e){ console.warn('pushReportRows',e); }
@@ -9864,19 +9855,19 @@ function cpDelByKey(unit, drug, lot, exp){
   if(getSelectedPeriod().type==='year'){ toast('Hãy chọn 1 tháng cụ thể để xóa.','orange'); return; }
   function km(r){ return matchPeriod(r)&&_normStr(r.unit)===_normStr(unit)&&_normStr(r.drug)===_normStr(drug)&&_normStr(r.lot)===_normStr(lot)&&_normExp(r.exp)===_normExp(exp); }
   var hasDecl=(capPhatData||[]).some(km);
-  var repRows=(bcData||[]).filter(function(r){ return r.unit!==BVPH && km(r) && (Number(r.tinh)||0)!==0; });
+  var repRows=(bcData||[]).filter(function(r){ return r.unit!==BVPH && km(r) && (Number(r.n1)||0)!==0; });
   function delDecl(){ if(hasDecl){ capPhatData=capPhatData.filter(function(r){ return !km(r); }); saveCapPhat(); } }
   if(!repRows.length){
     if(!hasDecl){ toast('Dòng này không có dữ liệu cấp phát để xóa.','orange'); return; }
     delDecl(); renderCapPhat(); try{renderBVPH();}catch(e){}
     toast('Đã xóa dòng cấp phát.','var(--success)'); return;
   }
-  var sum=repRows.reduce(function(s,r){ return s+(Number(r.tinh)||0); },0);
+  var sum=repRows.reduce(function(s,r){ return s+(Number(r.n1)||0); },0);
   _confirmModal('Xóa dòng cấp phát',
     'Dòng này có <b>số đơn vị đã báo nhận</b> ('+fmtNum(sum)+'). Xóa sẽ đưa số "Tỉnh cấp" của đơn vị về 0 (sửa báo cáo — không hoàn tác).',
     function(){
       delDecl();
-      repRows.forEach(function(r){ r.tinh=0; r._dirty=true; });
+      repRows.forEach(function(r){ r.n1=0; r._dirty=true; });
       _cpPushReportRows(repRows);
       renderCapPhat(); try{renderBVPH();}catch(e){} try{renderBC();}catch(e){} try{renderTP();}catch(e){}
       toast('Đã xóa dòng.','var(--success)');
@@ -10007,7 +9998,7 @@ function cpClearAll(){
   var p=getSelectedPeriod();
   var perLabel=_isQKey(p.val) ? _keyToLabel(p.val).toLowerCase() : ('tháng '+(parseInt((p.val||'').split('-')[1])||'?')+'/'+p.year);
   var nCp=(capPhatData||[]).filter(matchPeriod).length;
-  var nRep=(bcData||[]).filter(function(r){ return matchPeriod(r)&&r.unit!==BVPH&&(Number(r.tinh)||0)>0; }).length;
+  var nRep=(bcData||[]).filter(function(r){ return matchPeriod(r)&&r.unit!==BVPH&&(Number(r.n1)||0)>0; }).length;
   if(!nCp && !nRep){ toast('Bảng kỳ này đã trống.','orange'); return; }
   var body='<b>Kỳ: '+perLabel+'</b><br><br>'
     +'• <b>Chỉ xóa cấp phát</b>: gỡ '+nCp+' dòng kho khai, giữ nguyên số đơn vị đã báo.<br><br>'
@@ -10030,8 +10021,8 @@ function _cpBlankPeriod(perLabel){
   // 2) Đưa "Tỉnh cấp" (tinh) các đơn vị về 0 trong kỳ
   var changed=[];
   (bcData||[]).forEach(function(r){
-    if(matchPeriod(r) && r.unit!==BVPH && (Number(r.tinh)||0)!==0){
-      r.tinh=0; r._dirty=true; changed.push(r);
+    if(matchPeriod(r) && r.unit!==BVPH && (Number(r.n1)||0)!==0){
+      r.n1=0; r._dirty=true; changed.push(r);
     }
   });
   saveCapPhat();
@@ -10041,7 +10032,7 @@ function _cpBlankPeriod(perLabel){
       var hd=Object.assign({}, _supaHdr, {'Content-Type':'application/json'});
       var pk=(typeof _currentPeriodKey==='function')?_currentPeriodKey():(getSelectedPeriod().val);
       var rows=changed.map(function(r){ return {period:pk, unit:r.unit, drug:r.drug, lot:r.lot, exp:r.exp||'',
-        open:r.open||0, tinh:0, ntk:r.ntk||0, dc:r.dc||0, sd:r.sd||0, dc2:r.dc2||0, dc3:r.dc3||0, hh:r.hh||0,
+        t0:r.t0||0, n1:0, n2:r.n2||0, n3:r.n3||0, x1:r.x1||0, x2:r.x2||0, x3:r.x3||0, x4:r.x4||0,
         locked:!!r.locked, bc_month:pk}; });
       fetch(SUPA_URL+'/rest/v1/reports?on_conflict=unit_id,period,phan_loai,drug,lot,exp',{method:'POST',
         headers:Object.assign({},hd,{'Prefer':'resolution=merge-duplicates,return=minimal'}),
@@ -10374,7 +10365,7 @@ function _syncBVPHDc2FromUnits(){
   bcData.forEach(function(r){
     if(r._agg || !r.unitId || !_kid[r.unitId]) return;
     var key = _matchKey(r);
-    sumByKey[key] = (sumByKey[key]||0) + (r.tinh||0);
+    sumByKey[key] = (sumByKey[key]||0) + (r.n1||0);
   });
   var changed = false;
   bvphData.forEach(function(r){
@@ -10382,7 +10373,7 @@ function _syncBVPHDc2FromUnits(){
     if(r.unitId ? r.unitId !== _rid : (r.unit && r.unit!==BVPH)) return;
     var key = _matchKey(r);
     var newDc2 = sumByKey[key] || 0;
-    if((r.dc2||0) !== newDc2){ r.dc2 = newDc2; changed = true; }
+    if((r.x2||0) !== newDc2){ r.x2 = newDc2; changed = true; }
   });
   return changed;
 }
@@ -10452,16 +10443,16 @@ async function _syncBVPHDc2ToCloud(periodKey, opts){
       var k = _dc2Key(x);
       if(x.unit_id === hubId){ hubRows[k] = x; return; }
       if(!kidSet[x.unit_id]) return;
-      sum[k] = (sum[k]||0) + (x.tinh||0);
+      sum[k] = (sum[k]||0) + (x.n1||0);
       if(!src[k]) src[k] = x;
     });
 
     var upd = [], ins = [];
     Object.keys(hubRows).forEach(function(k){
       var h = hubRows[k], c = sum[k] || 0;
-      if((h.dc2||0) !== c){
-        upd.push({unit_id:hubId, period:periodKey, phan_loai:h.phan_loai||'h2', drug:h.drug, lot:h.lot, exp:h.exp||'', dc2:c});
-        out.report.push({drug:h.drug, lot:h.lot, old:h.dc2||0, neu:c});
+      if((h.x2||0) !== c){
+        upd.push({unit_id:hubId, period:periodKey, phan_loai:h.phan_loai||'h2', drug:h.drug, lot:h.lot, exp:h.exp||'', x2:c});
+        out.report.push({drug:h.drug, lot:h.lot, old:h.x2||0, neu:c});
       }
     });
     // Kho chưa có dòng mà đơn vị trực thuộc đã nhập (tổng > 0) → tạo dòng.
@@ -10470,7 +10461,7 @@ async function _syncBVPHDc2ToCloud(periodKey, opts){
       if(hubRows[k] || (sum[k]||0) <= 0) return;
       var x = src[k];
       ins.push({unit_id:hubId, period:periodKey, period_type:x.period_type||'month', phan_loai:x.phan_loai||'h2',
-        drug:x.drug, lot:x.lot, exp:x.exp||'', open:0, tinh:0, ntk:0, dc:0, sd:0, dc2:sum[k], dc3:0, hh:0, locked:false});
+        drug:x.drug, lot:x.lot, exp:x.exp||'', t0:0, n1:0, n2:0, n3:0, x1:0, x2:sum[k], x3:0, x4:0, locked:false});
       out.report.push({drug:x.drug, lot:x.lot, old:0, neu:sum[k], moi:true});
     });
 
@@ -10498,12 +10489,12 @@ async function _syncBVPHDc2ToCloud(periodKey, opts){
     });
     Object.keys(hubRows).concat(Object.keys(sum)).forEach(function(k){
       var c = sum[k] || 0, xs = ramIdx[k];
-      if(xs) xs.forEach(function(x){ if((x.dc2||0) !== c){ x.dc2 = c; _ramChanged = true; } });
+      if(xs) xs.forEach(function(x){ if((x.x2||0) !== c){ x.x2 = c; _ramChanged = true; } });
     });
     ins.forEach(function(u){
       if(ramIdx[_dc2Key(u)]) return;
       bvphData.push({unitId:hubId, unit:unitNameById(hubId), phanLoai:u.phan_loai, periodType:u.period_type,
-        drug:u.drug, lot:u.lot, exp:u.exp, open:0, tinh:0, ntk:0, dc:0, sd:0, dc2:u.dc2, dc3:0, hh:0,
+        drug:u.drug, lot:u.lot, exp:u.exp, t0:0, n1:0, n2:0, n3:0, x1:0, x2:u.x2, x3:0, x4:0,
         locked:false, editing:false, bcMonth:periodKey, openLocked:false});
       _ramChanged = true;
     });
@@ -10860,7 +10851,7 @@ function getFilteredBC(){
 // KHÔNG render lại bảng (giữ con trỏ trong ô). Việc render + lưu để onchange xử lý.
 function updFieldLive(prefix, rowIdx, field, val){
   if(reportLocked) return;
-  if(field === 'open'){
+  if(field === 't0'){
     var _gA = prefix==='bvph' ? bvphData : bcData;
     var _gI = getReal(prefix, rowIdx);
     if(_gI >= 0 && _openHardLocked(_gA[_gI], prefix==='bvph')) return;
@@ -10877,7 +10868,7 @@ function updFieldLive(prefix, rowIdx, field, val){
   if(realIdx < 0) return;
   var arr = prefix==='bvph' ? bvphData : bcData;
   // Chặn sửa Tồn đầu khi kỳ trước đã chốt (giống updField)
-  if(field === 'open'){
+  if(field === 't0'){
     var _ur2 = (prefix==='bvph') ? 'bvph' : (arr[realIdx].unit||'');
     if(_isPrevPeriodLockedForUnit(_ur2, arr[realIdx].bcMonth || _currentPeriodKey())) return;
   }
@@ -10893,7 +10884,7 @@ function updField(prefix, rowIdx, field, val){
   var v = Math.max(0, parseInt(val)||0);
   var realIdx = -1;
   // Tồn đầu khóa cứng khi kỳ trước đã chốt — chặn ở TẦNG HÀM (mọi ngõ đều qua đây)
-  if(field === 'open'){
+  if(field === 't0'){
     var _gArr = prefix==='bvph' ? bvphData : bcData;
     var _gIdx = getReal(prefix, rowIdx);
     if(_gIdx >= 0 && _openHardLocked(_gArr[_gIdx], prefix==='bvph')){
@@ -10919,7 +10910,7 @@ function updField(prefix, rowIdx, field, val){
   var row = arr[realIdx];
 
   // CHẶN sửa Tồn đầu khi kỳ TRƯỚC đã chốt — tồn đầu là dẫn xuất từ tồn cuối kỳ trước.
-  if(field === 'open'){
+  if(field === 't0'){
     var _ur = (prefix==='bvph') ? 'bvph' : (row.unit||'');
     if(_isPrevPeriodLockedForUnit(_ur, row.bcMonth || _currentPeriodKey())){
       toast('🔒 Tồn đầu không sửa được: kỳ trước đã chốt nên tồn đầu kỳ này được lấy cố định từ tồn cuối kỳ trước.','var(--danger)');
@@ -10929,15 +10920,15 @@ function updField(prefix, rowIdx, field, val){
   }
 
   // Kiểm tra tồn không âm với các cột xuất
-  var outFields = ['sd','dc2','dc3','hh'];
+  var outFields = ['x1','x2','x3','x4'];
   if(outFields.indexOf(field) >= 0){
     var testRow = Object.assign({}, row);
     testRow[field] = v;
     var calc = calcRow(testRow);
-    var maxOut = (testRow.open||0) + calc.tin;
-    if(calc.tout > maxOut){
-      var allowed = Math.max(0, v - (calc.tout - maxOut));
-      toast('⚠ Số xuất vượt tồn! Tối đa: '+(maxOut - (calc.tout - v)).toLocaleString()+' viên. Đã điều chỉnh.','orange');
+    var maxOut = (testRow.t0||0) + calc.nTong;
+    if(calc.xTong > maxOut){
+      var allowed = Math.max(0, v - (calc.xTong - maxOut));
+      toast('⚠ Số xuất vượt tồn! Tối đa: '+(maxOut - (calc.xTong - v)).toLocaleString()+' viên. Đã điều chỉnh.','orange');
       v = Math.max(0, allowed);
     }
   }
@@ -10967,8 +10958,8 @@ function delR(prefix, rowIdx){
   // Phân loại dòng để người dùng biết xóa có an toàn không:
   //  - Tồn 0 + không hoạt động = dòng kéo từ kỳ trước, xóa an toàn
   //  - Có số liệu = cảnh báo mạnh
-  var _hasData = (target.open||0) + (target.tinh||0) + (target.ntk||0) + (target.dc||0)
-               + (target.sd||0) + (target.dc2||0) + (target.dc3||0) + (target.hh||0);
+  var _hasData = (target.t0||0) + (target.n1||0) + (target.n2||0) + (target.n3||0)
+               + (target.x1||0) + (target.x2||0) + (target.x3||0) + (target.x4||0);
   var _delMsg;
   if(_hasData === 0){
     _delMsg = '<div style="font-size:13px;line-height:1.7">'
@@ -11057,7 +11048,7 @@ function editR(prefix, rowIdx){
         var fld = inp.getAttribute('data-fld');
         if(!fld || !(fld in arr[realIdx])) return;
         // Tồn đầu khóa cứng (kỳ trước đã chốt) → bỏ qua
-        if(fld === 'open' && _openHardLocked(arr[realIdx], prefix==='bvph')) return;
+        if(fld === 't0' && _openHardLocked(arr[realIdx], prefix==='bvph')) return;
         arr[realIdx][fld] = Math.max(0, parseInt(inp.value)||0);
       });
     }
@@ -11790,7 +11781,7 @@ function _showPendingTransferPopup(transfers, myUnit, periodKey){
           // ── Phiếu Đơn vị → Đơn vị cùng tỉnh (dc2_to_dc): cộng `dc` (Nhập ĐC) vào kỳ của NGÀY NHẬN
           // ── Phiếu Xuất tỉnh khác (dc3_province) tới kho tỉnh trong hệ thống: cộng `ntk` (Nhập tỉnh khác)
           var txPeriod = _rxPeriod;
-          var fieldToUpdate = (transfer.type === 'dc3_province') ? 'ntk' : 'dc';
+          var fieldToUpdate = (transfer.type === 'dc3_province') ? 'n2' : 'n3';
           var tExp = transfer.exp || '';
           var _dbUnit = (myUnit===BVPH||myUnit==='bvph') ? 'bvph' : myUnit;
 
@@ -11841,7 +11832,7 @@ function _showPendingTransferPopup(transfers, myUnit, periodKey){
             var _insertPayload = {
               period: txPeriod, unit: _dbUnit,
               drug: transfer.drug, lot: transfer.lot, exp: tExp,
-              open:0, tinh:0, ntk:0, dc:0, sd:0, dc2:0, dc3:0, hh:0,
+              t0:0, n1:0, n2:0, n3:0, x1:0, x2:0, x3:0, x4:0,
               locked: false, bc_month: txPeriod
             };
             _insertPayload[fieldToUpdate] = _finalDcVal;
@@ -11877,7 +11868,7 @@ function _showPendingTransferPopup(transfers, myUnit, periodKey){
             var _localRow = {
               unit: (myUnit===BVPH||myUnit==='bvph') ? BVPH : myUnit,
               drug: transfer.drug, lot: transfer.lot, exp: tExp,
-              open:0, tinh:0, ntk:0, dc:0, sd:0, dc2:0, dc3:0, hh:0,
+              t0:0, n1:0, n2:0, n3:0, x1:0, x2:0, x3:0, x4:0,
               locked:false, editing:false, bcMonth:txPeriod, openLocked:false
             };
             _localRow[fieldToUpdate] = _finalDcVal;
@@ -11927,7 +11918,7 @@ function _showPendingTransferPopup(transfers, myUnit, periodKey){
         var _isDc3 = (transfer.type === 'dc3_to_tinh');
         // Phiếu Xuất Tổ CL: bên xuất KHÔNG có cột riêng (Xuất TCL = Σ Tỉnh cấp đơn vị nhận, tự tính lại)
         // → chỉ trừ `tinh` bên nhận. Bản cũ trừ nhầm cột dc3 "Xuất tỉnh khác" của kho.
-        var _srcFld = _isDc3 ? null : (transfer.type === 'dc3_province' ? 'dc3' : 'dc2');
+        var _srcFld = _isDc3 ? null : (transfer.type === 'dc3_province' ? 'x3' : 'x2');
         var _srcFldTxt = _isDc3 ? 'Xuất Tổ CL (tự tính lại)' : (transfer.type === 'dc3_province' ? 'Xuất tỉnh khác' : 'Xuất ĐC');
 
         var _rejMsg = '<div style="font-size:13px;line-height:1.7">'
@@ -12003,7 +11994,7 @@ function _showPendingTransferPopup(transfers, myUnit, periodKey){
                   await fetch(SUPA_URL+'/rest/v1/reports?id=eq.'+_rv.id, {
                     method:'PATCH',
                     headers: Object.assign({}, _supaHdr, {'Content-Type':'application/json','Prefer':'return=minimal'}),
-                    body: JSON.stringify({tinh: Math.max(0, (_rv.tinh||0) - (transfer.qty||0))})
+                    body: JSON.stringify({n1: Math.max(0, (_rv.n1||0) - (transfer.qty||0))})
                   });
                 }
               }
@@ -12134,13 +12125,13 @@ async function applyAutoOpen(row, arr){
 
   if(prevRow){
     var res = calcRow(prevRow);
-    row.open = res.final;       // tồn cuối kỳ trước → tồn đầu kỳ này
+    row.t0 = res.tonCuoi;       // tồn cuối kỳ trước → tồn đầu kỳ này
     row.openLocked = !isAdmin(); // khoá với non-admin
   } else {
     // Thuốc MỚI (không có ở kỳ trước) → tồn đầu = 0 (được cấp qua cột Nhập),
     // KHÔNG giữ giá trị gõ tay rác.
     if(_hasEarlierLockedPeriod(unitFilter==='bvph'?'bvph':row.unit, _currentPeriodKey())){
-      row.open = 0;
+      row.t0 = 0;
     }
   }
 }
@@ -12204,20 +12195,20 @@ async function addBVPHRow(){
   var lotSel = document.getElementById('bvph-lot-sel');
   var lot    = lotSel ? lotSel.value.trim() : '';
   var expRaw = document.getElementById('bvph-exp').value.trim();
-  var open   = Math.max(0, parseInt(document.getElementById('bvph-open').value)||0);
+  var t0   = Math.max(0, parseInt(document.getElementById('bvph-open').value)||0);
   // Tồn đầu gõ tay CHỈ ở kỳ đầu tiên. Kỳ sau: lô đã có → tự lấy tồn cuối kỳ trước (applyAutoOpen);
   // thuốc/lô mới → 0, số nhận về nhập qua các cột Nhập.
-  if(_hasEarlierLockedPeriod('bvph', _currentPeriodKey())) open = 0;
+  if(_hasEarlierLockedPeriod('bvph', _currentPeriodKey())) t0 = 0;
   var _p2   = getSelectedPeriod();
   var mon    = _p2.type==='year' ? _p2.year+'-01' : _p2.val;
-  var tinh   = Math.max(0, parseInt(document.getElementById('bvph-tinh').value)||0);
+  var n1   = Math.max(0, parseInt(document.getElementById('bvph-tinh').value)||0);
   var ntkEl  = document.getElementById('bvph-ntk');
-  var ntk    = ntkEl ? Math.max(0, parseInt(ntkEl.value)||0) : 0;
-  var dc     = Math.max(0, parseInt(document.getElementById('bvph-dc').value)||0);
-  var sd     = Math.max(0, parseInt(document.getElementById('bvph-sd').value)||0);
-  var dc2    = Math.max(0, parseInt(document.getElementById('bvph-dc2').value)||0);
-  var dc3    = Math.max(0, parseInt(document.getElementById('bvph-dc3').value)||0);
-  var hh     = Math.max(0, parseInt(document.getElementById('bvph-hh').value)||0);
+  var n2    = ntkEl ? Math.max(0, parseInt(ntkEl.value)||0) : 0;
+  var n3     = Math.max(0, parseInt(document.getElementById('bvph-dc').value)||0);
+  var x1     = Math.max(0, parseInt(document.getElementById('bvph-sd').value)||0);
+  var x2    = Math.max(0, parseInt(document.getElementById('bvph-dc2').value)||0);
+  var x3    = Math.max(0, parseInt(document.getElementById('bvph-dc3').value)||0);
+  var x4     = Math.max(0, parseInt(document.getElementById('bvph-hh').value)||0);
   if(!drug||!lot||!expRaw){toast('Nhập đủ: tên thuốc, số lô, hạn dùng!','var(--danger)');return;}
   if(!validateMonthExp(expRaw)){toast('Hạn dùng sai định dạng! Nhập dạng mm/yyyy (vd: 07/2027)','var(--danger)');return;}
   if(!canEditBVPH()){toast('Bạn không có quyền nhập BVPHP!','var(--danger)');return;}
@@ -12225,8 +12216,8 @@ async function addBVPHRow(){
 
   async function _writeRowBV(){
     var _rootIdBV=_currentRootId(); var _rootNm=_rootIdBV?unitNameById(_rootIdBV):BVPH;
-    var newRowBV={unit:_rootNm,unitId:_rootIdBV,drug:drug,lot:lot,exp:exp,open:open,
-      tinh:tinh,ntk:ntk,dc:dc,sd:sd,dc2:dc2,dc3:dc3,hh:hh,
+    var newRowBV={unit:_rootNm,unitId:_rootIdBV,drug:drug,lot:lot,exp:exp,t0:t0,
+      n1:n1,n2:n2,n3:n3,x1:x1,x2:x2,x3:x3,x4:x4,
       locked:false,editing:false,bcMonth:mon,openLocked:false};
     await applyAutoOpen(newRowBV,bvphData);
     newRowBV._dirty=true; bvphData.push(newRowBV);
@@ -12296,8 +12287,8 @@ async function _findPeriodLotEmptied(unit, drug, lot, exp, curPeriodKey){
       var rows = await r.json();
       if(!rows.length) continue;         // kỳ này lô chưa từng có → xét tiếp kỳ trước
       var row = rows[0];
-      var fin = Math.max(0, calcRow(_mapRow(row)).final);
-      if(fin === 0) return k;            // đã có lô này và tồn cuối = 0 → kỳ đã dùng hết
+      var tonCuoi = Math.max(0, calcRow(_mapRow(row)).tonCuoi);
+      if(tonCuoi === 0) return k;            // đã có lô này và tồn cuối = 0 → kỳ đã dùng hết
       return null;                       // kỳ gần nhất có lô này vẫn còn tồn → không cảnh báo
     }catch(e){ continue; }
   }
@@ -12311,16 +12302,16 @@ function addBcRow(){
   var lotSel2 = document.getElementById('bc-lot-sel');
   var lot     = lotSel2 ? lotSel2.value.trim() : '';
   var expRaw = document.getElementById('bc-exp').value.trim();
-  var open   = Math.max(0, parseInt(document.getElementById('bc-open').value)||0);
+  var t0   = Math.max(0, parseInt(document.getElementById('bc-open').value)||0);
   // Tồn đầu gõ tay CHỈ ở kỳ đầu tiên của đơn vị (xem addBVPHRow)
-  if(!unit || _hasEarlierLockedPeriod(unit, _currentPeriodKey())) open = 0;
+  if(!unit || _hasEarlierLockedPeriod(unit, _currentPeriodKey())) t0 = 0;
   var _p    = getSelectedPeriod();
   var mon    = _p.type==='year' ? _p.year+'-01' : _p.val;
-  var tinh   = Math.max(0, parseInt(document.getElementById('bc-tinh').value)||0);
-  var dc     = Math.max(0, parseInt(document.getElementById('bc-dc').value)||0);
-  var sd     = Math.max(0, parseInt(document.getElementById('bc-sd').value)||0);
-  var dc2    = Math.max(0, parseInt(document.getElementById('bc-dc2').value)||0);
-  var hh     = Math.max(0, parseInt(document.getElementById('bc-hh').value)||0);
+  var n1   = Math.max(0, parseInt(document.getElementById('bc-tinh').value)||0);
+  var n3     = Math.max(0, parseInt(document.getElementById('bc-dc').value)||0);
+  var x1     = Math.max(0, parseInt(document.getElementById('bc-sd').value)||0);
+  var x2    = Math.max(0, parseInt(document.getElementById('bc-dc2').value)||0);
+  var x4     = Math.max(0, parseInt(document.getElementById('bc-hh').value)||0);
   if(!unit||!drug||!lot||!expRaw){toast('Nhập đủ: đơn vị, tên thuốc, số lô, hạn dùng!','var(--danger)');return;}
   if(!validateMonthExp(expRaw)){toast('Hạn dùng sai định dạng! Nhập dạng mm/yyyy (vd: 07/2027)','var(--danger)');return;}
   if(!canEditUnit(unit)){toast('Bạn không có quyền nhập đơn vị này!','var(--danger)');return;}
@@ -12328,8 +12319,8 @@ function addBcRow(){
 
   // Ghi dòng thật sự (sau khi đã qua mọi cảnh báo)
   async function _writeRowBC(){
-    var newRowBC={unit:unit,drug:drug,lot:lot,exp:exp,open:open,
-      tinh:tinh,dc:dc,sd:sd,dc2:dc2,hh:hh,
+    var newRowBC={unit:unit,drug:drug,lot:lot,exp:exp,t0:t0,
+      n1:n1,n3:n3,x1:x1,x2:x2,x4:x4,
       locked:false,editing:false,bcMonth:mon,openLocked:false};
     await applyAutoOpen(newRowBC,bcData);
     newRowBC._dirty=true; bcData.push(newRowBC);
@@ -12384,10 +12375,10 @@ function addBcRow(){
 
   // Cảnh báo: so sánh số đơn vị đang nhập (tinh) với số KHO CHÍNH đã xuất RIÊNG cho
   // đúng đơn vị này (cùng thuốc + lô + hạn). Lấy từ phiếu Xuất Tổ CL (from=BVPH, to=unit).
-  if(tinh > 0 && unit && unit !== BVPH){
+  if(n1 > 0 && unit && unit !== BVPH){
     _checkXuatForUnit(BVPH, unit, drug, lot, exp, mon).then(function(bvphXuat){
-      if(bvphXuat > 0 && tinh !== bvphXuat){
-        var diff = tinh - bvphXuat;
+      if(bvphXuat > 0 && n1 !== bvphXuat){
+        var diff = n1 - bvphXuat;
         var sign = diff > 0 ? '+' : '';
         var expLabel = expToMMYYYY(exp);
         var html =
@@ -12400,7 +12391,7 @@ function addBcRow(){
           +' — hạn <b style="color:#1a2332">'+expLabel+'</b>'
           +'</p>'
           +'<p style="font-size:14px;color:#333;line-height:1.8;margin:0 0 14px">'
-          +'Bạn đang nhập <b style="font-size:22px;color:#e74c3c">'+tinh.toLocaleString()+' viên</b>'
+          +'Bạn đang nhập <b style="font-size:22px;color:#e74c3c">'+n1.toLocaleString()+' viên</b>'
           +' — không khớp, lệch <b style="font-size:18px;color:#c0392b">'+sign+diff.toLocaleString()+' viên</b>.'
           +'</p>'
           +'<p style="font-size:14px;font-weight:700;color:#7d4e00;margin:0">Bạn có chắc chắn với số lượng này không?</p>'
@@ -12649,7 +12640,7 @@ async function saveBC(){
       var realIdx = getReal(pfx, ri);
       if(realIdx < 0 || !arr[realIdx]) return;
       // Tồn đầu khóa cứng (kỳ trước đã chốt) → bỏ qua, không ghi đè
-      if(fld === 'open' && _openHardLocked(arr[realIdx], pfx==='bvph')) return;
+      if(fld === 't0' && _openHardLocked(arr[realIdx], pfx==='bvph')) return;
       var v = Math.max(0, parseInt(inp.value)||0);
       if((arr[realIdx][fld]||0) !== v){
         arr[realIdx][fld] = v;
@@ -12813,11 +12804,11 @@ function _ramUpsertRow(periodKey, src, openVal){
   if(root && u && !_pathIn(u.path, root.path)) return;
   var k = _stockKey(src), hit = false;
   [bvphData, bcData].forEach(function(arr){
-    arr.forEach(function(x){ if(x.bcMonth===periodKey && _stockKey(x)===k){ x.open = openVal; hit = true; } });
+    arr.forEach(function(x){ if(x.bcMonth===periodKey && _stockKey(x)===k){ x.t0 = openVal; hit = true; } });
   });
   if(hit) return;
   var row = { unitId:uid, unit:unitNameById(uid), phanLoai:_rowPL(src), periodType:src.periodType||src.period_type||'month',
-    drug:src.drug, lot:src.lot, exp:src.exp||'', open:openVal, tinh:0, ntk:0, dc:0, sd:0, dc2:0, dc3:0, hh:0,
+    drug:src.drug, lot:src.lot, exp:src.exp||'', t0:openVal, n1:0, n2:0, n3:0, x1:0, x2:0, x3:0, x4:0,
     locked:false, editing:false, bcMonth:periodKey, openLocked:true };
   (uid === rid ? bvphData : bcData).push(row);
 }
@@ -12879,7 +12870,7 @@ function _buildUpsertRow(src, openVal, nextKey){
   return {
     unit_id:_rowUid(src), period:nextKey, phan_loai:_rowPL(src), period_type:src.periodType||src.period_type||'month',
     drug:src.drug, lot:src.lot, exp:src.exp||'',
-    open:openVal, tinh:0, ntk:0, dc:0, sd:0, dc2:0, dc3:0, hh:0, locked:false
+    t0:openVal, n1:0, n2:0, n3:0, x1:0, x2:0, x3:0, x4:0, locked:false
   };
 }
 
@@ -12889,7 +12880,7 @@ function _buildUpsertRow(src, openVal, nextKey){
 async function _applyOpenPatches(periodKey, patches){
   var hd = Object.assign({}, _supaHdr, {'Content-Type':'application/json','Prefer':'return=minimal'});
   var creates = [], upd = [], fail = 0;
-  patches.forEach(function(pt){ if(pt.create) creates.push(_buildUpsertRow(pt.src, pt.open, periodKey)); else upd.push(pt); });
+  patches.forEach(function(pt){ if(pt.create) creates.push(_buildUpsertRow(pt.src, pt.t0, periodKey)); else upd.push(pt); });
   // PATCH song song theo lô 6 (bản cũ tuần tự từng dòng)
   for(var i=0; i<upd.length; i+=6){
     await Promise.all(upd.slice(i, i+6).map(function(pt){
@@ -12898,7 +12889,7 @@ async function _applyOpenPatches(periodKey, patches){
         : SUPA_URL+'/rest/v1/reports?period=eq.'+encodeURIComponent(periodKey)
           +'&unit_id=eq.'+encodeURIComponent(_rowUid(pt.src)||'')+'&phan_loai=eq.'+encodeURIComponent(_rowPL(pt.src))
           +'&drug=eq.'+encodeURIComponent(pt.src.drug)+'&lot=eq.'+encodeURIComponent(pt.src.lot)+'&exp=eq.'+encodeURIComponent(pt.src.exp||'');
-      return fetch(url, {method:'PATCH', headers:hd, body:JSON.stringify({open:pt.open})})
+      return fetch(url, {method:'PATCH', headers:hd, body:JSON.stringify({t0:pt.t0})})
         .then(function(r){ if(!r.ok) fail++; }).catch(function(){ fail++; });
     }));
   }
@@ -12938,29 +12929,29 @@ async function _createNextPeriodRows(curKey, nextKey, scopeIds){
   var existIdx = {};
   nextExisting.forEach(function(r){
     if(!_rowUid(r)) return;
-    var act = (r.tinh||0)+(r.ntk||0)+(r.dc||0)+(r.sd||0)+(r.dc2||0)+(r.dc3||0)+(r.hh||0);
-    existIdx[_stockKey(r)] = { rid:r._rid, open:(r.open||0), hasActivity: act>0 || r.locked===true };
+    var act = (r.n1||0)+(r.n2||0)+(r.n3||0)+(r.x1||0)+(r.x2||0)+(r.x3||0)+(r.x4||0);
+    existIdx[_stockKey(r)] = { rid:r._rid, t0:(r.t0||0), hasActivity: act>0 || r.locked===true };
   });
 
   var patches = [];
   prevRows.forEach(function(r){
     var uid = _rowUid(r); if(!uid) return;
-    var fin = Math.max(0, calcRow(r).final);
-    if(fin === 0 && isExpiredStr(r.exp)) return;                                   // lô hết + hết hạn → bỏ
-    if(fin === 0 && deletedRows[_delRowKey(nextKey, (UNIT_BY_ID[uid]||{}).name||r.unit, r.drug, r.lot, r.exp)]) return;
+    var tonCuoi = Math.max(0, calcRow(r).tonCuoi);
+    if(tonCuoi === 0 && isExpiredStr(r.exp)) return;                                   // lô hết + hết hạn → bỏ
+    if(tonCuoi === 0 && deletedRows[_delRowKey(nextKey, (UNIT_BY_ID[uid]||{}).name||r.unit, r.drug, r.lot, r.exp)]) return;
     var k = _stockKey(r), ex = existIdx[k];
     if(ex){
-      if(ex.hasActivity || ex.open === fin) return;   // đơn vị đang làm việc / đã khớp → không đụng
-      patches.push({rid:ex.rid, src:r, open:fin, create:false});
+      if(ex.hasActivity || ex.t0 === tonCuoi) return;   // đơn vị đang làm việc / đã khớp → không đụng
+      patches.push({rid:ex.rid, src:r, t0:tonCuoi, create:false});
     } else {
-      patches.push({src:r, open:fin, create:true});
-      existIdx[k] = {open:fin, hasActivity:false};
+      patches.push({src:r, t0:tonCuoi, create:true});
+      existIdx[k] = {t0:tonCuoi, hasActivity:false};
     }
   });
   if(!patches.length) return 0;
   try{ await _applyOpenPatches(nextKey, patches); }
   catch(e){ console.warn('[_createNextPeriodRows] ghi lỗi:', e); }
-  patches.forEach(function(pt){ _ramUpsertRow(nextKey, pt.src, pt.open); });
+  patches.forEach(function(pt){ _ramUpsertRow(nextKey, pt.src, pt.t0); });
   return patches.length;
 }
 
@@ -13082,7 +13073,7 @@ async function _cascadeOpeningStock(startPeriodKey, unitIds){
   _cascadeRunning = false;
   var totalUpdated = (res && res.updated) || 0;
   var viewRows = (res && res.view_rows) || [];
-  viewRows.forEach(function(x){ _ramUpsertRow(curViewKey, x, x.open||0); });
+  viewRows.forEach(function(x){ _ramUpsertRow(curViewKey, x, x.t0||0); });
   if(viewRows.length){
     var _ae = document.activeElement;
     var _typing = _ae && /^(INPUT|SELECT|TEXTAREA)$/.test(_ae.tagName);
@@ -13129,19 +13120,19 @@ async function _cascadeOpeningStockClient(startPeriodKey, unitIds){
       var patches = [];
       curRows.forEach(function(r){
         if(!_rowUid(r)) return;
-        var fin = Math.max(0, calcRow(r).final);
+        var tonCuoi = Math.max(0, calcRow(r).tonCuoi);
         var ex = nextIdx[_stockKey(r)];
         if(ex){
-          if((ex.open||0) !== fin) patches.push({rid:ex._rid, src:ex, open:fin, create:false});
-        } else if(fin > 0){
-          patches.push({src:r, open:fin, create:true});
+          if((ex.t0||0) !== tonCuoi) patches.push({rid:ex._rid, src:ex, t0:tonCuoi, create:false});
+        } else if(tonCuoi > 0){
+          patches.push({src:r, t0:tonCuoi, create:true});
         }
       });
       if(!patches.length) break;       // tồn đầu kỳ sau đã khớp → tồn cuối kỳ sau không đổi → dừng lan
       await _applyOpenPatches(nextKey, patches);
       totalUpdated += patches.length;
       if(nextKey === curViewKey) touchedCurrent = true;
-      if(nextKey === curViewKey) patches.forEach(function(pt){ _ramUpsertRow(nextKey, pt.src, pt.open); });
+      if(nextKey === curViewKey) patches.forEach(function(pt){ _ramUpsertRow(nextKey, pt.src, pt.t0); });
       curKey = nextKey;
     }
   } catch(e){
@@ -13190,19 +13181,19 @@ async function kiemTraLechTonDau(autoFix){
   if(prevRows===null || curRows===null){ toast('❌ Không tải được dữ liệu từ cloud.','var(--danger)'); return; }
 
   var prevFinal = {}, prevSrc = {};
-  prevRows.forEach(function(r){ if(!_rowUid(r)) return; var k=_stockKey(r); prevFinal[k] = Math.max(0, calcRow(r).final); prevSrc[k] = r; });
+  prevRows.forEach(function(r){ if(!_rowUid(r)) return; var k=_stockKey(r); prevFinal[k] = Math.max(0, calcRow(r).tonCuoi); prevSrc[k] = r; });
 
   var lech = [], thieu = [], thua = [], seen = {};
   curRows.forEach(function(r){
     if(!_rowUid(r)) return;
     var key=_stockKey(r); seen[key]=true;
     var expectedOpen = prevFinal[key];
-    var act=(r.tinh||0)+(r.ntk||0)+(r.dc||0)+(r.sd||0)+(r.dc2||0)+(r.dc3||0)+(r.hh||0);
+    var act=(r.n1||0)+(r.n2||0)+(r.n3||0)+(r.x1||0)+(r.x2||0)+(r.x3||0)+(r.x4||0);
     var base = {uid:_rowUid(r), src:r, rid:r._rid, drug:r.drug, lot:r.lot, exp:r.exp, hasAct:act>0||r.locked};
     if(expectedOpen === undefined){
-      if((r.open||0) > 0) thua.push(Object.assign(base, {open:r.open}));
-    } else if((r.open||0) !== expectedOpen){
-      lech.push(Object.assign(base, {cur:(r.open||0), expected:expectedOpen}));
+      if((r.t0||0) > 0) thua.push(Object.assign(base, {t0:r.t0}));
+    } else if((r.t0||0) !== expectedOpen){
+      lech.push(Object.assign(base, {cur:(r.t0||0), expected:expectedOpen}));
     }
   });
   Object.keys(prevFinal).forEach(function(key){
@@ -13231,7 +13222,7 @@ async function kiemTraLechTonDau(autoFix){
       } else if(kind==='thieu'){
         cells=[unitName, escH(r.drug), escH(r.lot), expToMMYYYY(r.exp), r.expected];
       } else {
-        cells=[unitName, escH(r.drug), escH(r.lot), expToMMYYYY(r.exp), r.open, r.hasAct?'⚠ đã nhập liệu':'nghi tự sinh'];
+        cells=[unitName, escH(r.drug), escH(r.lot), expToMMYYYY(r.exp), r.t0, r.hasAct?'⚠ đã nhập liệu':'nghi tự sinh'];
       }
       h+='<tr>'+cells.map(function(c){return '<td style="padding:5px 8px;border-bottom:1px solid #f1f5f9">'+c+'</td>';}).join('')+'</tr>';
     });
@@ -13249,8 +13240,8 @@ async function kiemTraLechTonDau(autoFix){
 async function _fixLechTonDau(lech, thieu, curKey, prevKey){
   if(!isAdmin()){ toast('Chỉ Admin được sửa.','var(--danger)'); return; }
   var patches = [];
-  lech.forEach(function(r){ if(!r.hasAct) patches.push({rid:r.rid, src:r.src, open:r.expected, create:false}); });
-  thieu.forEach(function(r){ patches.push({src:r.src, open:r.expected, create:true}); });
+  lech.forEach(function(r){ if(!r.hasAct) patches.push({rid:r.rid, src:r.src, t0:r.expected, create:false}); });
+  thieu.forEach(function(r){ patches.push({src:r.src, t0:r.expected, create:true}); });
   if(!patches.length){ toast('Không có dòng nào sửa được tự động (các dòng lệch đều đã nhập liệu).','var(--warning)'); return; }
   try{
     await _applyOpenPatches(curKey, patches);
@@ -13418,11 +13409,11 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
 // Tổng nhập / Tổng xuất / Tồn cuối của dòng đang nhập — tự tính khi gõ
 function _inlCalc(p){
   var v = function(id){ var e=document.getElementById(id); return Math.max(0, parseInt(e && e.value)||0); };
-  var tin, tout, open;
-  if(p==='bvph'){ open=v('bvph-open'); tin=v('bvph-tinh')+v('bvph-ntk')+v('bvph-dc'); tout=v('bvph-sd')+v('bvph-dc2')+v('bvph-dc3')+v('bvph-hh'); }
-  else { open=v('bc-open'); tin=v('bc-tinh')+v('bc-dc'); tout=v('bc-sd')+v('bc-dc2')+v('bc-hh'); }
+  var nTong, xTong, t0;
+  if(p==='bvph'){ t0=v('bvph-open'); nTong=v('bvph-tinh')+v('bvph-ntk')+v('bvph-dc'); xTong=v('bvph-sd')+v('bvph-dc2')+v('bvph-dc3')+v('bvph-hh'); }
+  else { t0=v('bc-open'); nTong=v('bc-tinh')+v('bc-dc'); xTong=v('bc-sd')+v('bc-dc2')+v('bc-hh'); }
   var set = function(id,x){ var e=document.getElementById(id); if(e) e.textContent = fmtNum(x); };
-  set(p+'-inl-tin', tin); set(p+'-inl-tout', tout); set(p+'-inl-fin', open+tin-tout);
+  set(p+'-inl-tin', nTong); set(p+'-inl-tout', xTong); set(p+'-inl-fin', t0+nTong-xTong);
 }
 // Hiện/ẩn dòng nhập theo trạng thái khung nhập cũ + đơn vị đang chọn ở bảng đơn vị trực thuộc
 function _syncInlineRows(){
@@ -13610,24 +13601,24 @@ function _getFormRowInfo(prefix){
     var drug = document.getElementById('bvph-drug') ? document.getElementById('bvph-drug').value : '';
     var lot  = document.getElementById('bvph-lot-sel') ? document.getElementById('bvph-lot-sel').value : '';
     var exp  = document.getElementById('bvph-exp') ? document.getElementById('bvph-exp').value : '';
-    var open = parseInt(document.getElementById('bvph-open') ? document.getElementById('bvph-open').value : 0)||0;
-    var sd   = parseInt(document.getElementById('bvph-sd') ? document.getElementById('bvph-sd').value : 0)||0;
-    var dc3  = parseInt(document.getElementById('bvph-dc3') ? document.getElementById('bvph-dc3').value : 0)||0;
-    var hh   = parseInt(document.getElementById('bvph-hh') ? document.getElementById('bvph-hh').value : 0)||0;
-    var tinh = parseInt(document.getElementById('bvph-tinh') ? document.getElementById('bvph-tinh').value : 0)||0;
-    var dc   = parseInt(document.getElementById('bvph-dc') ? document.getElementById('bvph-dc').value : 0)||0;
-    return {drug:drug, lot:lot, exp:parseMonthExp(exp)||exp, open:open, tinh:tinh, dc:dc, sd:sd, dc3:dc3, hh:hh, unit:BVPH};
+    var t0 = parseInt(document.getElementById('bvph-open') ? document.getElementById('bvph-open').value : 0)||0;
+    var x1   = parseInt(document.getElementById('bvph-sd') ? document.getElementById('bvph-sd').value : 0)||0;
+    var x3  = parseInt(document.getElementById('bvph-dc3') ? document.getElementById('bvph-dc3').value : 0)||0;
+    var x4   = parseInt(document.getElementById('bvph-hh') ? document.getElementById('bvph-hh').value : 0)||0;
+    var n1 = parseInt(document.getElementById('bvph-tinh') ? document.getElementById('bvph-tinh').value : 0)||0;
+    var n3   = parseInt(document.getElementById('bvph-dc') ? document.getElementById('bvph-dc').value : 0)||0;
+    return {drug:drug, lot:lot, exp:parseMonthExp(exp)||exp, t0:t0, n1:n1, n3:n3, x1:x1, x3:x3, x4:x4, unit:BVPH};
   } else {
     var drug = document.getElementById('bc-drug') ? document.getElementById('bc-drug').value : '';
     var lot  = document.getElementById('bc-lot-sel') ? document.getElementById('bc-lot-sel').value : '';
     var exp  = document.getElementById('bc-exp') ? document.getElementById('bc-exp').value : '';
-    var open = parseInt(document.getElementById('bc-open') ? document.getElementById('bc-open').value : 0)||0;
-    var sd   = parseInt(document.getElementById('bc-sd') ? document.getElementById('bc-sd').value : 0)||0;
-    var hh   = parseInt(document.getElementById('bc-hh') ? document.getElementById('bc-hh').value : 0)||0;
-    var tinh = parseInt(document.getElementById('bc-tinh') ? document.getElementById('bc-tinh').value : 0)||0;
-    var dc   = parseInt(document.getElementById('bc-dc') ? document.getElementById('bc-dc').value : 0)||0;
+    var t0 = parseInt(document.getElementById('bc-open') ? document.getElementById('bc-open').value : 0)||0;
+    var x1   = parseInt(document.getElementById('bc-sd') ? document.getElementById('bc-sd').value : 0)||0;
+    var x4   = parseInt(document.getElementById('bc-hh') ? document.getElementById('bc-hh').value : 0)||0;
+    var n1 = parseInt(document.getElementById('bc-tinh') ? document.getElementById('bc-tinh').value : 0)||0;
+    var n3   = parseInt(document.getElementById('bc-dc') ? document.getElementById('bc-dc').value : 0)||0;
     var unit = document.getElementById('bc-unit') ? document.getElementById('bc-unit').value : '';
-    return {drug:drug, lot:lot, exp:parseMonthExp(exp)||exp, open:open, tinh:tinh, dc:dc, sd:sd, dc3:0, hh:hh, unit:unit};
+    return {drug:drug, lot:lot, exp:parseMonthExp(exp)||exp, t0:t0, n1:n1, n3:n3, x1:x1, x3:0, x4:x4, unit:unit};
   }
 }
 
@@ -13636,7 +13627,7 @@ function onFormDc2BVPHChange(inp){
   var info = _getFormRowInfo('bvph');
   if(!info.drug || !info.lot){ toast('Chọn thuốc và lô trước!','var(--warning)'); inp.blur(); return; }
   var currentVal = parseInt(inp.value)||0;
-  var availStock = info.open + info.tinh + info.dc - info.sd - (parseInt(document.getElementById('bvph-dc3').value)||0) - info.hh;
+  var availStock = info.t0 + info.n1 + info.n3 - info.x1 - (parseInt(document.getElementById('bvph-dc3').value)||0) - info.x4;
   var maxCan = Math.max(0, availStock);
   var receiveUnits = _dc2ReceiveUnits();   // Xuất Tổ CL chỉ cấp cho đơn vị TRỰC THUỘC kho đang xem
   _showFormTransferPopup({
@@ -13671,7 +13662,7 @@ function onFormDc2BVPHChange(inp){
           Promise.all(allocs.map(function(a, i){
             if(!(results[i] && results[i].status==='fulfilled' && results[i].value)) return null;
             var cid = _uid(a.unit); if(!cid) return null;
-            return _incReportField(txPeriod, cid, fakeRow, 'tinh', a.qty).catch(function(e){ console.warn('[Xuất TCL form] cộng tinh lỗi', e); });
+            return _incReportField(txPeriod, cid, fakeRow, 'n1', a.qty).catch(function(e){ console.warn('[Xuất TCL form] cộng tinh lỗi', e); });
           })).then(function(){
             try{ _scheduleDc2Sync(txPeriod, true); }catch(e){}
             setTimeout(function(){ try{ if(_currentPeriodKey()===txPeriod) loadFromSupabase(txPeriod, true); }catch(e){} }, 2500);
@@ -13689,7 +13680,7 @@ function onFormDc2BVPHChange(inp){
 function onFormDc3BVPHChange(inp){
   var info = _getFormRowInfo('bvph');
   if(!info.drug || !info.lot){ toast('Chọn thuốc và lô trước!','var(--warning)'); inp.blur(); return; }
-  var availStock = info.open + info.tinh + info.dc - info.sd - (parseInt(document.getElementById('bvph-dc2').value)||0) - info.hh;
+  var availStock = info.t0 + info.n1 + info.n3 - info.x1 - (parseInt(document.getElementById('bvph-dc2').value)||0) - info.x4;
   var maxCan = Math.max(0, availStock);
   var fromUnit = (unitNameById(_currentRootId())||BVPH);
   inp.blur();
@@ -13997,7 +13988,7 @@ function _showTransferModal(opts){
 
   // Tải phiếu đã có (async)
   if(opts.arr && opts.row && opts.periodKey){
-    var _listField = isBvph ? 'dc2_bvph' : 'dc2';
+    var _listField = isBvph ? 'dc2_bvph' : 'x2';
     _loadTransferList(listBody, opts.periodKey, opts.fromUnit, opts.row, opts.inp||null, opts.arr, opts.realIdx, opts.prefix||'', opts.rowIdx||0, _listField, ov);
   } else {
     listBody.innerHTML='<div style="font-size:12px;color:#94a3b8;font-style:italic">—</div>';
@@ -14018,7 +14009,7 @@ function onFormDc2BCChange(inp){
   var info = _getFormRowInfo('bc');
   if(!info.drug || !info.lot){ toast('Chọn thuốc và lô trước!','var(--warning)'); inp.blur(); return; }
   var currentVal = parseInt(inp.value)||0;
-  var availStock = info.open + info.tinh + info.dc - info.sd - info.hh;
+  var availStock = info.t0 + info.n1 + info.n3 - info.x1 - info.x4;
   var maxCan = Math.max(0, availStock);
   var fromUnit = info.unit || '';
   var allUnits = _dcPeerUnits(fromUnit);   // chỉ đơn vị cùng tỉnh/TP
@@ -14075,24 +14066,24 @@ function onDc2BVPHChange(prefix, rowIdx, inp){
   var receiveUnits = _dc2ReceiveUnits();   // Xuất Tổ CL chỉ cấp cho đơn vị TRỰC THUỘC kho đang xem
 
   var srcRow0 = arr[realIdx];
-  var availStock = (srcRow0.open||0)+(srcRow0.tinh||0)+(srcRow0.dc||0)
-                  -(srcRow0.sd||0)-(srcRow0.dc3||0)-(srcRow0.hh||0);
+  var availStock = (srcRow0.t0||0)+(srcRow0.n1||0)+(srcRow0.n3||0)
+                  -(srcRow0.x1||0)-(srcRow0.x3||0)-(srcRow0.x4||0);
   var maxCanTransfer = Math.max(0, availStock);
-  var currentDc2 = srcRow0.dc2||0;
+  var currentDc2 = srcRow0.x2||0;
 
   // Build breakdown table
   var breakdownHTML = (function(){
     var key = _matchKey(row);
     var rows = bcData.filter(function(r){
       if(r.unit===BVPH) return false;
-      return _matchKey(r)===key && r.bcMonth===periodKey && (r.tinh||0)>0;
+      return _matchKey(r)===key && r.bcMonth===periodKey && (r.n1||0)>0;
     });
-    var totalT = rows.reduce(function(s,r){return s+(r.tinh||0);},0);
+    var totalT = rows.reduce(function(s,r){return s+(r.n1||0);},0);
     if(!rows.length) return '';
     var h='<div style="font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.4px;padding:8px 12px;background:#f0fdf4;border-bottom:1px solid #d1fae5">Tỉnh cấp của các đơn vị — tham chiếu</div>';
     h+='<table style="width:100%;border-collapse:collapse;font-size:12px">';
-    rows.sort(function(a,b){return (b.tinh||0)-(a.tinh||0);}).forEach(function(r,i){
-      h+='<tr style="'+(i%2===0?'background:#f8fffe':'')+'"><td style="padding:5px 10px;color:#64748b">'+(i+1)+'</td><td style="padding:5px 10px;color:#0f172a;font-weight:500">'+escH(r.unit)+'</td><td style="padding:5px 10px;text-align:right;font-weight:700;color:#059669">'+(r.tinh||0).toLocaleString()+'</td></tr>';
+    rows.sort(function(a,b){return (b.n1||0)-(a.n1||0);}).forEach(function(r,i){
+      h+='<tr style="'+(i%2===0?'background:#f8fffe':'')+'"><td style="padding:5px 10px;color:#64748b">'+(i+1)+'</td><td style="padding:5px 10px;color:#0f172a;font-weight:500">'+escH(r.unit)+'</td><td style="padding:5px 10px;text-align:right;font-weight:700;color:#059669">'+(r.n1||0).toLocaleString()+'</td></tr>';
     });
     h+='<tr style="background:#ecfdf5;border-top:1px solid #d1fae5"><td colspan="2" style="padding:6px 10px;font-weight:700;color:#065f46">TỔNG (= ô Xuất Tổ CL)</td><td style="padding:6px 10px;text-align:right;font-weight:800;color:#059669;font-size:13px">'+totalT.toLocaleString()+'</td></tr>';
     h+='</table>';
@@ -14112,7 +14103,7 @@ function onDc2BVPHChange(prefix, rowIdx, inp){
       var txPeriod=isNaN(txDate2)?periodKey:_periodKeyOfDate(txDate2);
 
       if(total===0){
-        arr[realIdx].dc2=0; if(inp) inp.value=0; updField(prefix,rowIdx,'dc2',0);
+        arr[realIdx].x2=0; if(inp) inp.value=0; updField(prefix,rowIdx,'x2',0);
         if(_supaOnline && currentDc2>0){
           fetch(SUPA_URL+'/rest/v1/transfers?period=eq.'+encodeURIComponent(periodKey)
             +'&from_unit=eq.'+encodeURIComponent(fromUnit)
@@ -14152,13 +14143,13 @@ function onDc2Change(prefix, rowIdx, inp){
   if(!receiveUnits.length){ toast('Không có đơn vị nào cùng tỉnh/TP để điều chuyển.','var(--warning)'); return; }
 
   var srcRow0 = arr[realIdx];
-  var availStock = (srcRow0.open||0) + (srcRow0.tinh||0) + (srcRow0.dc||0)
-                  - (srcRow0.sd||0) - (srcRow0.dc3||0) - (srcRow0.hh||0);
+  var availStock = (srcRow0.t0||0) + (srcRow0.n1||0) + (srcRow0.n3||0)
+                  - (srcRow0.x1||0) - (srcRow0.x3||0) - (srcRow0.x4||0);
   var maxCanTransfer = Math.max(0, availStock);
-  var currentDc2 = srcRow0.dc2||0;
+  var currentDc2 = srcRow0.x2||0;
 
   _showTransferModal({
-    mode: 'dc2',
+    mode: 'x2',
     drug: row.drug, lot: row.lot, exp: expToMMYYYY(row.exp), fromUnit: fromUnit,
     maxCan: maxCanTransfer, currentVal: currentDc2,
     receiveUnits: receiveUnits,
@@ -14168,10 +14159,10 @@ function onDc2Change(prefix, rowIdx, inp){
       var txDate=(dp.length===3)?new Date(parseInt(dp[0]),parseInt(dp[1])-1,parseInt(dp[2])):new Date();
       var txPeriod=isNaN(txDate)?periodKey:_periodKeyOfDate(txDate);
       var _txISO = txDate instanceof Date && !isNaN(txDate) ? txDate.toISOString().slice(0,10) : new Date().toISOString().slice(0,10);
-      var oldDc2 = arr[realIdx].dc2||0;
+      var oldDc2 = arr[realIdx].x2||0;
 
       if(total===0){
-        arr[realIdx].dc2 = 0; if(inp) inp.value = 0; updField(prefix,rowIdx,'dc2',0);
+        arr[realIdx].x2 = 0; if(inp) inp.value = 0; updField(prefix,rowIdx,'x2',0);
         if(oldDc2>0) toast('Đã xóa xuất điều chuyển','var(--warning)');
         renderBVPH(); renderBC(); _syncPeriodToCloud();
         return;
@@ -14180,9 +14171,9 @@ function onDc2Change(prefix, rowIdx, inp){
       if(total>maxCanTransfer){ toast('⚠ Tổng phân bổ ('+total.toLocaleString()+') vượt tồn tối đa ('+maxCanTransfer.toLocaleString()+')!','var(--danger)'); return; }
 
       // Gán NGAY để UI phản hồi tức thì
-      arr[realIdx].dc2 = (arr[realIdx].dc2||0) + total;
-      if(inp) inp.value = arr[realIdx].dc2;
-      updField(prefix,rowIdx,'dc2',arr[realIdx].dc2);
+      arr[realIdx].x2 = (arr[realIdx].x2||0) + total;
+      if(inp) inp.value = arr[realIdx].x2;
+      updField(prefix,rowIdx,'x2',arr[realIdx].x2);
 
       allocs.forEach(function(a){
         _applyTransfer(prefix,realIdx,row,a.qty,fromUnit,a.unit,txPeriod,_txISO);
@@ -14217,8 +14208,8 @@ async function _syncDc2FromTransfers(periodKey, fromUnit, row, arr, realIdx, pre
     if(!Array.isArray(transfers)) return;
     var sumQty = transfers.reduce(function(s,t){ return s + (t.qty||0); }, 0);
     // Chỉ cập nhật khi thực sự lệch (tránh ghi đè khi phiếu chưa kịp lưu khiến =0)
-    if(arr && arr[realIdx] && (arr[realIdx].dc2||0) !== sumQty){
-      arr[realIdx].dc2 = sumQty;
+    if(arr && arr[realIdx] && (arr[realIdx].x2||0) !== sumQty){
+      arr[realIdx].x2 = sumQty;
       arr[realIdx]._dirty = true;
       renderBVPH(); renderBC(); renderTP();
       saveLocalCache();
@@ -14234,7 +14225,7 @@ async function _loadTransferList(el, periodKey, fromUnit, row, inp, arr, realIdx
     // dc2_to_dc:   đơn vị xuất điều chuyển → nhập ĐC đơn vị nhận
     // dc3_province: xuất tỉnh khác (ô dc3). SỬA LỖI: bản cũ gộp 'dc3' vào 'dc3_to_tinh' → mở ô
     // Xuất tỉnh khác lại tải phiếu Xuất TCL và ghi đè tổng của chúng vào dc3.
-    var listType = (field==='dc3') ? 'dc3_province' : (field==='dc2_bvph' ? 'dc3_to_tinh' : 'dc2_to_dc');
+    var listType = (field==='x3') ? 'dc3_province' : (field==='dc2_bvph' ? 'dc3_to_tinh' : 'dc2_to_dc');
     var r = await fetch(
       SUPA_URL+'/rest/v1/transfers?period=eq.'+encodeURIComponent(periodKey)
       +'&from_unit=eq.'+encodeURIComponent(fromUnit)
@@ -14287,7 +14278,7 @@ async function _loadTransferList(el, periodKey, fromUnit, row, inp, arr, realIdx
     // ĐỒNG BỘ: ô Xuất Tổ CL / Xuất ĐC của dòng = TỔNG số lượng các phiếu thực tế trong kỳ.
     // Tránh trường hợp ô hiển thị lệch với tổng các phiếu đã tạo.
     var sumQty = transfers.reduce(function(s,t){ return s + (t.qty||0); }, 0);
-    var fieldName = (field==='dc3') ? 'dc3' : 'dc2';
+    var fieldName = (field==='x3') ? 'x3' : 'x2';
     if(arr && typeof realIdx==='number' && realIdx>=0 && arr[realIdx]){
       if((arr[realIdx][fieldName]||0) !== sumQty){
         arr[realIdx][fieldName] = sumQty;
@@ -14323,10 +14314,10 @@ function onDc3Change(prefix, rowIdx, inp){
 
   // Tính tồn tối đa có thể xuất
   var srcRow0 = arr[realIdx];
-  var availStock = (srcRow0.open||0)+(srcRow0.tinh||0)+(srcRow0.dc||0)
-                  -(srcRow0.sd||0)-(srcRow0.dc2||0)-(srcRow0.hh||0);
+  var availStock = (srcRow0.t0||0)+(srcRow0.n1||0)+(srcRow0.n3||0)
+                  -(srcRow0.x1||0)-(srcRow0.x2||0)-(srcRow0.x4||0);
   var maxCanTransfer = Math.max(0, availStock);
-  var currentDc3 = srcRow0.dc3||0;
+  var currentDc3 = srcRow0.x3||0;
 
   var old = document.getElementById('_transfer_modal'); if(old) old.remove();
   var ov = document.createElement('div');
@@ -14397,9 +14388,9 @@ function onDc3Change(prefix, rowIdx, inp){
     var txPeriod = isNaN(txDate2) ? periodKey : _periodKeyOfDate(txDate2);
     ov.remove();
     // Set dc3 tuyệt đối
-    arr[realIdx].dc3 = qty;
+    arr[realIdx].x3 = qty;
     inp.value = qty;
-    updField(prefix,rowIdx,'dc3',qty);
+    updField(prefix,rowIdx,'x3',qty);
     if(qty===0){
       toast('Đã xóa xuất tỉnh khác','var(--warning)');
       renderBVPH(); renderBC(); _syncPeriodToCloud();
@@ -14427,7 +14418,7 @@ function onDc3Change(prefix, rowIdx, inp){
   ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
   setTimeout(function(){ qtyInp.focus(); }, 100);
 
-  _loadTransferList(listSection, periodKey, fromUnit, row, inp, arr, realIdx, prefix, rowIdx, 'dc3', ov);
+  _loadTransferList(listSection, periodKey, fromUnit, row, inp, arr, realIdx, prefix, rowIdx, 'x3', ov);
 }
 
 
@@ -14439,11 +14430,11 @@ function _applyTransfer(prefix, fromIdx, fromRow, qty, fromUnit, toUnit, txPerio
 
   // Kiểm tra tồn sau khi dc2 đã được set
   if(srcRow){
-    var finalVal = (srcRow.open||0)+(srcRow.tinh||0)+(srcRow.dc||0)
-                  -(srcRow.sd||0)-(srcRow.dc2||0)-(srcRow.dc3||0)-(srcRow.hh||0);
+    var finalVal = (srcRow.t0||0)+(srcRow.n1||0)+(srcRow.n3||0)
+                  -(srcRow.x1||0)-(srcRow.x2||0)-(srcRow.x3||0)-(srcRow.x4||0);
     if(finalVal < 0){
       toast('⚠ Tồn không đủ! Tồn cuối = '+finalVal+'. Đã hoàn lại.','var(--danger)');
-      srcRow.dc2 = Math.max(0, (srcRow.dc2||0) - (qty>0?qty:0));
+      srcRow.x2 = Math.max(0, (srcRow.x2||0) - (qty>0?qty:0));
       renderBVPH(); renderBC();
       return;
     }
@@ -14522,7 +14513,7 @@ async function _incReportField(periodKey, unitId, src, field, delta){
   }
   if(delta <= 0) return 0;
   var ins = {unit_id:unitId, period:periodKey, phan_loai:pl, period_type:src.periodType||'month', drug:src.drug, lot:src.lot, exp:src.exp||'',
-    open:0, tinh:0, ntk:0, dc:0, sd:0, dc2:0, dc3:0, hh:0, locked:false};
+    t0:0, n1:0, n2:0, n3:0, x1:0, x2:0, x3:0, x4:0, locked:false};
   ins[field] = delta;
   var ir = await fetch(SUPA_URL+'/rest/v1/reports?on_conflict=unit_id,period,phan_loai,drug,lot,exp', {method:'POST',
     headers:Object.assign({}, hd, {'Prefer':'resolution=merge-duplicates,return=minimal'}), body:JSON.stringify([ins])});
@@ -14538,10 +14529,10 @@ function _applyDc3Transfer(prefix, fromIdx, fromRow, qty, fromUnit, toUnit, txPe
   // Kiểm tra tồn không âm
   if(srcRow){
     var calc = calcRow(srcRow);
-    var maxOut = (srcRow.open||0) + calc.tin;
-    if(calc.tout > maxOut){
+    var maxOut = (srcRow.t0||0) + calc.nTong;
+    if(calc.xTong > maxOut){
       toast('⚠ Tổng xuất vượt quá tồn! Tồn không được âm.','var(--danger)');
-      srcRow.dc3 = Math.max(0,(srcRow.dc3||0)-qty);
+      srcRow.x3 = Math.max(0,(srcRow.x3||0)-qty);
       renderBVPH(); renderBC();
       return;
     }
@@ -14557,7 +14548,7 @@ function _applyDc3Transfer(prefix, fromIdx, fromRow, qty, fromUnit, toUnit, txPe
     // Tự động thêm dòng cho đơn vị nhận
     var newRow3 = {
       unit:toUnit, drug:fromRow.drug, lot:fromRow.lot, exp:fromRow.exp||'',
-      open:0, tinh:0, ntk:0, dc:0, sd:0, dc2:0, dc3:0, hh:0,
+      t0:0, n1:0, n2:0, n3:0, x1:0, x2:0, x3:0, x4:0,
       locked:false, editing:false, bcMonth:periodKey, openLocked:false
     };
     bcData.push(newRow3);
@@ -14571,15 +14562,15 @@ function _applyDc3Transfer(prefix, fromIdx, fromRow, qty, fromUnit, toUnit, txPe
   // → Khi đơn vị bấm xác nhận, code confirm KHÔNG cộng lại (xem _confirmSkipAdd).
   if(!targetRow.unitId){ var _tu = _uid(toUnit); if(_tu) targetRow.unitId = _tu; }
   if(!targetRow.phanLoai) targetRow.phanLoai = fromRow.phanLoai || 'h2';
-  targetRow.tinh = (targetRow.tinh||0) + qty;
+  targetRow.n1 = (targetRow.n1||0) + qty;
   // Tài khoản đầu mối KHÔNG có quyền ghi cả dòng của đơn vị con (saveToSupabase sẽ chặn) → cộng
   // trực tiếp ĐÚNG cột tinh trên cloud (đọc-cộng-ghi theo id), rồi tính lại Xuất TCL của kho mình.
   // (Bản cũ: chỉ đánh dấu _dirty → bị chặn ghi → đơn vị con không bao giờ nhận được số, kho tỉnh
   //  không bao giờ bị trừ tồn.)
   if(targetRow.unitId && !canWriteUnit(targetRow.unitId) && canViewUnit(targetRow.unitId) && _supaOnline){
     (function(tr){
-      _incReportField(periodKey, tr.unitId, tr, 'tinh', qty).then(function(nv){
-        tr.tinh = nv;
+      _incReportField(periodKey, tr.unitId, tr, 'n1', qty).then(function(nv){
+        tr.n1 = nv;
         try{ _scheduleDc2Sync(periodKey, true); }catch(e){}
       }).catch(function(e){
         toast('❌ Chưa ghi được Tỉnh cấp cho '+toUnit+': '+(e&&e.message||e),'var(--danger)');
@@ -14715,7 +14706,7 @@ async function showDcOutDetail(prefix, rowIdx){
 
   var totalQty = transfers.filter(function(t){ return t.status==='confirmed'; })
                           .reduce(function(s,t){ return s+(t.qty||0); }, 0);
-  var rowDc2 = row.dc2||0;
+  var rowDc2 = row.x2||0;
   var allConfirmed = transfers.filter(function(t){ return t.status==='confirmed'; });
   var allPending   = transfers.filter(function(t){ return t.status==='pending'; });
 
@@ -14848,7 +14839,7 @@ async function showDcOutDetail(prefix, rowIdx){
               {
                 method: 'PATCH',
                 headers: Object.assign({}, _supaHdr, {'Content-Type':'application/json','Prefer':'return=minimal'}),
-                body: JSON.stringify({dc2: qty})
+                body: JSON.stringify({x2: qty})
               }
             );
           } else {
@@ -14860,9 +14851,9 @@ async function showDcOutDetail(prefix, rowIdx){
                 headers: Object.assign({}, _supaHdr, {'Content-Type':'application/json','Prefer':'return=minimal'}),
                 body: JSON.stringify([{
                   period:pKey, unit:_dbUnit, drug:_row.drug, lot:_row.lot, exp:_row.exp||'',
-                  open:_row.open||0, tinh:_row.tinh||0, ntk:_row.ntk||0,
-                  dc:_row.dc||0, sd:_row.sd||0, dc2:qty,
-                  dc3:_row.dc3||0, hh:_row.hh||0,
+                  t0:_row.t0||0, n1:_row.n1||0, n2:_row.n2||0,
+                  n3:_row.n3||0, x1:_row.x1||0, x2:qty,
+                  x3:_row.x3||0, x4:_row.x4||0,
                   locked:!!_row.locked, bc_month:pKey
                 }])
               }
@@ -14883,11 +14874,11 @@ async function showDcOutDetail(prefix, rowIdx){
             {headers:_supaHdr, cache:'no-store'}
           );
           var _verRows = _verRes.ok ? await _verRes.json() : [];
-          var _verDc = (_verRows[0]||{}).dc2;
+          var _verDc = (_verRows[0]||{}).x2;
           if(_verDc !== qty){
             throw new Error('Verify thất bại: server có dc2='+_verDc+' nhưng cần '+qty);
           }
-          a[ri].dc2 = qty;
+          a[ri].x2 = qty;
           renderBVPH(); renderBC();
           document.getElementById('_dc_out_modal').remove();
           toast('✓ Đã đồng bộ và lưu lên hệ thống: dc2 = ' + fmtNum(qty) + ' viên', '#27ae60');
@@ -14970,7 +14961,7 @@ async function showDcDetail(prefix, rowIdx){
   var h=document.createElement('div'); // compat alias (unused now)
   var sub=document.createElement('div'); // compat - not shown (info now in header)
   var totalEl=document.createElement('div'); totalEl.style.cssText='font-size:13px;font-weight:700;color:#1d4ed8;margin-bottom:10px;padding:8px 12px;background:#eff6ff;border-radius:8px';
-  totalEl.textContent='Tổng nhập điều chuyển: '+(row.dc||0).toLocaleString()+' viên';
+  totalEl.textContent='Tổng nhập điều chuyển: '+(row.n3||0).toLocaleString()+' viên';
   dcBody.appendChild(totalEl);
 
   // Cảnh báo nếu DB chưa có cột receive_date
@@ -15042,7 +15033,7 @@ async function showDcDetail(prefix, rowIdx){
   }
   // Tính tổng thực tế từ DB
   var realTotal = transfers.reduce(function(s,t){ return s+(t.qty||0); }, 0);
-  var rowDc = row.dc||0;
+  var rowDc = row.n3||0;
   // Nếu lệch → hiện cảnh báo + nút đồng bộ
   var warnEl = document.createElement('div');
   if(realTotal !== rowDc){
@@ -15088,7 +15079,7 @@ async function showDcDetail(prefix, rowIdx){
             {
               method: 'PATCH',
               headers: Object.assign({}, _supaHdr, {'Content-Type':'application/json','Prefer':'return=minimal'}),
-              body: JSON.stringify({dc: realTotal})
+              body: JSON.stringify({n3: realTotal})
             }
           );
         } else {
@@ -15100,8 +15091,8 @@ async function showDcDetail(prefix, rowIdx){
               headers: Object.assign({}, _supaHdr, {'Content-Type':'application/json','Prefer':'return=minimal'}),
               body: JSON.stringify([{
                 period:_pk2, unit:_dbUnit2, drug:row.drug, lot:row.lot, exp:row.exp||'',
-                open:row.open||0, tinh:row.tinh||0, ntk:row.ntk||0, dc:realTotal,
-                sd:row.sd||0, dc2:row.dc2||0, dc3:row.dc3||0, hh:row.hh||0,
+                t0:row.t0||0, n1:row.n1||0, n2:row.n2||0, n3:realTotal,
+                x1:row.x1||0, x2:row.x2||0, x3:row.x3||0, x4:row.x4||0,
                 locked:!!row.locked, bc_month:_pk2
               }])
             }
@@ -15122,11 +15113,11 @@ async function showDcDetail(prefix, rowIdx){
           {headers:_supaHdr, cache:'no-store'}
         );
         var _verRows2 = _verRes2.ok ? await _verRes2.json() : [];
-        var _verDc2 = (_verRows2[0]||{}).dc;
+        var _verDc2 = (_verRows2[0]||{}).n3;
         if(_verDc2 !== realTotal){
           throw new Error('Verify thất bại: server có dc='+_verDc2+' nhưng cần '+realTotal);
         }
-        row.dc = realTotal;
+        row.n3 = realTotal;
         renderBVPH(); renderBC();
         ov.remove();
         toast('✓ Đã đồng bộ và lưu lên hệ thống: '+row.drug+' cột Nhập ĐC = '+realTotal.toLocaleString()+' viên','#27ae60');
@@ -15221,8 +15212,8 @@ async function cancelTransferById(transferId, toUnit){
         // SỬA LỖI: bản cũ hủy phiếu Xuất TCL lại trừ cột dc3 (Xuất tỉnh khác) của kho → làm sai một
         // cột không liên quan, và KHÔNG trừ `tinh` của đơn vị nhận khi phiếu còn pending.
         var srcUnit = t.from_unit || '';
-        var srcField = (t.type==='dc2_to_dc') ? 'dc2' : (t.type==='dc3_province' ? 'dc3' : null);
-        var dstField = isdc3 ? 'tinh' : (!wasConfirmed ? null : (t.type==='dc2_to_dc' ? 'dc' : (t.type==='dc3_province' ? 'ntk' : null)));
+        var srcField = (t.type==='dc2_to_dc') ? 'x2' : (t.type==='dc3_province' ? 'x3' : null);
+        var dstField = isdc3 ? 'n1' : (!wasConfirmed ? null : (t.type==='dc2_to_dc' ? 'n3' : (t.type==='dc3_province' ? 'n2' : null)));
         var dstPer = isdc3 ? tPeriod : _rxPer;
         var hdRpc = Object.assign({}, _supaHdr, {'Content-Type':'application/json','Prefer':'return=minimal'});
         // LƯU Ý: PHẢI lọc cả `exp` — cùng thuốc+lô nhưng khác hạn là 2 dòng khác nhau.
@@ -15387,7 +15378,7 @@ async function _editTransferDate(transferId, field, currentVal){
         _noMove = true;
       } else {
         affUnit  = tx.to_unit;      // tinh nằm ở đơn vị NHẬN
-        affField = 'tinh';
+        affField = 'n1';
       }
     } else {
       // Đơn vị → BVPH/Đơn vị (dc2_to_dc):
@@ -15395,10 +15386,10 @@ async function _editTransferDate(transferId, field, currentVal){
       //   ngày CHUYỂN → kỳ của `dc2` (bên gửi)
       if(isRx){
         affUnit  = tx.to_unit;
-        affField = 'dc';
+        affField = 'n3';
       } else {
         affUnit  = tx.from_unit;
-        affField = 'dc2';
+        affField = 'x2';
       }
     }
     var dbUnit = affUnit ? ((affUnit===BVPH || affUnit==='bvph') ? 'bvph' : affUnit) : '';
@@ -15512,7 +15503,7 @@ async function _editTransferDate(transferId, field, currentVal){
         } else {
           // Kỳ mới chưa có dòng → INSERT
           var ins = { period:newPeriod, unit:dbUnit, drug:tx.drug, lot:tx.lot, exp:tx.exp||'',
-            open:0, tinh:0, ntk:0, dc:0, sd:0, dc2:0, dc3:0, hh:0, locked:false, bc_month:newPeriod };
+            t0:0, n1:0, n2:0, n3:0, x1:0, x2:0, x3:0, x4:0, locked:false, bc_month:newPeriod };
           ins[affField] = qty;
           var pIns = await fetch(SUPA_URL+'/rest/v1/reports', {
             method:'POST',
@@ -15559,7 +15550,7 @@ async function _editTransferDate(transferId, field, currentVal){
           }
         }catch(e){}
         // Xuất Tổ CL của BVPH = Σ tinh → tính lại nếu vừa đụng cột tinh
-        if(affField==='tinh'){
+        if(affField==='n1'){
           try{
             if(typeof _scheduleDc2Sync==='function'){ _scheduleDc2Sync(oldPeriod, true); _scheduleDc2Sync(newPeriod, true); }
           }catch(e){}
@@ -15841,7 +15832,7 @@ function _buildToanTinhRows(bvphArr, bcArr, periodKey, scopeRootId, pl){
     match: function(r){ return r.bcMonth===periodKey && _plOK(r, pl || 'all'); }});
   return agg.rows.map(function(a){
     return {unit:'__tinh__', drug:a.drug, lot:a.lot, exp:a.exp, note:notes[a.drug+'|'+a.lot+'|'+(a.exp||'')],
-      open:a.open, tinh:a.tw, ntk:a.ntk, dc:0, sd:a.sd, dc2:0, dc3:a.xn, hh:a.hh, bcMonth:periodKey};
+      t0:a.t0, n1:a.n1Ngoai, n2:a.n23Ngoai, n3:0, x1:a.x1, x2:0, x3:a.x23Ngoai, x4:a.x4, bcMonth:periodKey};
   });
 }
 
@@ -16044,18 +16035,18 @@ function _doRenderPrint(unitName,rows,periodKey,month,year,ngayKy,isBVPH,ghiChuS
   groupOrder.forEach(function(drug){
     var drugRows=groups[drug];
     var validRows = drugRows.filter(function(r){
-      var tonDau=r.open||0, tinh=r.tinh||0, ntk=r.ntk||0, dc=r.dc||0;
-      var sd=r.sd||0, dc2=r.dc2||0, dc3=r.dc3||0, hh=r.hh||0;
-      var nhap=tinh+ntk+dc, xuat=sd+dc2+dc3+hh, tonCuoi=tonDau+nhap-xuat;
+      var tonDau=r.t0||0, n1=r.n1||0, n2=r.n2||0, n3=r.n3||0;
+      var x1=r.x1||0, x2=r.x2||0, x3=r.x3||0, x4=r.x4||0;
+      var nhap=n1+n2+n3, xuat=x1+x2+x3+x4, tonCuoi=tonDau+nhap-xuat;
       return !(tonDau === 0 && nhap === 0 && xuat === 0 && tonCuoi === 0);
     });
     if(validRows.length === 0) return;
     validRows.forEach(function(r,i){
       var expDisp='';
       if(r.exp){ var ep=r.exp.split('-'); if(ep.length>=2) expDisp=ep[1]+'/'+ep[0]; else expDisp=r.exp; }
-      var tonDau=r.open||0, tinh=r.tinh||0, ntk=r.ntk||0, dc=r.dc||0;
+      var tonDau=r.t0||0, tinh=r.n1||0, ntk=r.n2||0, dc=r.n3||0;
       var dcGop=dc+ntk; // Nhập tỉnh khác gộp vào cột Điều chuyển trên mẫu in
-      var sd=r.sd||0, dc2=r.dc2||0, dc3=r.dc3||0, hh=r.hh||0;
+      var sd=r.x1||0, dc2=r.x2||0, dc3=r.x3||0, hh=r.x4||0;
       var nhap=tinh+ntk+dc, xuat=sd+dc2+dc3+hh, tonCuoi=tonDau+nhap-xuat;
       var rowspan=validRows.length;
       var fc=i===0
@@ -16379,14 +16370,14 @@ function importReportsExcel(input){
             else if(x.indexOf('tên thuốc')>=0) col.drug=c2;
             else if(x.indexOf('số lô')>=0||x==='lô') col.lot=c2;
             else if(x.indexOf('hạn')>=0) col.exp=c2;
-            else if(x.indexOf('tồn đầu')>=0) col.open=c2;
-            else if(x.indexOf('tỉnh cấp')>=0||x.indexOf('nhập tw')>=0) col.tinh=c2;
-            else if(x.indexOf('nhập tỉnh khác')>=0) col.ntk=c2;
-            else if(x.indexOf('điều chuyển vào')>=0||x.indexOf('nhập đc')>=0) col.dc=c2;
-            else if(x.indexOf('sử dụng')>=0) col.sd=c2;
-            else if(x.indexOf('xuất tổ cl')>=0||x.indexOf('xuất đc')>=0) col.dc2=c2;
-            else if(x.indexOf('xuất tỉnh khác')>=0) col.dc3=c2;
-            else if(x.indexOf('hỏng')>=0||x==='hh') col.hh=c2;
+            else if(x.indexOf('tồn đầu')>=0) col.t0=c2;
+            else if(x.indexOf('tỉnh cấp')>=0||x.indexOf('nhập tw')>=0) col.n1=c2;
+            else if(x.indexOf('nhập tỉnh khác')>=0) col.n2=c2;
+            else if(x.indexOf('điều chuyển vào')>=0||x.indexOf('nhập đc')>=0) col.n3=c2;
+            else if(x.indexOf('sử dụng')>=0) col.x1=c2;
+            else if(x.indexOf('xuất tổ cl')>=0||x.indexOf('xuất đc')>=0) col.x2=c2;
+            else if(x.indexOf('xuất tỉnh khác')>=0) col.x3=c2;
+            else if(x.indexOf('hỏng')>=0||x==='hh') col.x4=c2;
           } break; }
         }
         if(hr<0||col.drug==null||col.lot==null) return;
@@ -16401,9 +16392,9 @@ function importReportsExcel(input){
           var unit = _mappedUnit;
           if(!unit) continue;
           cand.push({unit:unit, drug:drug, lot:lot, exp:toIso(col.exp!=null?rec[col.exp]:''),
-            open:ival(rec[col.open]), tinh:ival(rec[col.tinh]), ntk:col.ntk!=null?ival(rec[col.ntk]):0,
-            dc:col.dc!=null?ival(rec[col.dc]):0, sd:ival(rec[col.sd]),
-            dc2:col.dc2!=null?ival(rec[col.dc2]):0, dc3:col.dc3!=null?ival(rec[col.dc3]):0, hh:ival(rec[col.hh])});
+            t0:ival(rec[col.t0]), n1:ival(rec[col.n1]), n2:col.n2!=null?ival(rec[col.n2]):0,
+            n3:col.n3!=null?ival(rec[col.n3]):0, x1:ival(rec[col.x1]),
+            x2:col.x2!=null?ival(rec[col.x2]):0, x3:col.x3!=null?ival(rec[col.x3]):0, x4:ival(rec[col.x4])});
         }
       });
       if(!periodKey){ toast('Không đọc được kỳ báo cáo (Tháng .../...) trong file.','var(--danger)'); input.value=''; return; }
@@ -16419,7 +16410,7 @@ function importReportsExcel(input){
       if(!newRows.length){ _riShowResult(0, dup, periodKey, same); input.value=''; return; }
       var hd2=Object.assign({}, _supaHdr, {'Content-Type':'application/json'});
       var payload=newRows.map(function(r){ return {period:periodKey, unit:(r.unit===BVPH?'bvph':r.unit), drug:r.drug, lot:r.lot, exp:r.exp,
-        open:r.open, tinh:r.tinh, ntk:r.ntk, dc:r.dc, sd:r.sd, dc2:r.dc2, dc3:r.dc3, hh:r.hh, locked:false, bc_month:periodKey}; });
+        t0:r.t0, n1:r.n1, n2:r.n2, n3:r.n3, x1:r.x1, x2:r.x2, x3:r.x3, x4:r.x4, locked:false, bc_month:periodKey}; });
       var res=await fetch(SUPA_URL+'/rest/v1/reports?on_conflict=unit_id,period,phan_loai,drug,lot,exp',{method:'POST',
         headers:Object.assign({},hd2,{'Prefer':'resolution=ignore-duplicates,return=minimal'}), body:JSON.stringify(_toDbRows(payload))});
       if(!res.ok){ var tt=await res.text(); toast('Lỗi ghi cloud: '+res.status+' '+tt.slice(0,90),'var(--danger)'); input.value=''; return; }
@@ -16542,17 +16533,17 @@ async function _doExportExcel(curMonth, curYear, unitShort, allMonths, quarterKe
     var aoa = [[title], []];
     var hdr = HDR_ROWS.slice(); if(!withUnit) hdr.splice(1,1);
     aoa.push(hdr);
-    var S = {open:0,tinh:0,ntk:0,dc:0,tin:0,sd:0,dc2:0,dc3:0,hh:0,tout:0,fin:0};
+    var S = {t0:0,n1:0,n2:0,n3:0,nTong:0,x1:0,x2:0,x3:0,x4:0,xTong:0,tonCuoi:0};
     sortRows(rows).forEach(function(r,i){
       var c = calcRow(r);
-      var line = [i+1, uName(r), r.drug, r.lot, expFmt(r.exp), r.open||0, r.tinh||0, r.ntk||0, r.dc||0, c.tin,
-                  r.sd||0, r.dc2||0, r.dc3||0, r.hh||0, c.tout, c.final];
+      var line = [i+1, uName(r), r.drug, r.lot, expFmt(r.exp), r.t0||0, r.n1||0, r.n2||0, r.n3||0, c.nTong,
+                  r.x1||0, r.x2||0, r.x3||0, r.x4||0, c.xTong, c.tonCuoi];
       if(!withUnit) line.splice(1,1);
       aoa.push(line);
-      S.open+=r.open||0; S.tinh+=r.tinh||0; S.ntk+=r.ntk||0; S.dc+=r.dc||0; S.tin+=c.tin; S.sd+=r.sd||0;
-      S.dc2+=r.dc2||0; S.dc3+=r.dc3||0; S.hh+=r.hh||0; S.tout+=c.tout; S.fin+=c.final;
+      S.t0+=r.t0||0; S.n1+=r.n1||0; S.n2+=r.n2||0; S.n3+=r.n3||0; S.nTong+=c.nTong; S.x1+=r.x1||0;
+      S.x2+=r.x2||0; S.x3+=r.x3||0; S.x4+=r.x4||0; S.xTong+=c.xTong; S.tonCuoi+=c.tonCuoi;
     });
-    var tl = ['CỘNG', '', '', '', '', S.open, S.tinh, S.ntk, S.dc, S.tin, S.sd, S.dc2, S.dc3, S.hh, S.tout, S.fin];
+    var tl = ['CỘNG', '', '', '', '', S.t0, S.n1, S.n2, S.n3, S.nTong, S.x1, S.x2, S.x3, S.x4, S.xTong, S.tonCuoi];
     if(!withUnit) tl.splice(1,1);
     aoa.push(tl);
     return aoa;
@@ -16561,8 +16552,8 @@ async function _doExportExcel(curMonth, curYear, unitShort, allMonths, quarterKe
     var _xl=_xferLbl(node);
     var aoa = [[title], ['Điều chuyển nội bộ trong phạm vi đã triệt tiêu — Nhập/Xuất chỉ tính phần đến từ / đi ra ngoài phạm vi'], []];
     aoa.push(['STT','Tên thuốc','Số lô','Hạn dùng','Tồn đầu','Nhập tuyến trên',_xl.inp,'Tổng nhập','Sử dụng',_xl.out,'Hỏng/HH','Tổng xuất','Tồn cuối']);
-    agg.rows.forEach(function(a,i){ aoa.push([i+1, a.drug, a.lot, expFmt(a.exp), a.open, a.tw, a.ntk, a.tin, a.sd, a.xn, a.hh, a.tout, a.fin]); });
-    var t = agg.tot; aoa.push(['TỔNG','','','', t.open, t.tw, t.ntk, t.tin, t.sd, t.xn, t.hh, t.tout, t.fin]);
+    agg.rows.forEach(function(a,i){ aoa.push([i+1, a.drug, a.lot, expFmt(a.exp), a.t0, a.n1Ngoai, a.n23Ngoai, a.nTong, a.x1, a.x23Ngoai, a.x4, a.xTong, a.tonCuoi]); });
+    var t = agg.tot; aoa.push(['TỔNG','','','', t.t0, t.n1Ngoai, t.n23Ngoai, t.nTong, t.x1, t.x23Ngoai, t.x4, t.xTong, t.tonCuoi]);
     return aoa;
   }
   function addSheet(wb, aoa, name, cols){
@@ -16589,7 +16580,7 @@ async function _doExportExcel(curMonth, curYear, unitShort, allMonths, quarterKe
           var agg = _aggScopeTotals(rootId, {rows: rows, transfers: tx, match: function(r){ return r.bcMonth===per; }});
           aoaM.push([]); aoaM.push(['TỔNG HỢP CẢ PHẠM VI (đã triệt tiêu điều chuyển nội bộ)']);
           aoaM.push(['','','','','', 'Tồn đầu','Tổng nhập','Tổng xuất','Tồn cuối']);
-          aoaM.push(['','','','','', agg.tot.open, agg.tot.tin, agg.tot.tout, agg.tot.fin]);
+          aoaM.push(['','','','','', agg.tot.t0, agg.tot.nTong, agg.tot.xTong, agg.tot.tonCuoi]);
         }
         addSheet(wb, aoaM, 'T'+parseInt(pp[1]), COLS_U); nSheets++;
         continue;
@@ -16755,11 +16746,11 @@ function renderStats(){
     var map={};
     // BVPHP
     bvphData.filter(function(r){return r.drug===selDrug && !r._agg;}).forEach(function(r){
-      var c=calcRow(r);map[BVPH]=(map[BVPH]||0)+c.final;
+      var c=calcRow(r);map[BVPH]=(map[BVPH]||0)+c.tonCuoi;
     });
     // 22 đơn vị
     bcData.filter(function(r){return r.drug===selDrug && !r._agg;}).forEach(function(r){
-      var c=calcRow(r);var u=r.unit||'?';map[u]=(map[u]||0)+c.final;
+      var c=calcRow(r);var u=r.unit||'?';map[u]=(map[u]||0)+c.tonCuoi;
     });
     Object.keys(map).forEach(function(k){items.push({n:k,v:map[k]});});
     if(!items.length)items=[{n:'Chưa có dữ liệu cho thuốc này',v:0}];
@@ -16771,30 +16762,30 @@ function renderStats(){
     var src2=(selUnit===BVPH?bvphData:bcData.filter(function(r){return r.unit===selUnit;})).filter(function(r){return !r._agg;});
     // Gom theo thuốc (phòng trường hợp nhiều lô)
     var drugMap={};
-    src2.forEach(function(r){var c=calcRow(r);drugMap[r.drug]=(drugMap[r.drug]||0)+c.final;});
+    src2.forEach(function(r){var c=calcRow(r);drugMap[r.drug]=(drugMap[r.drug]||0)+c.tonCuoi;});
     Object.keys(drugMap).forEach(function(k){items.push({n:k,v:drugMap[k]});});
     if(!items.length)items=[{n:'Chưa có dữ liệu tại đơn vị này',v:0}];
 
   } else if(by==='all-drugs-final'){
     title='Tổng tồn cuối kỳ — Tất cả thuốc';metricLabel='Tồn cuối (viên)';
-    var dm={};data.forEach(function(r){var c=calcRow(r);dm[r.drug]=(dm[r.drug]||0)+c.final;});
+    var dm={};data.forEach(function(r){var c=calcRow(r);dm[r.drug]=(dm[r.drug]||0)+c.tonCuoi;});
     Object.keys(dm).forEach(function(k){items.push({n:k,v:dm[k]});});
 
   } else if(by==='all-drugs-in'){
     title='Tổng nhập trong kỳ — Tất cả thuốc';metricLabel='Tổng nhập (viên)';
-    var dm2={};data.forEach(function(r){var c=calcRow(r);dm2[r.drug]=(dm2[r.drug]||0)+c.tin;});
+    var dm2={};data.forEach(function(r){var c=calcRow(r);dm2[r.drug]=(dm2[r.drug]||0)+c.nTong;});
     Object.keys(dm2).forEach(function(k){items.push({n:k,v:dm2[k]});});
 
   } else if(by==='all-drugs-out'){
     title='Tổng xuất trong kỳ — Tất cả thuốc';metricLabel='Tổng xuất (viên)';
-    var dm3={};data.forEach(function(r){var c=calcRow(r);dm3[r.drug]=(dm3[r.drug]||0)+c.tout;});
+    var dm3={};data.forEach(function(r){var c=calcRow(r);dm3[r.drug]=(dm3[r.drug]||0)+c.xTong;});
     Object.keys(dm3).forEach(function(k){items.push({n:k,v:dm3[k]});});
 
   } else { // all-units
     title='Tổng xuất trong kỳ — Tất cả đơn vị';metricLabel='Tổng xuất (viên)';
     var um={};
-    bvphData.forEach(function(r){if(r._agg)return;var c=calcRow(r);um[BVPH]=(um[BVPH]||0)+c.tout;});
-    bcData.forEach(function(r){if(r._agg)return;var c=calcRow(r);var u=r.unit||'?';um[u]=(um[u]||0)+c.tout;});
+    bvphData.forEach(function(r){if(r._agg)return;var c=calcRow(r);um[BVPH]=(um[BVPH]||0)+c.xTong;});
+    bcData.forEach(function(r){if(r._agg)return;var c=calcRow(r);var u=r.unit||'?';um[u]=(um[u]||0)+c.xTong;});
     Object.keys(um).forEach(function(k){items.push({n:k,v:um[k]});});
     if(!items.length)items=[{n:'Chưa có dữ liệu',v:0}];
   }
@@ -17004,10 +16995,10 @@ function renderTP(){
   function _addContrib(k, unitName, r, isRoot){
     if(!contrib[k]) contrib[k] = {};
     var c = contrib[k][unitName];
-    if(!c) c = contrib[k][unitName] = {open:0,tw:0,ntk:0,dc:0,sd:0,dc3:0,hh:0,fin:0,isBvph:!!isRoot};
-    c.open += (r.open||0); c.sd += (r.sd||0); c.dc += (r.dc||0);
-    try{ c.fin += calcRow(r).final; }catch(e){}
-    c.tw += (r.tinh||0); c.ntk += (r.ntk||0); c.dc3 += (r.dc3||0); c.hh += (r.hh||0);   // GĐ1: mọi đơn vị, không chỉ root
+    if(!c) c = contrib[k][unitName] = {t0:0,n1Ngoai:0,n23Ngoai:0,n3:0,x1:0,x3:0,x4:0,tonCuoi:0,isBvph:!!isRoot};
+    c.t0 += (r.t0||0); c.x1 += (r.x1||0); c.n3 += (r.n3||0);
+    try{ c.tonCuoi += calcRow(r).tonCuoi; }catch(e){}
+    c.n1Ngoai += (r.n1||0); c.n23Ngoai += (r.n2||0); c.x3 += (r.x3||0); c.x4 += (r.x4||0);   // GĐ1: mọi đơn vị, không chỉ root
   }
   var _inScope = function(r){
     if(!r.unitId) return false;
@@ -17020,10 +17011,10 @@ function renderTP(){
     var _dk = (r.bcMonth||'')+'##'+_stockKey(r);
     if(_seenTP[_dk]) return; _seenTP[_dk] = 1;          // mỗi dòng chỉ cộng 1 lần
     var k=KEY(r);
-    if(!map[k]) map[k]={drug:r.drug,lot:r.lot,exp:r.exp,open:0,sdAll:0,dc2All:0,dc3All:0,hhAll:0,tinhAll:0,ntkAll:0,dcAll:0};
-    map[k].open+=(r.open||0); map[k].sdAll+=(r.sd||0); map[k].dc2All+=(r.dc2||0);
-    map[k].dc3All+=(r.dc3||0); map[k].hhAll+=(r.hh||0); map[k].tinhAll+=(r.tinh||0);
-    map[k].ntkAll+=(r.ntk||0); map[k].dcAll+=(r.dc||0);
+    if(!map[k]) map[k]={drug:r.drug,lot:r.lot,exp:r.exp,t0:0,x1All:0,x2All:0,x3All:0,x4All:0,n1All:0,n2All:0,n3All:0};
+    map[k].t0+=(r.t0||0); map[k].x1All+=(r.x1||0); map[k].x2All+=(r.x2||0);
+    map[k].x3All+=(r.x3||0); map[k].x4All+=(r.x4||0); map[k].n1All+=(r.n1||0);
+    map[k].n2All+=(r.n2||0); map[k].n3All+=(r.n3||0);
     var _isR=(r.unitId===rootId);
     _addContrib(k, _isR ? ('Kho '+root.name) : (r.unit||'(Không rõ đơn vị)'), r, _isR);
   });
@@ -17065,29 +17056,29 @@ function renderTP(){
     // GĐ1: net điều chuyển NỘI BỘ theo phạm vi (InternalCirc), gom mọi đơn vị.
     var _k2 = _ek(m.drug, m.lot, m.exp);
     var _ic = internalCirc[_k2]||0, _icT = icTinh[_k2]||0, _icD = icDc[_k2]||0;
-    var _dcIn = m.dcAll||0;
-    var tw  = Math.max(0, (m.tinhAll||0) - _icT);              // Nhập tuyến trên từ NGOÀI phạm vi
-    var ntk = Math.max(0, (m.ntkAll||0) + (_dcIn - _icD));     // Nguồn khác + ĐC nhận từ NGOÀI phạm vi
-    var dc  = _ic;                                             // Điều chuyển nội bộ (đã triệt tiêu; chỉ để popup)
-    var sd  = m.sdAll || 0;                                    // Sử dụng toàn phạm vi
-    var hh  = m.hhAll || 0;                                    // Hỏng/HH toàn phạm vi
-    var dc3 = Math.max(0, (m.dc2All||0) + (m.dc3All||0) - _ic);// Xuất RA NGOÀI phạm vi
+    var _dcIn = m.n3All||0;
+    var n1Ngoai  = Math.max(0, (m.n1All||0) - _icT);              // Nhập tuyến trên từ NGOÀI phạm vi
+    var n23Ngoai = Math.max(0, (m.n2All||0) + (_dcIn - _icD));     // Nguồn khác + ĐC nhận từ NGOÀI phạm vi
+    var n3  = _ic;                                             // Điều chuyển nội bộ (đã triệt tiêu; chỉ để popup)
+    var x1  = m.x1All || 0;                                    // Sử dụng toàn phạm vi
+    var x4  = m.x4All || 0;                                    // Hỏng/HH toàn phạm vi
+    var x3 = Math.max(0, (m.x2All||0) + (m.x3All||0) - _ic);// Xuất RA NGOÀI phạm vi
     // Tổng nhập = Σ(tinh+ntk+dc) − InternalCirc; Tổng xuất = SD + Hỏng + Xuất-ngoài.
-    var tin  = tw + ntk;
-    var tout = sd + dc3 + hh;
-    var fin  = m.open + tin - tout;
-    var fcls = fin < 0 ? 'final-neg' : (fin < threshold.low ? 'final-low' : 'final-ok');
+    var nTong  = n1Ngoai + n23Ngoai;
+    var xTong = x1 + x3 + x4;
+    var tonCuoi  = m.t0 + nTong - xTong;
+    var fcls = tonCuoi < 0 ? 'final-neg' : (tonCuoi < threshold.low ? 'final-low' : 'final-ok');
     var exp_ = isExpiredStr(m.exp);
     var expD = expToMMYYYY(m.exp);
 
-    sO+=m.open; sTW+=tw; sDC+=dc; sTIN+=tin;
-    sSD+=sd; sDC3+=dc3; sHH+=hh; sTOUT+=tout; sFin+=fin;
+    sO+=m.t0; sTW+=n1Ngoai; sDC+=n3; sTIN+=nTong;
+    sSD+=x1; sDC3+=x3; sHH+=x4; sTOUT+=xTong; sFin+=tonCuoi;
 
     // Lưu chi tiết + số đã tính của dòng này để popup dùng
     _tpDetail[_i] = {
       drug:m.drug, lot:m.lot, exp:m.exp,
       contrib: contrib[k] || {},
-      vals: {open:m.open, tw:tw, ntk:ntk, dc:dc, tin:tin, sd:sd, dc3:dc3, hh:hh, tout:tout, fin:fin}
+      vals: {t0:m.t0, n1Ngoai:n1Ngoai, n23Ngoai:n23Ngoai, n3:n3, nTong:nTong, x1:x1, x3:x3, x4:x4, xTong:xTong, tonCuoi:tonCuoi}
     };
     var CC = function(f){ return ' class="tp-cc" onclick="showTPDetail('+_i+',\''+f+'\')" title="Bấm để xem chi tiết cộng tổng"'; };
 
@@ -17097,25 +17088,25 @@ function renderTP(){
       +(_isFirstOfDrug ? '<td class="left" rowspan="'+(_drugCount[_dn]+(_drugCount[_dn]>1?1:0))+'" style="vertical-align:middle;font-weight:600">'+_dn+'</td>' : '')
       +'<td>'+m.lot+'</td>'
       +'<td style="'+(exp_?'color:var(--danger)':'')+'">'+(exp_?'&#9888; ':'')+expD+'</td>'
-      +'<td'+CC('open')+' style="cursor:pointer" data-cls="open-stock">'+fmtNum(m.open)+'</td>'
-      +'<td'+CC('tw')+'>'+fmtNum(tw)+'</td>'
-      +'<td'+CC('ntk')+'>'+fmtNum(ntk)+'</td>'
-      +'<td'+CC('tin')+' data-cls="calc-in"><strong>'+fmtNum(tin)+'</strong></td>'
-      +'<td'+CC('sd')+' data-tp-sd="1">'+fmtNum(sd)+'</td>'
-      +'<td'+CC('dc3')+' style="color:var(--muted)" data-tp-dc3="1">'+fmtNum(dc3)+'</td>'
-      +'<td'+CC('hh')+' data-tp-hh="1">'+fmtNum(hh)+'</td>'
-      +'<td'+CC('tout')+' data-cls="calc-out"><strong>'+fmtNum(tout)+'</strong></td>'
-      +'<td'+CC('fin')+' data-cls="'+fcls+'">'+fmtNum(fin)+'</td>'
+      +'<td'+CC('t0')+' style="cursor:pointer" data-cls="open-stock">'+fmtNum(m.t0)+'</td>'
+      +'<td'+CC('n1Ngoai')+'>'+fmtNum(n1Ngoai)+'</td>'
+      +'<td'+CC('n23Ngoai')+'>'+fmtNum(n23Ngoai)+'</td>'
+      +'<td'+CC('nTong')+' data-cls="calc-in"><strong>'+fmtNum(nTong)+'</strong></td>'
+      +'<td'+CC('x1')+' data-tp-sd="1">'+fmtNum(x1)+'</td>'
+      +'<td'+CC('x3')+' style="color:var(--muted)" data-tp-dc3="1">'+fmtNum(x3)+'</td>'
+      +'<td'+CC('x4')+' data-tp-hh="1">'+fmtNum(x4)+'</td>'
+      +'<td'+CC('xTong')+' data-cls="calc-out"><strong>'+fmtNum(xTong)+'</strong></td>'
+      +'<td'+CC('tonCuoi')+' data-cls="'+fcls+'">'+fmtNum(tonCuoi)+'</td>'
 
       +'</tr>';
     // Dòng TỔNG của thuốc (≥2 lô): cộng các lô theo từng cột
-    var _G = _tpGrp[_dn] || (_tpGrp[_dn] = {n:0,open:0,tw:0,ntk:0,tin:0,sd:0,dc3:0,hh:0,tout:0,fin:0});
-    _G.n++; _G.open+=m.open; _G.tw+=tw; _G.ntk+=ntk; _G.tin+=tin; _G.sd+=sd; _G.dc3+=dc3; _G.hh+=hh; _G.tout+=tout; _G.fin+=fin;
+    var _G = _tpGrp[_dn] || (_tpGrp[_dn] = {n:0,t0:0,n1Ngoai:0,n23Ngoai:0,nTong:0,x1:0,x3:0,x4:0,xTong:0,tonCuoi:0});
+    _G.n++; _G.t0+=m.t0; _G.n1Ngoai+=n1Ngoai; _G.n23Ngoai+=n23Ngoai; _G.nTong+=nTong; _G.x1+=x1; _G.x3+=x3; _G.x4+=x4; _G.xTong+=xTong; _G.tonCuoi+=tonCuoi;
     if(_G.n === _drugCount[_dn] && _G.n > 1){
       _tpHtml += '<tr class="grp-sum"><td class="gs-lbl" colspan="2">Cộng ('+_G.n+' lô)</td>'
-        +'<td class="open-stock gs-open">'+fmtNum(_G.open)+'</td><td>'+fmtNum(_G.tw)+'</td><td>'+fmtNum(_G.ntk)+'</td>'
-        +'<td class="calc-in gs-in">'+fmtNum(_G.tin)+'</td><td>'+fmtNum(_G.sd)+'</td><td>'+fmtNum(_G.dc3)+'</td>'
-        +'<td>'+fmtNum(_G.hh)+'</td><td class="calc-out gs-out">'+fmtNum(_G.tout)+'</td><td class="final-ok gs-fin">'+fmtNum(_G.fin)+'</td></tr>';
+        +'<td class="open-stock gs-open">'+fmtNum(_G.t0)+'</td><td>'+fmtNum(_G.n1Ngoai)+'</td><td>'+fmtNum(_G.n23Ngoai)+'</td>'
+        +'<td class="calc-in gs-in">'+fmtNum(_G.nTong)+'</td><td>'+fmtNum(_G.x1)+'</td><td>'+fmtNum(_G.x3)+'</td>'
+        +'<td>'+fmtNum(_G.x4)+'</td><td class="calc-out gs-out">'+fmtNum(_G.xTong)+'</td><td class="final-ok gs-fin">'+fmtNum(_G.tonCuoi)+'</td></tr>';
     }
   });
 
@@ -17178,7 +17169,7 @@ function _aggScopeTotals(scopeRootId, opts){
   opts = opts || {};
   var match = opts.match || matchPeriod;
   var root = scopeRootId ? UNIT_BY_ID[scopeRootId] : null;
-  var empty = {rows:[], tot:{open:0,tw:0,ntk:0,tin:0,sd:0,xn:0,hh:0,tout:0,fin:0}, byDrug:{}, sumUnitFinal:0};
+  var empty = {rows:[], tot:{t0:0,n1Ngoai:0,n23Ngoai:0,nTong:0,x1:0,x23Ngoai:0,x4:0,xTong:0,tonCuoi:0}, byDrug:{}, sumUnitFinal:0};
   if(!root) return empty;
   var rootPath = root.path;
   var _inScope = function(r){ if(!r.unitId) return false; var u=UNIT_BY_ID[r.unitId]; return !!(u && _pathIn(u.path, rootPath)); };
@@ -17198,29 +17189,29 @@ function _aggScopeTotals(scopeRootId, opts){
     var dk = (r.bcMonth||'')+'##'+sk;
     if(seen[dk]) return; seen[dk] = 1;                       // một dòng chỉ cộng 1 lần
     var k=KEY(r);
-    if(!map[k]) map[k]={drug:r.drug,lot:r.lot,exp:r.exp,open:0,sd:0,dc2:0,dc3:0,hh:0,tinh:0,ntk:0,dc:0};
+    if(!map[k]) map[k]={drug:r.drug,lot:r.lot,exp:r.exp,t0:0,x1:0,x2:0,x3:0,x4:0,n1:0,n2:0,n3:0};
     var M=map[k];
-    if((r.bcMonth||'') === firstPer[sk]) M.open+=_num(r.open);
-    M.sd+=(r.sd||0);M.dc2+=(r.dc2||0);M.dc3+=(r.dc3||0);M.hh+=(r.hh||0);M.tinh+=(r.tinh||0);M.ntk+=(r.ntk||0);M.dc+=(r.dc||0);
-    if((r.bcMonth||'') === lastPer[sk]) sumUnitFinal += calcRow(r).final;
+    if((r.bcMonth||'') === firstPer[sk]) M.t0+=_num(r.t0);
+    M.x1+=(r.x1||0);M.x2+=(r.x2||0);M.x3+=(r.x3||0);M.x4+=(r.x4||0);M.n1+=(r.n1||0);M.n2+=(r.n2||0);M.n3+=(r.n3||0);
+    if((r.bcMonth||'') === lastPer[sk]) sumUnitFinal += calcRow(r).tonCuoi;
   });
   var N = _internalCircFor(scopeRootId, match, opts.transfers,
           opts.bucketKey || (match === matchPeriod ? _currentPeriodKey() : null));
   var _ek=function(dr,lo,ex){ return (dr||'')+'|'+(lo||'')+'|'+((typeof _normExp==='function')?_normExp(ex):(ex||'')); };
-  var rows=[], tot={open:0,tw:0,ntk:0,tin:0,sd:0,xn:0,hh:0,tout:0,fin:0}, byDrug={};
+  var rows=[], tot={t0:0,n1Ngoai:0,n23Ngoai:0,nTong:0,x1:0,x23Ngoai:0,x4:0,xTong:0,tonCuoi:0}, byDrug={};
   Object.keys(map).forEach(function(k){
     var m=map[k], _k2=_ek(m.drug,m.lot,m.exp);
     var _ic=N.ic[_k2]||0,_icT=N.icT[_k2]||0,_icD=N.icD[_k2]||0;
-    var tw=Math.max(0,m.tinh-_icT);              // Nhập tuyến trên (từ ngoài phạm vi)
-    var ntk=Math.max(0,m.ntk+(m.dc-_icD));       // Nhập nguồn khác + ĐC nhận từ ngoài phạm vi
-    var tin=tw+ntk;
-    var xn=Math.max(0,m.dc2+m.dc3-_ic);
-    var tout=m.sd+xn+m.hh, fin=m.open+tin-tout;
-    rows.push({drug:m.drug,lot:m.lot,exp:m.exp,open:m.open,tw:tw,ntk:ntk,tin:tin,sd:m.sd,xn:xn,hh:m.hh,tout:tout,fin:fin});
-    tot.open+=m.open;tot.tw+=tw;tot.ntk+=ntk;tot.tin+=tin;tot.sd+=m.sd;tot.xn+=xn;tot.hh+=m.hh;tot.tout+=tout;tot.fin+=fin;
+    var n1Ngoai=Math.max(0,m.n1-_icT);              // Nhập tuyến trên (từ ngoài phạm vi)
+    var n23Ngoai=Math.max(0,m.n2+(m.n3-_icD));       // Nhập nguồn khác + ĐC nhận từ ngoài phạm vi
+    var nTong=n1Ngoai+n23Ngoai;
+    var x23Ngoai=Math.max(0,m.x2+m.x3-_ic);
+    var xTong=m.x1+x23Ngoai+m.x4, tonCuoi=m.t0+nTong-xTong;
+    rows.push({drug:m.drug,lot:m.lot,exp:m.exp,t0:m.t0,n1Ngoai:n1Ngoai,n23Ngoai:n23Ngoai,nTong:nTong,x1:m.x1,x23Ngoai:x23Ngoai,x4:m.x4,xTong:xTong,tonCuoi:tonCuoi});
+    tot.t0+=m.t0;tot.n1Ngoai+=n1Ngoai;tot.n23Ngoai+=n23Ngoai;tot.nTong+=nTong;tot.x1+=m.x1;tot.x23Ngoai+=x23Ngoai;tot.x4+=m.x4;tot.xTong+=xTong;tot.tonCuoi+=tonCuoi;
     var d=m.drug||'(không tên)';
-    if(!byDrug[d]) byDrug[d]={open:0,tin:0,tout:0,final:0};
-    byDrug[d].open+=m.open; byDrug[d].tin+=tin; byDrug[d].tout+=tout; byDrug[d].final+=fin;
+    if(!byDrug[d]) byDrug[d]={t0:0,nTong:0,xTong:0,tonCuoi:0};
+    byDrug[d].t0+=m.t0; byDrug[d].nTong+=nTong; byDrug[d].xTong+=xTong; byDrug[d].tonCuoi+=tonCuoi;
   });
   rows.sort(function(a,b){ var c=(a.drug||'').localeCompare(b.drug||'','vi'); return c||String(a.lot||'').localeCompare(String(b.lot||''),'vi'); });
   return {rows:rows, tot:tot, byDrug:byDrug, sumUnitFinal:sumUnitFinal};
@@ -17349,7 +17340,7 @@ function _aggTableBody(agg, opts){
   var seen={}, h='', grp={};
   rows.forEach(function(r){
     var first=!seen[r.drug]; seen[r.drug]=true;
-    var fcls = r.fin<0 ? 'final-neg' : (r.fin<threshold.low ? 'final-low' : 'final-ok');
+    var fcls = r.tonCuoi<0 ? 'final-neg' : (r.tonCuoi<threshold.low ? 'final-low' : 'final-ok');
     var exp_ = isExpiredStr(r.exp), expD = expToMMYYYY(r.exp);
     h+='<tr>';
     if(first){
@@ -17359,31 +17350,31 @@ function _aggTableBody(agg, opts){
     }
     h+='<td>'+escH(r.lot)+'</td>';
     h+='<td style="'+(exp_?'color:var(--danger)':'')+'">'+(exp_?'&#9888; ':'')+expD+'</td>';
-    h+='<td class="open-stock">'+fmtNum(r.open)+'</td>';
-    h+='<td>'+fmtNum(r.tw)+'</td><td>'+fmtNum(r.ntk)+'</td><td class="calc-in"><strong>'+fmtNum(r.tin)+'</strong></td>';
-    h+='<td>'+fmtNum(r.sd)+'</td>';
-    if(!noXn) h+='<td>'+fmtNum(r.xn)+'</td>';
-    h+='<td>'+fmtNum(r.hh)+'</td><td class="calc-out"><strong>'+fmtNum(r.tout)+'</strong></td>';
-    h+='<td class="'+fcls+'">'+fmtNum(r.fin)+'</td>';
+    h+='<td class="open-stock">'+fmtNum(r.t0)+'</td>';
+    h+='<td>'+fmtNum(r.n1Ngoai)+'</td><td>'+fmtNum(r.n23Ngoai)+'</td><td class="calc-in"><strong>'+fmtNum(r.nTong)+'</strong></td>';
+    h+='<td>'+fmtNum(r.x1)+'</td>';
+    if(!noXn) h+='<td>'+fmtNum(r.x23Ngoai)+'</td>';
+    h+='<td>'+fmtNum(r.x4)+'</td><td class="calc-out"><strong>'+fmtNum(r.xTong)+'</strong></td>';
+    h+='<td class="'+fcls+'">'+fmtNum(r.tonCuoi)+'</td>';
     h+='</tr>';
     // Dòng TỔNG của thuốc (≥2 lô)
-    var g = grp[r.drug] || (grp[r.drug] = {n:0,open:0,tw:0,ntk:0,tin:0,sd:0,xn:0,hh:0,tout:0,fin:0});
-    g.n++; ['open','tw','ntk','tin','sd','xn','hh','tout','fin'].forEach(function(f){ g[f] += (r[f]||0); });
+    var g = grp[r.drug] || (grp[r.drug] = {n:0,t0:0,n1Ngoai:0,n23Ngoai:0,nTong:0,x1:0,x23Ngoai:0,x4:0,xTong:0,tonCuoi:0});
+    g.n++; ['t0','n1Ngoai','n23Ngoai','nTong','x1','x23Ngoai','x4','xTong','tonCuoi'].forEach(function(f){ g[f] += (r[f]||0); });
     if(g.n === cnt[r.drug] && g.n > 1){
       h+='<tr class="grp-sum"><td class="gs-lbl" colspan="2">Cộng ('+g.n+' lô)</td>'
-        +'<td class="open-stock gs-open">'+fmtNum(g.open)+'</td><td>'+fmtNum(g.tw)+'</td><td>'+fmtNum(g.ntk)+'</td>'
-        +'<td class="calc-in gs-in">'+fmtNum(g.tin)+'</td><td>'+fmtNum(g.sd)+'</td>'
-        +(noXn ? '' : '<td>'+fmtNum(g.xn)+'</td>')
-        +'<td>'+fmtNum(g.hh)+'</td><td class="calc-out gs-out">'+fmtNum(g.tout)+'</td><td class="final-ok gs-fin">'+fmtNum(g.fin)+'</td></tr>';
+        +'<td class="open-stock gs-open">'+fmtNum(g.t0)+'</td><td>'+fmtNum(g.n1Ngoai)+'</td><td>'+fmtNum(g.n23Ngoai)+'</td>'
+        +'<td class="calc-in gs-in">'+fmtNum(g.nTong)+'</td><td>'+fmtNum(g.x1)+'</td>'
+        +(noXn ? '' : '<td>'+fmtNum(g.x23Ngoai)+'</td>')
+        +'<td>'+fmtNum(g.x4)+'</td><td class="calc-out gs-out">'+fmtNum(g.xTong)+'</td><td class="final-ok gs-fin">'+fmtNum(g.tonCuoi)+'</td></tr>';
     }
   });
   var t=agg.tot||{};
   h+='<tr style="background:#f8fafc;font-weight:700;border-top:2px solid #cbd5e0">';
   h+='<td colspan="4" style="text-align:right">Tổng cộng</td>';
-  h+='<td class="open-stock">'+fmtNum(t.open||0)+'</td><td>'+fmtNum(t.tw||0)+'</td><td>'+fmtNum(t.ntk||0)+'</td><td class="calc-in">'+fmtNum(t.tin||0)+'</td>';
-  h+='<td>'+fmtNum(t.sd||0)+'</td>';
-  if(!noXn) h+='<td>'+fmtNum(t.xn||0)+'</td>';
-  h+='<td>'+fmtNum(t.hh||0)+'</td><td class="calc-out">'+fmtNum(t.tout||0)+'</td><td class="final-ok">'+fmtNum(t.fin||0)+'</td>';
+  h+='<td class="open-stock">'+fmtNum(t.t0||0)+'</td><td>'+fmtNum(t.n1Ngoai||0)+'</td><td>'+fmtNum(t.n23Ngoai||0)+'</td><td class="calc-in">'+fmtNum(t.nTong||0)+'</td>';
+  h+='<td>'+fmtNum(t.x1||0)+'</td>';
+  if(!noXn) h+='<td>'+fmtNum(t.x23Ngoai||0)+'</td>';
+  h+='<td>'+fmtNum(t.x4||0)+'</td><td class="calc-out">'+fmtNum(t.xTong||0)+'</td><td class="final-ok">'+fmtNum(t.tonCuoi||0)+'</td>';
   h+='</tr>';
   return h;
 }
@@ -17453,11 +17444,11 @@ function _renderMienTQ(){
 //  field: dc3 | ntk | dc2 | dc | tinh   ·  units: tên đơn vị (đúng tên trên phiếu)
 // ════════════════════════════════════════════════════════════════════
 var _CELL_TX = {
-  dc3:  {dir:'out', types:['dc3_province'],            title:'Phiếu xuất tỉnh khác'},
-  ntk:  {dir:'in',  types:['dc3_province'],            title:'Phiếu nhập tỉnh khác'},
-  dc2:  {dir:'out', types:['dc2_to_dc','dc3_to_tinh'], title:'Phiếu xuất điều chuyển / cấp phát'},
-  dc:   {dir:'in',  types:['dc2_to_dc'],               title:'Phiếu nhập điều chuyển'},
-  tinh: {dir:'in',  types:['dc3_to_tinh'],             title:'Phiếu cấp phát từ tuyến trên'}
+  x3:  {dir:'out', types:['dc3_province'],            title:'Phiếu xuất tỉnh khác'},
+  n2:  {dir:'in',  types:['dc3_province'],            title:'Phiếu nhập tỉnh khác'},
+  x2:  {dir:'out', types:['dc2_to_dc','dc3_to_tinh'], title:'Phiếu xuất điều chuyển / cấp phát'},
+  n3:   {dir:'in',  types:['dc2_to_dc'],               title:'Phiếu nhập điều chuyển'},
+  n1: {dir:'in',  types:['dc3_to_tinh'],             title:'Phiếu cấp phát từ tuyến trên'}
 };
 function _cellTxSlot(field){ return _CELL_TX[field] ? '<div class="cell-tx" data-f="'+field+'"><div style="margin-top:12px;font-size:12px;color:#94a3b8;font-style:italic">Đang tải danh sách phiếu…</div></div>' : ''; }
 async function _fillCellTx(box, field, units, drug, lot, exp){
@@ -17525,15 +17516,15 @@ function showTPDetail(idx, field){
   var d = _tpDetail[idx];
   if(!d) return;
   var META = {
-    open: {label:'Tồn đầu kỳ',       col:'#b7791f', bg:'#fffbeb', per:'open', note:'Cộng tồn đầu của Kho chính + các đơn vị tuyến'},
-    tw:   {label:'Nhập TW',          col:'#1e7e44', bg:'#f0fdf4', per:'tw',   note:'Chỉ ghi nhận tại Kho chính (BVPH)'},
-    ntk:  {label:'Nhập tỉnh khác',   col:'#1e7e44', bg:'#f0fdf4', per:'ntk',  note:'Chỉ ghi nhận tại Kho chính (BVPH)'},
-    sd:   {label:'Sử dụng',          col:'#c0392b', bg:'#fef2f2', per:'sd',   note:'Cộng số sử dụng của Kho chính + các đơn vị tuyến'},
-    dc3:  {label:'Xuất tỉnh khác',   col:'#c0392b', bg:'#fef2f2', per:'dc3',  note:'Chỉ ghi nhận tại Kho chính (BVPH)'},
-    hh:   {label:'Hỏng / Hết hạn',   col:'#c0392b', bg:'#fef2f2', per:'hh',   note:'Chỉ ghi nhận tại Kho chính (BVPH)'},
-    tin:  {label:'Tổng nhập',        col:'#1e7e44', bg:'#f0fdf4', formula:[['Nhập TW','tw','+'],['Nhập tỉnh khác','ntk','+']], note:'Nhập điều chuyển nội bộ không cộng vào (tự triệt tiêu trong toàn TP)'},
-    tout: {label:'Tổng xuất',        col:'#c0392b', bg:'#fef2f2', formula:[['Sử dụng','sd','+'],['Xuất tỉnh khác','dc3','+'],['Hỏng/HH','hh','+']], note:'Xuất điều chuyển nội bộ không cộng vào (tự triệt tiêu trong toàn TP)'},
-    fin:  {label:'Tồn cuối kỳ',      col:'#1d4ed8', bg:'#eff6ff', formula:[['Tồn đầu','open','+'],['Tổng nhập','tin','+'],['Tổng xuất','tout','−']], note:'Tồn cuối = Tồn đầu + Tổng nhập − Tổng xuất'}
+    t0: {label:'Tồn đầu kỳ',       col:'#b7791f', bg:'#fffbeb', per:'t0', note:'Cộng tồn đầu của Kho chính + các đơn vị tuyến'},
+    n1Ngoai:   {label:'Nhập TW',          col:'#1e7e44', bg:'#f0fdf4', per:'n1Ngoai',   note:'Chỉ ghi nhận tại Kho chính (BVPH)'},
+    n23Ngoai:  {label:'Nhập tỉnh khác',   col:'#1e7e44', bg:'#f0fdf4', per:'n23Ngoai',  note:'Chỉ ghi nhận tại Kho chính (BVPH)'},
+    x1:   {label:'Sử dụng',          col:'#c0392b', bg:'#fef2f2', per:'x1',   note:'Cộng số sử dụng của Kho chính + các đơn vị tuyến'},
+    x3:  {label:'Xuất tỉnh khác',   col:'#c0392b', bg:'#fef2f2', per:'x3',  note:'Chỉ ghi nhận tại Kho chính (BVPH)'},
+    x4:   {label:'Hỏng / Hết hạn',   col:'#c0392b', bg:'#fef2f2', per:'x4',   note:'Chỉ ghi nhận tại Kho chính (BVPH)'},
+    nTong:  {label:'Tổng nhập',        col:'#1e7e44', bg:'#f0fdf4', formula:[['Nhập TW','n1Ngoai','+'],['Nhập tỉnh khác','n23Ngoai','+']], note:'Nhập điều chuyển nội bộ không cộng vào (tự triệt tiêu trong toàn TP)'},
+    xTong: {label:'Tổng xuất',        col:'#c0392b', bg:'#fef2f2', formula:[['Sử dụng','x1','+'],['Xuất tỉnh khác','x3','+'],['Hỏng/HH','x4','+']], note:'Xuất điều chuyển nội bộ không cộng vào (tự triệt tiêu trong toàn TP)'},
+    tonCuoi:  {label:'Tồn cuối kỳ',      col:'#1d4ed8', bg:'#eff6ff', formula:[['Tồn đầu','t0','+'],['Tổng nhập','nTong','+'],['Tổng xuất','xTong','−']], note:'Tồn cuối = Tồn đầu + Tổng nhập − Tổng xuất'}
   };
   var mt = META[field]; if(!mt) return;
   var total = d.vals[field] || 0;
@@ -17585,8 +17576,8 @@ function showTPDetail(idx, field){
     if(mt.note) body += '<div style="margin-top:8px;font-size:11px;color:#94a3b8;line-height:1.5">ℹ '+mt.note+'</div>';
 
     // ── RIÊNG TỒN CUỐI: thêm bảng tồn cuối TỪNG ĐƠN VỊ để đối chiếu ──
-    if(field === 'fin'){
-      var ut = _unitTable('fin', mt.col, true);  // cho phép cả số âm (nhập lệch)
+    if(field === 'tonCuoi'){
+      var ut = _unitTable('tonCuoi', mt.col, true);  // cho phép cả số âm (nhập lệch)
       body += '<div style="margin-top:14px;padding-top:10px;border-top:2px dashed #e2e8f0">'
         +'<div style="font-size:11px;font-weight:800;color:'+mt.col+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Đối chiếu: Tồn cuối từng đơn vị</div>'
         + ut.html;
@@ -17603,8 +17594,8 @@ function showTPDetail(idx, field){
   } else {
     // Ô cộng gộp theo đơn vị → liệt kê từng đơn vị đóng góp (>0), sắp giảm dần
     body += _unitTable(mt.per, mt.col, false).html;
-    if(mt.note && field!=='ntk' && field!=='dc3') body += '<div style="margin-top:8px;font-size:11px;color:#94a3b8;line-height:1.5">ℹ '+mt.note+'</div>';
-    if(field==='ntk' || field==='dc3') body += _cellTxSlot(field);
+    if(mt.note && field!=='n23Ngoai' && field!=='x3') body += '<div style="margin-top:8px;font-size:11px;color:#94a3b8;line-height:1.5">ℹ '+mt.note+'</div>';
+    if(field==='n23Ngoai' || field==='x3') body += _cellTxSlot(field);
   }
 
   // Vẽ popup — dùng class app-popup để auto-refresh 12s KHÔNG render đè khi đang mở
@@ -17628,7 +17619,7 @@ function showTPDetail(idx, field){
     +'</div>';
   ov.onclick = function(){ ov.remove(); };
   document.body.appendChild(ov);
-  if(field==='ntk' || field==='dc3'){
+  if(field==='n23Ngoai' || field==='x3'){
     var _us=Object.keys(d.contrib).filter(function(u){ return (d.contrib[u][field]||0)>0; })
       .map(function(u){ return d.contrib[u].isBvph ? u.replace(/^Kho /,'') : u; });
     _fillCellTx(ov, field, _us, d.drug, d.lot, d.exp);
@@ -17740,12 +17731,12 @@ function renderDoiChieu(){
   var addSD = function(arr, isBvph){
     arr.filter(function(r){ return r.bcMonth === periodKey; }).forEach(function(r){
       var u = isBvph ? BVPH : (r.unit||'');
-      var sd = r.sd||0;
-      if(!sd) return;
+      var x1 = r.x1||0;
+      if(!x1) return;
       if(!sdByDrug[r.drug]) sdByDrug[r.drug] = {total:0, byUnit:{}};
-      sdByDrug[r.drug].total += sd;
+      sdByDrug[r.drug].total += x1;
       if(!sdByDrug[r.drug].byUnit[u]) sdByDrug[r.drug].byUnit[u] = 0;
-      sdByDrug[r.drug].byUnit[u] += sd;
+      sdByDrug[r.drug].byUnit[u] += x1;
     });
   };
   addSD(bvphData, true);
@@ -17797,9 +17788,9 @@ function renderDoiChieu(){
   var _dcHigh = threshold.dcHigh || 120;
   var _halfLow = Math.round(_dcLow / 2);
 
-  var makeRow = function(i, drug, unit, duTru, sd, showUnit){
-    var diff = sd - duTru;
-    var pct  = duTru > 0 ? Math.round(sd/duTru*100) : (sd>0 ? null : 0);
+  var makeRow = function(i, drug, unit, duTru, x1, showUnit){
+    var diff = x1 - duTru;
+    var pct  = duTru > 0 ? Math.round(x1/duTru*100) : (x1>0 ? null : 0);
     // Cột % chênh lệch (so với dự trù)
     var pctChenhStr, pctChenhCol;
     if(pct===null){ pctChenhStr='—'; pctChenhCol='#e67e22'; }
@@ -17814,9 +17805,9 @@ function renderDoiChieu(){
 
     // Ghi chú nổi bật theo ngưỡng
     var note, noteCol, noteBg;
-    if(duTru===0 && sd===0){
+    if(duTru===0 && x1===0){
       note='–'; noteCol='#94a3b8'; noteBg='';
-    } else if(sd===0 && duTru>0){
+    } else if(x1===0 && duTru>0){
       note='🔴 Chưa sử dụng — kiểm tra tồn kho'; noteCol='#991b1b'; noteBg='background:#fee2e2;padding:2px 6px;border-radius:4px';
     } else if(pct===null){
       note='🟡 Ngoài phác đồ BN hiện tại'; noteCol='#92400e'; noteBg='background:#fef3c7;padding:2px 6px;border-radius:4px';
@@ -17844,7 +17835,7 @@ function renderDoiChieu(){
       +'</td>'
       +(showUnitCol ? '<td style="padding:8px 10px;color:#555;font-size:12px">'+(showUnit||unitFilter!=='__all__'?escH(_displayUnit(unit)):'')+'</td>' : '')
       +'<td style="padding:8px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#2980b9;font-weight:600">'+fmtNum(duTru)+'</td>'
-      +'<td style="padding:8px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#c0392b;font-weight:600">'+fmtNum(sd)+'</td>'
+      +'<td style="padding:8px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#c0392b;font-weight:600">'+fmtNum(x1)+'</td>'
       +'<td style="padding:8px 10px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;color:'+diffCol+'">'+diffStr+'</td>'
       +'<td style="padding:8px 10px;text-align:right;font-weight:700;color:'+pctChenhCol+'">'+pctChenhStr+'</td>'
       +'<td style="padding:8px 10px;text-align:left;font-size:12px"><span style="'+noteBg+';color:'+noteCol+';white-space:nowrap">'+note+'</span></td>'
@@ -17858,9 +17849,9 @@ function renderDoiChieu(){
     if(mergeLot || unitFilter !== '__all__'){
       // ── Chế độ GỘP: 1 dòng/thuốc, drill-down ẩn bên dưới ──
       var dt = _getUnitDuTru(drug, unitFilter);
-      var sd = _getUnitSD(drug, unitFilter);
+      var x1 = _getUnitSD(drug, unitFilter);
       tt++;
-      tbody += makeRow(tt, drug, unitFilter, dt, sd, false);
+      tbody += makeRow(tt, drug, unitFilter, dt, x1, false);
 
       // Drill-down rows (hidden, chỉ khi toàn TP)
       if(unitFilter === '__all__'){
@@ -17935,7 +17926,7 @@ var _amcHistoryCacheKey = null;
 var _amcHistLoad = null;   // {key, promise} — lần tải đang chạy
 
 // Tháng tính AMC: tồn đầu + nhập trong tháng = 0 và không sử dụng → hết hàng, loại khỏi AMC (WHO)
-function _isStockoutMonth(v){ return (_num(v.open) + _num(v.tin)) <= 0 && _num(v.sd) <= 0; }
+function _isStockoutMonth(v){ return (_num(v.t0) + _num(v.nTong)) <= 0 && _num(v.x1) <= 0; }
 
 async function _loadAMCHistory(nMonths, currentPeriodKey, unitFilter){
   var _ridA = _currentRootId(); var _rnA = _ridA ? UNIT_BY_ID[_ridA] : null;
@@ -17966,8 +17957,8 @@ async function _loadAMCHistory(nMonths, currentPeriodKey, unitFilter){
       if(!r.ok) return h;
       var rows = await r.json();
       var add = function(k, row){
-        var c = h[k] || (h[k] = {sd:0, open:0, tin:0});
-        c.sd += _num(row.sd); c.open += _num(row.open); c.tin += _num(row.tinh) + _num(row.ntk) + _num(row.dc);
+        var c = h[k] || (h[k] = {x1:0, t0:0, nTong:0});
+        c.x1 += _num(row.x1); c.t0 += _num(row.t0); c.nTong += _num(row.n1) + _num(row.n2) + _num(row.n3);
       };
       rows.forEach(function(row){
         var k = row.period + '||' + row.drug;
@@ -18017,14 +18008,14 @@ function _h1Build(rows, pk, nMonths){
     for(var i = 0; i < K; i++){
       (byUQ[uid][q] || []).forEach(function(r){
         var d = per[r.drug] || (per[r.drug] = {});
-        var c = d[q] || (d[q] = {sd:0, open:0, tin:0});
-        c.sd += _num(r.sd); c.open += _num(r.open); c.tin += _num(r.tinh) + _num(r.ntk) + _num(r.dc);
+        var c = d[q] || (d[q] = {x1:0, t0:0, nTong:0});
+        c.x1 += _num(r.x1); c.t0 += _num(r.t0); c.nTong += _num(r.n1) + _num(r.n2) + _num(r.n3);
       });
       q = _prevPeriodKey(q);
     }
     Object.keys(per).forEach(function(d){
       var v = Object.keys(per[d]).map(function(k){ return per[d][k]; }).filter(function(x){ return !_isStockoutMonth(x); });
-      out.amcU[uid+'||'+d] = v.length ? v.reduce(function(s,x){ return s + x.sd; }, 0) / v.length / 3 : 0;
+      out.amcU[uid+'||'+d] = v.length ? v.reduce(function(s,x){ return s + x.x1; }, 0) / v.length / 3 : 0;
     });
   });
   return out;
@@ -18103,7 +18094,7 @@ function _calcAMC(drugName, unitFilter, nMonths, currentPeriodKey){
     while(m <= 0){ m += 12; y--; }
     while(m > 12){ m -= 12; y++; }
     var pk = y + '-' + (m<10?'0':'')+m;
-    monthData.push({period: pk, sd:0, open:0, tin:0});
+    monthData.push({period: pk, x1:0, t0:0, nTong:0});
   }
 
   // Dùng cache lịch sử (đã fetch từ Supabase)
@@ -18111,9 +18102,9 @@ function _calcAMC(drugName, unitFilter, nMonths, currentPeriodKey){
   monthData.forEach(function(md){
     var k = md.period + '||' + drugName + (_oneUnit ? '||u:' + unitFilter : '');
     if(_amcHistoryCache[k]){
-      md.sd   = _amcHistoryCache[k].sd   || 0;
-      md.open = _amcHistoryCache[k].open || 0;
-      md.tin  = _amcHistoryCache[k].tin  || 0;
+      md.x1   = _amcHistoryCache[k].x1   || 0;
+      md.t0 = _amcHistoryCache[k].t0 || 0;
+      md.nTong  = _amcHistoryCache[k].nTong  || 0;
     } else {
       // Fallback: tìm trong RAM (kỳ hiện tại)
       var rows = [];
@@ -18125,7 +18116,7 @@ function _calcAMC(drugName, unitFilter, nMonths, currentPeriodKey){
       } else {
         rows = bcData.filter(function(r){ return r.bcMonth===md.period && r.drug===drugName && r.unit===unitFilter; });
       }
-      rows.forEach(function(r){ md.sd += _num(r.sd); md.open += _num(r.open); md.tin += _num(r.tinh)+_num(r.ntk)+_num(r.dc); });
+      rows.forEach(function(r){ md.x1 += _num(r.x1); md.t0 += _num(r.t0); md.nTong += _num(r.n1)+_num(r.n2)+_num(r.n3); });
     }
   });
 
@@ -18135,7 +18126,7 @@ function _calcAMC(drugName, unitFilter, nMonths, currentPeriodKey){
   var stockoutMonths = monthData.filter(_isStockoutMonth).map(function(md){ return md.period; });
   if(!valid.length) return {amc:0, nMonths:0, nStockout:stockoutMonths.length, stockoutMonths:stockoutMonths};
 
-  var totalSD = valid.reduce(function(s,md){ return s+(md.sd||0); }, 0);
+  var totalSD = valid.reduce(function(s,md){ return s+(md.x1||0); }, 0);
   return {
     amc: Math.round(totalSD / valid.length),
     nMonths: valid.length,
@@ -18148,7 +18139,7 @@ function _calcAMC(drugName, unitFilter, nMonths, currentPeriodKey){
 function _getTonCuoi(drugName, unitFilter, periodKey){
   if(_h1Only(drugName, periodKey)){
     return _h1Ctx.rows.filter(function(r){ return r.drug === drugName && _h1Match(r, unitFilter); })
-      .reduce(function(t, r){ return t + calcRow(r).final; }, 0);
+      .reduce(function(t, r){ return t + calcRow(r).tonCuoi; }, 0);
   }
   var rows = [];
   if(unitFilter === '__all__'){
@@ -18160,7 +18151,7 @@ function _getTonCuoi(drugName, unitFilter, periodKey){
     rows = bcData.filter(function(r){ return r.bcMonth===periodKey && r.drug===drugName && r.unit===unitFilter; });
   }
   var tot = 0;
-  rows.forEach(function(r){ var res = calcRow(r); tot += res.final; });
+  rows.forEach(function(r){ var res = calcRow(r); tot += res.tonCuoi; });
   return tot;
 }
 
@@ -18177,8 +18168,8 @@ function _getTonByLotUnit(periodKey, unitFilter){
       return true;
     }).forEach(function(r){
       var res = calcRow(r);
-      if(res.final > 0){
-        result.push({drug:r.drug, lot:r.lot, exp:r.exp||'', unit: isB ? BVPH : (r.unit||''), ton:res.final});
+      if(res.tonCuoi > 0){
+        result.push({drug:r.drug, lot:r.lot, exp:r.exp||'', unit: isB ? BVPH : (r.unit||''), ton:res.tonCuoi});
       }
     });
   };
@@ -18188,9 +18179,9 @@ function _getTonByLotUnit(periodKey, unitFilter){
   var rid = _currentRootId();
   _h1Ctx.rows.forEach(function(r){
     if(!_h1Only(r.drug, periodKey) || !_h1Match(r, unitFilter)) return;
-    var fin = calcRow(r).final; if(fin <= 0) return;
+    var tonCuoi = calcRow(r).tonCuoi; if(tonCuoi <= 0) return;
     var isB = r.unitId === rid;
-    result.push({drug:r.drug, lot:r.lot, exp:r.exp||'', unit: isB ? BVPH : (r.unit||''), ton:fin});
+    result.push({drug:r.drug, lot:r.lot, exp:r.exp||'', unit: isB ? BVPH : (r.unit||''), ton:tonCuoi});
   });
   return result;
 }
@@ -18381,12 +18372,12 @@ async function renderTQAlerts(){
   var cur = bvphData.concat(bcData).filter(function(r){ return r.bcMonth === pk && !r._agg && _tqaInScope(r.unitId, root); });
   var stock = {}, reported = {}, sdBy = {}, hasRow = {};
   cur.forEach(function(r){
-    var k = r.unitId+'||'+r.drug; stock[k] = (stock[k]||0) + calcRow(r).final;
-    sdBy[k] = (sdBy[k]||0) + _num(r.sd); hasRow[k] = 1; reported[r.unitId] = 1;
+    var k = r.unitId+'||'+r.drug; stock[k] = (stock[k]||0) + calcRow(r).tonCuoi;
+    sdBy[k] = (sdBy[k]||0) + _num(r.x1); hasRow[k] = 1; reported[r.unitId] = 1;
   });
   (_h1Ctx.rows||[]).forEach(function(r){
     if(!_tqaInScope(r.unitId, root) || !_h1Only(r.drug, pk)) return;
-    var k = r.unitId+'||'+r.drug; stock[k] = (stock[k]||0) + calcRow(r).final;
+    var k = r.unitId+'||'+r.drug; stock[k] = (stock[k]||0) + calcRow(r).tonCuoi;
   });
 
   // 1) Nhu cầu BN theo đơn vị × thuốc
@@ -18406,19 +18397,19 @@ async function renderTQAlerts(){
   // 2) Kiểm tra số liệu
   var solieu = [];
   cur.forEach(function(r){
-    var f = calcRow(r).final;
+    var f = calcRow(r).tonCuoi;
     if(f < 0) solieu.push({kind:'am', uid:r.unitId, drug:r.drug, lot:r.lot, exp:r.exp, msg:'Tồn cuối âm: '+fmtNum(f)});
   });
   if(_TQA.prevKey === prevKey){
     var curByKey = {}; cur.forEach(function(r){ curByKey[_stockKey(r)] = (curByKey[_stockKey(r)]||[]).concat([r]); });
-    var prevByKey = {}; _TQA.prevRows.forEach(function(r){ if(_tqaInScope(r.unitId, root)) prevByKey[_stockKey(r)] = (prevByKey[_stockKey(r)]||0) + calcRow(r).final; });
+    var prevByKey = {}; _TQA.prevRows.forEach(function(r){ if(_tqaInScope(r.unitId, root)) prevByKey[_stockKey(r)] = (prevByKey[_stockKey(r)]||0) + calcRow(r).tonCuoi; });
     Object.keys(prevByKey).forEach(function(k){
       var want = Math.max(0, prevByKey[k]), rs = curByKey[k], r0 = rs ? rs[0] : null;
       var src = r0 || _TQA.prevRows.find(function(x){ return _stockKey(x) === k; });
       if(rs){
-        var open = rs.reduce(function(t,x){ return t + _num(x.open); }, 0);
-        if(open !== want) solieu.push({kind:'dau', uid:src.unitId, drug:src.drug, lot:src.lot, exp:src.exp,
-          msg:'Tồn đầu '+fmtNum(open)+' ≠ tồn cuối kỳ trước '+fmtNum(want)});
+        var t0 = rs.reduce(function(t,x){ return t + _num(x.t0); }, 0);
+        if(t0 !== want) solieu.push({kind:'dau', uid:src.unitId, drug:src.drug, lot:src.lot, exp:src.exp,
+          msg:'Tồn đầu '+fmtNum(t0)+' ≠ tồn cuối kỳ trước '+fmtNum(want)});
       } else if(want > 0 && reported[src.unitId]){
         solieu.push({kind:'mat', uid:src.unitId, drug:src.drug, lot:src.lot, exp:src.exp,
           msg:'Kỳ trước còn '+fmtNum(want)+' nhưng không có dòng ở kỳ này'});
@@ -18898,11 +18889,11 @@ function renderTransferSuggestions(){
   var addRow = function(r){
     if(!r.drug || !r.unitId || !inScope(r.unitId)) return;
     var u = UNIT_BY_ID[r.unitId]; if(!u || u.utype === 'kho_tq' || u.utype === 'kho_mien') return;
-    var fin = Math.max(0, calcRow(r).final);
+    var tonCuoi = Math.max(0, calcRow(r).tonCuoi);
     var k = r.unitId + '||' + r.drug;
     var o = UD[k] || (UD[k] = {uid:r.unitId, unit:u.name, drug:r.drug, ton:0, lots:{}});
-    o.ton += fin;
-    if(fin > 0 && r.lot){ var lk = r.lot + '||' + _normExp(r.exp); var L = o.lots[lk] || (o.lots[lk] = {lot:r.lot, exp:r.exp||'', qty:0}); L.qty += fin; }
+    o.ton += tonCuoi;
+    if(tonCuoi > 0 && r.lot){ var lk = r.lot + '||' + _normExp(r.exp); var L = o.lots[lk] || (o.lots[lk] = {lot:r.lot, exp:r.exp||'', qty:0}); L.qty += tonCuoi; }
   };
   bvphData.concat(bcData).forEach(function(r){ if(r.bcMonth === periodKey && !r._agg) addRow(r); });
   ((typeof _h1Ctx !== 'undefined' && _h1Ctx.rows) || []).forEach(function(r){ if(_h1Only(r.drug, periodKey)) addRow(r); });
@@ -19162,30 +19153,30 @@ function showBVPHDetail(prefix, idx, field){
 
   // Metadata từng field
   var META = {
-    open:  {label:'Tồn đầu kỳ',     col:'#b7791f', bg:'#fffbeb', note:'Tồn cuối kỳ trước chuyển sang'},
-    tinh:  {label:'Nhập TW',         col:'#1e7e44', bg:'#f0fdf4', note:'Nhập từ Trung ương / tỉnh cấp'},
-    ntk:   {label:'Nhập tỉnh khác',  col:'#1e7e44', bg:'#f0fdf4', note:'Nhập từ tỉnh/thành phố khác'},
-    dc:    {label:'Nhập điều chuyển',col:'#1e7e44', bg:'#f0fdf4', note:'Nhập điều chuyển nội bộ từ kho/đơn vị khác'},
-    sd:    {label:'Sử dụng',          col:'#c0392b', bg:'#fef2f2', note:'Số lượng đã sử dụng/phát cho bệnh nhân'},
-    dc2:   {label:'Xuất Tổ CL',       col:'#c0392b', bg:'#fef2f2', note:'Xuất điều chuyển cho các đơn vị tuyến (Tổ cấp lẻ)'},
-    dc3:   {label:'Xuất tỉnh khác',   col:'#8e44ad', bg:'#f9f0ff', note:'Xuất sang tỉnh/thành phố khác'},
-    hh:    {label:'Hỏng / Hết hạn',   col:'#c0392b', bg:'#fef2f2', note:'Thuốc hỏng hoặc quá hạn sử dụng'},
-    tin:   {label:'Tổng nhập',         col:'#1e7e44', bg:'#f0fdf4',
-            formula:[['Nhập TW','tinh','+'],['Nhập tỉnh khác','ntk','+'],['Nhập ĐC','dc','+']]},
-    tout:  {label:'Tổng xuất',         col:'#c0392b', bg:'#fef2f2',
+    t0:  {label:'Tồn đầu kỳ',     col:'#b7791f', bg:'#fffbeb', note:'Tồn cuối kỳ trước chuyển sang'},
+    n1:  {label:'Nhập TW',         col:'#1e7e44', bg:'#f0fdf4', note:'Nhập từ Trung ương / tỉnh cấp'},
+    n2:   {label:'Nhập tỉnh khác',  col:'#1e7e44', bg:'#f0fdf4', note:'Nhập từ tỉnh/thành phố khác'},
+    n3:    {label:'Nhập điều chuyển',col:'#1e7e44', bg:'#f0fdf4', note:'Nhập điều chuyển nội bộ từ kho/đơn vị khác'},
+    x1:    {label:'Sử dụng',          col:'#c0392b', bg:'#fef2f2', note:'Số lượng đã sử dụng/phát cho bệnh nhân'},
+    x2:   {label:'Xuất Tổ CL',       col:'#c0392b', bg:'#fef2f2', note:'Xuất điều chuyển cho các đơn vị tuyến (Tổ cấp lẻ)'},
+    x3:   {label:'Xuất tỉnh khác',   col:'#8e44ad', bg:'#f9f0ff', note:'Xuất sang tỉnh/thành phố khác'},
+    x4:    {label:'Hỏng / Hết hạn',   col:'#c0392b', bg:'#fef2f2', note:'Thuốc hỏng hoặc quá hạn sử dụng'},
+    nTong:   {label:'Tổng nhập',         col:'#1e7e44', bg:'#f0fdf4',
+            formula:[['Nhập TW','n1','+'],['Nhập tỉnh khác','n2','+'],['Nhập ĐC','n3','+']]},
+    xTong:  {label:'Tổng xuất',         col:'#c0392b', bg:'#fef2f2',
             formula:isBVPH
-              ? [['Sử dụng','sd','+'],['Xuất Tổ CL','dc2','+'],['Xuất tỉnh khác','dc3','+'],['Hỏng/HH','hh','+']]
-              : [['Sử dụng','sd','+'],['Xuất ĐC','dc2','+'],['Hỏng/HH','hh','+']]},
-    final: {label:'Tồn cuối kỳ',       col:'#1d4ed8', bg:'#eff6ff',
-            formula:[['Tồn đầu','open','+'],['Tổng nhập','tin','+'],['Tổng xuất','tout','−']]}
+              ? [['Sử dụng','x1','+'],['Xuất Tổ CL','x2','+'],['Xuất tỉnh khác','x3','+'],['Hỏng/HH','x4','+']]
+              : [['Sử dụng','x1','+'],['Xuất ĐC','x2','+'],['Hỏng/HH','x4','+']]},
+    tonCuoi: {label:'Tồn cuối kỳ',       col:'#1d4ed8', bg:'#eff6ff',
+            formula:[['Tồn đầu','t0','+'],['Tổng nhập','nTong','+'],['Tổng xuất','xTong','−']]}
   };
 
   var mt = META[field]; if(!mt) return;
   // Lấy giá trị field
   var vals = {
-    open:row.open||0, tinh:row.tinh||0, ntk:row.ntk||0, dc:row.dc||0,
-    sd:row.sd||0, dc2:row.dc2||0, dc3:row.dc3||0, hh:row.hh||0,
-    tin:res.tin, tout:res.tout, final:res.final
+    t0:row.t0||0, n1:row.n1||0, n2:row.n2||0, n3:row.n3||0,
+    x1:row.x1||0, x2:row.x2||0, x3:row.x3||0, x4:row.x4||0,
+    nTong:res.nTong, xTong:res.xTong, tonCuoi:res.tonCuoi
   };
   var total = vals[field]||0;
 
@@ -24452,7 +24443,7 @@ async function _vmLoadHist(pk){
         (await r.json()).forEach(function(x){
           if(!x.unit_id) return;
           var k=x.unit_id+'||'+x.drug+'||'+x.period;
-          var c=h[k]||(h[k]={sd:0,open:0,tin:0}); c.sd+=_num(x.sd); c.open+=_num(x.open); c.tin+=_num(x.tinh)+_num(x.ntk)+_num(x.dc);
+          var c=h[k]||(h[k]={x1:0,t0:0,nTong:0}); c.x1+=_num(x.x1); c.t0+=_num(x.t0); c.nTong+=_num(x.n1)+_num(x.n2)+_num(x.n3);
         });
       }
     }
@@ -24470,28 +24461,28 @@ function _vmBuild(pk){
   bvphData.concat(bcData).forEach(function(r){
     if(r.bcMonth!==pk || !r.unitId) return;
     var dk=r.bcMonth+'##'+_stockKey(r); if(seen[dk]) return; seen[dk]=1;
-    var fin=calcRow(r).final, d=r.drug||'(không tên)';
+    var tonCuoi=calcRow(r).tonCuoi, d=r.drug||'(không tên)';
     drugs[d]=1;
     var pv=_vmProvOf(r.unitId);
-    if(!pv){ central.stock[d]=(central.stock[d]||0)+fin; return; }
+    if(!pv){ central.stock[d]=(central.stock[d]||0)+tonCuoi; return; }
     var P=get(B==='34'?pv.p34:pv.p63);
     if(B==='63' && pv.guess63 && MERGE_MAP[pv.p34]) P.guess=true;
-    P.stock[d]=(P.stock[d]||0)+fin;
-    var U=P.units[r.unitId]||(P.units[r.unitId]={stock:{}}); U.stock[d]=(U.stock[d]||0)+fin;
-    if(fin>0) P.lots.push({uid:r.unitId, drug:d, lot:r.lot||'', exp:r.exp||'', qty:fin});
+    P.stock[d]=(P.stock[d]||0)+tonCuoi;
+    var U=P.units[r.unitId]||(P.units[r.unitId]={stock:{}}); U.stock[d]=(U.stock[d]||0)+tonCuoi;
+    if(tonCuoi>0) P.lots.push({uid:r.unitId, drug:d, lot:r.lot||'', exp:r.exp||'', qty:tonCuoi});
   });
   // Hàng 1 (báo cáo theo quý): thuốc không có dòng tháng → lấy tồn quý gần nhất của từng đơn vị
   var h1d={};
   (_h1Ctx.rows||[]).forEach(function(r){
     var d=r.drug||'(không tên)'; if(!_h1Only(d, pk)) return;
-    var fin=calcRow(r).final, pv=_vmProvOf(r.unitId);
+    var tonCuoi=calcRow(r).tonCuoi, pv=_vmProvOf(r.unitId);
     drugs[d]=1; h1d[d]=1;
-    if(!pv){ central.stock[d]=(central.stock[d]||0)+fin; return; }
+    if(!pv){ central.stock[d]=(central.stock[d]||0)+tonCuoi; return; }
     var P=get(B==='34'?pv.p34:pv.p63);
     if(B==='63' && pv.guess63 && MERGE_MAP[pv.p34]) P.guess=true;
-    P.stock[d]=(P.stock[d]||0)+fin;
-    var U=P.units[r.unitId]||(P.units[r.unitId]={stock:{}}); U.stock[d]=(U.stock[d]||0)+fin;
-    if(fin>0) P.lots.push({uid:r.unitId, drug:d, lot:r.lot||'', exp:r.exp||'', qty:fin});
+    P.stock[d]=(P.stock[d]||0)+tonCuoi;
+    var U=P.units[r.unitId]||(P.units[r.unitId]={stock:{}}); U.stock[d]=(U.stock[d]||0)+tonCuoi;
+    if(tonCuoi>0) P.lots.push({uid:r.unitId, drug:d, lot:r.lot||'', exp:r.exp||'', qty:tonCuoi});
   });
   // AMC: tỉnh & đơn vị (loại tháng stockout: tồn đầu = 0 và sử dụng = 0)
   var agg={};  // prov||drug||period → {sd,open}
@@ -24500,11 +24491,11 @@ function _vmBuild(pk){
     var a=k.split('||'), uid=a[0], d=a[1], per=a[2], v=_VM.hist[k];
     var pv=_vmProvOf(uid); if(!pv) return;
     var p=B==='34'?pv.p34:pv.p63;
-    var kk=p+'||'+d+'||'+per, c=agg[kk]||(agg[kk]={sd:0,open:0,tin:0}); c.sd+=v.sd; c.open+=v.open; c.tin+=(v.tin||0);
+    var kk=p+'||'+d+'||'+per, c=agg[kk]||(agg[kk]={x1:0,t0:0,nTong:0}); c.x1+=v.x1; c.t0+=v.t0; c.nTong+=(v.nTong||0);
     (uagg[uid+'||'+d]=uagg[uid+'||'+d]||{})[per]=v;
     get(p); drugs[d]=1;
   });
-  function amcOf(rec){ var s=0,n=0; periods.forEach(function(per){ var v=rec(per); if(!v) return; if(_isStockoutMonth(v)) return; s+=v.sd; n++; }); return n? s/n : 0; }
+  function amcOf(rec){ var s=0,n=0; periods.forEach(function(per){ var v=rec(per); if(!v) return; if(_isStockoutMonth(v)) return; s+=v.x1; n++; }); return n? s/n : 0; }
   Object.keys(provs).forEach(function(p){
     var P=provs[p]; P.amc={};
     Object.keys(drugs).forEach(function(d){ P.amc[d]= h1d[d] ? 0 : amcOf(function(per){ return agg[p+'||'+d+'||'+per]; }); });
