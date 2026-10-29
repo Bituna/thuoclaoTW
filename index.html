@@ -139,6 +139,31 @@ body{font-family:'Be Vietnam Pro',sans-serif;background:var(--bg);color:var(--te
 .tq-subtab{border:none;background:none;padding:9px 16px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1px}
 .tq-subtab:hover{color:var(--text)}
 .tq-subtab.act{color:#1a5276;border-bottom-color:#1a5276}
+.ts-sum{font-size:11.5px;color:#64748b;margin-bottom:8px}
+.ts-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+@media(max-width:1100px){.ts-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.ts-grid{grid-template-columns:1fr}}
+.ts-tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border:1px solid #cbd5e0;background:#fff;border-radius:10px;padding:9px 11px;cursor:pointer;font:inherit;color:#1a2332;transition:border-color .12s,background .12s}
+.ts-tile:hover{border-color:#0891b2;background:#f0f9ff}
+.ts-tile.act{border-color:#0891b2;background:#e0f2fe;box-shadow:inset 0 0 0 1px #0891b2}
+.ts-name{font-size:13px;font-weight:700;line-height:1.25}
+.ts-meta{font-size:11px;color:#64748b}
+.ts-qty{font-size:16px;font-weight:800;color:#0e7490;font-variant-numeric:tabular-nums}
+.ts-qty small{font-size:10px;font-weight:600;color:#64748b}
+.ts-hint{margin-top:10px;padding:10px 12px;border:1px dashed #cbd5e0;border-radius:10px;font-size:12px;color:#64748b;text-align:center}
+.ts-detail{margin-top:10px;border:1px solid #bae6fd;border-radius:10px;overflow:hidden}
+.ts-dhead{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#f0f9ff;border-bottom:1px solid #bae6fd;font-size:13px;color:#0c4a6e}
+.ts-dhead span{font-size:11px;color:#0369a1;background:#e0f2fe;border-radius:99px;padding:1px 8px;font-weight:700}
+.ts-dhead button{margin-left:auto;border:1px solid #cbd5e0;background:#fff;border-radius:14px;padding:3px 10px;font-size:11px;cursor:pointer}
+.ts-tblwrap{overflow-x:auto}
+.ts-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.ts-tbl th{background:#1a5276;color:#fff;padding:6px 8px;text-align:right;font-weight:600;white-space:nowrap}
+.ts-tbl td{padding:6px 8px;border-bottom:1px solid #eef2f7;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ts-tbl th.l,.ts-tbl td.l{text-align:left}
+.ts-move{color:#0e7490}
+.ts-mos{display:inline-block;padding:1px 7px;border-radius:9px;font-size:11px;font-weight:700}
+.ts-mos.ok{background:#dcfce7;color:#166534}.ts-mos.warn{background:#fef3c7;color:#92400e}.ts-mos.bad{background:#fee2e2;color:#b91c1c}
+.ts-note{font-size:11px;color:#64748b;padding:6px 12px}
 .tqa-card{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:12px;margin-bottom:14px}
 .tqa-head{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;margin-bottom:10px}
 .tqa-title{font-size:14px;font-weight:700;color:#1a2332}
@@ -18939,71 +18964,57 @@ function renderTransferSuggestions(){
     return;
   }
 
-  // Nhóm theo thuốc + lô + HẠN (mỗi lô-hạn là 1 khối riêng)
-  var byDrug = {};
-  suggestions.forEach(function(s){
-    var k=s.drug+'||'+s.lot+'||'+_normExp(s.exp);
-    if(!byDrug[k]) byDrug[k]=[];
-    byDrug[k].push(s);
+  window._TS = window._TS || {sel:null};
+  window._TS.sugg = suggestions;
+  _tsPaint();
+}
+
+// Giao diện gọn: lưới ô thuốc (4 cột) → bấm 1 thuốc mới hiện bảng đề xuất của thuốc đó
+function _tsShortUnit(u){ return String(_displayUnit(u)||u||'').replace('Trung tâm Y tế ','TTYT ').replace('Trại giam ','TG ').replace('Phòng khám ','PK '); }
+function _tsPick(drug){ window._TS.sel = (window._TS.sel === drug ? null : drug); _tsPaint(); }
+function _tsPaint(){
+  var el = document.getElementById('amc-transfer-sugg'); if(!el || !window._TS) return;
+  var E = escH, sugg = window._TS.sugg || [];
+  var by = {}, order = [];
+  sugg.forEach(function(x){ if(!by[x.drug]){ by[x.drug] = []; order.push(x.drug); } by[x.drug].push(x); });
+  order.sort(function(a,b){ return a.localeCompare(b,'vi'); });
+  if(window._TS.sel && !by[window._TS.sel]) window._TS.sel = null;
+  var sel = window._TS.sel;
+  var mosCls = function(m){ return m>=3 ? 'ok' : (m>=1 ? 'warn' : 'bad'); };
+
+  var h = '<div class="ts-sum">'+sugg.length+' đề xuất · '+order.length+' thuốc — bấm vào thuốc để xem chi tiết</div><div class="ts-grid">';
+  order.forEach(function(d){
+    var rs = by[d], lots = {}, tot = 0;
+    rs.forEach(function(x){ lots[x.lot+'|'+x.exp] = 1; tot += x.qty; });
+    h += '<button type="button" class="ts-tile'+(d===sel?' act':'')+'" data-drug="'+E(d)+'" onclick="_tsPick(this.getAttribute(\'data-drug\'))">'
+      + '<span class="ts-name">'+E(d)+'</span>'
+      + '<span class="ts-meta">'+rs.length+' đề xuất · '+Object.keys(lots).length+' lô</span>'
+      + '<span class="ts-qty">'+fmtNum(tot)+' <small>viên</small></span></button>';
   });
+  h += '</div>';
 
-  var html = '<div style="display:flex;flex-direction:column;gap:10px">';
-
-  Object.keys(byDrug).forEach(function(k){
-    var rows = byDrug[k];
-    var drug = rows[0].drug, lot = rows[0].lot, _sExp = rows[0].exp||'';
-    var _sExpTxt = _sExp ? (typeof expToMMYYYY==='function' ? expToMMYYYY(_sExp) : _normExp(_sExp)) : '';
-    html += '<div style="border:1.5px solid #bae6fd;border-radius:12px;overflow:hidden;background:white;margin-bottom:2px">'
-      +'<div style="background:#f0f9ff;border-bottom:1.5px solid #bae6fd;padding:9px 14px;display:flex;align-items:center;gap:10px">'
-        +'<div style="width:3px;height:20px;background:#0891b2;border-radius:99px;flex-shrink:0"></div>'
-        +'<span style="font-size:13px;font-weight:800;color:#0c4a6e">'+drug+'</span>'
-        +'<span style="font-size:11px;color:#7dd3fc;font-weight:500">Lô '+lot+(_sExpTxt?' · HD '+_sExpTxt:'')+'</span>'
-        +'<span style="margin-left:auto;font-size:10px;background:#e0f2fe;color:#0369a1;font-weight:700;padding:2px 8px;border-radius:99px">'+rows.length+' đề xuất</span>'
-      +'</div>'
-      +'<div style="display:flex;flex-direction:column">';
-
-    rows.forEach(function(s,i){
-      var unitNameFrom = s.from.replace('Trung tâm Y tế ','').replace('Trại giam ','TG ').replace('Phòng khám ','PK ');
-      var unitNameTo   = s.to.replace('Trung tâm Y tế ','').replace('Trại giam ','TG ').replace('Phòng khám ','PK ');
-      var mosFromColor = s.mosSrc>=3?'#16a34a':s.mosSrc>=1?'#d97706':'#dc2626';
-      var mosDstColor  = s.mosDst>=3?'#16a34a':s.mosDst>=1?'#d97706':'#dc2626';
-      html += '<div style="display:flex;align-items:center;padding:10px 14px;gap:12px;'+(i>0?'border-top:1px solid #f1f5f9':'')+'">'
-        // FROM card - green
-        +'<div style="flex:1;min-width:0;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:9px 11px">'
-          +'<div style="font-size:9px;color:#15803d;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">↑ Dư — Nên xuất</div>'
-          +'<div style="font-size:13px;font-weight:800;color:#052e16;margin-bottom:5px">'+unitNameFrom+'</div>'
-          +'<div style="display:flex;gap:5px;flex-wrap:wrap">'
-            +'<span style="font-size:11px;font-weight:700;background:#dcfce7;color:#166534;padding:2px 7px;border-radius:99px">Tồn '+s.fromTon.toLocaleString('vi-VN')+'</span>'
-            +'<span style="font-size:10px;background:#f1f5f9;color:#475569;padding:2px 7px;border-radius:99px">AMC '+s.fromAmc.toLocaleString('vi-VN')+'</span>'
-            +'<span style="font-size:10px;font-weight:700;background:#f1f5f9;color:'+mosFromColor+';padding:2px 7px;border-radius:99px">'+s.mosSrc+' tháng</span>'
-            +(s.bnUsingDrug>0?'<span style="font-size:10px;background:#dbeafe;color:#1d4ed8;padding:2px 7px;border-radius:99px;font-weight:600">'+s.bnUsingDrug+' BN dùng</span>':'')
-          +'</div>'
-        +'</div>'
-        // Center: qty + arrow
-        +'<div style="flex-shrink:0;text-align:center;min-width:60px">'
-          +'<div style="font-size:20px;font-weight:900;color:#0891b2;line-height:1">'+s.qty.toLocaleString('vi-VN')+'</div>'
-          +'<div style="font-size:9px;color:#94a3b8;font-weight:500;margin-bottom:2px">viên</div>'
-          +'<div style="font-size:20px;color:#0891b2;line-height:1">⟶</div>'
-        +'</div>'
-        // TO card - orange
-        +'<div style="flex:1;min-width:0;background:#fff7ed;border:1.5px solid #fdba74;border-radius:10px;padding:9px 11px">'
-          +'<div style="font-size:9px;color:#ea580c;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">↓ Thiếu — Cần nhập</div>'
-          +'<div style="font-size:13px;font-weight:800;color:#431407;margin-bottom:5px">'+unitNameTo+'</div>'
-          +'<div style="display:flex;gap:5px;flex-wrap:wrap">'
-            +'<span style="font-size:11px;font-weight:700;background:#ffedd5;color:#c2410c;padding:2px 7px;border-radius:99px">Tồn '+s.toTon.toLocaleString('vi-VN')+'</span>'
-            +'<span style="font-size:10px;background:#f1f5f9;color:#475569;padding:2px 7px;border-radius:99px">AMC '+s.toAmc.toLocaleString('vi-VN')+'</span>'
-            +'<span style="font-size:10px;font-weight:700;background:#f1f5f9;color:'+mosDstColor+';padding:2px 7px;border-radius:99px">'+s.mosDst+' tháng</span>'
-            +(s.toBnUsing>0?'<span style="font-size:10px;background:#dbeafe;color:#1d4ed8;padding:2px 7px;border-radius:99px;font-weight:600">'+s.toBnUsing+' BN dùng</span>':'')
-          +'</div>'
-        +'</div>'
-      +'</div>';
-    });
-
-    html += '</div></div>';
-  });
-
-  html += '</div>';
-  el.innerHTML = html;
+  if(!sel){
+    h += '<div class="ts-hint">Chọn một thuốc ở trên để xem đề xuất điều chuyển.</div>';
+  } else {
+    var rows = by[sel].slice().sort(function(a,b){ return a.mosDst - b.mosDst || b.qty - a.qty; });
+    h += '<div class="ts-detail"><div class="ts-dhead"><b>'+E(sel)+'</b><span>'+rows.length+' đề xuất</span>'
+      + '<button type="button" onclick="_tsPick(window._TS.sel)">✕ Đóng</button></div>'
+      + '<div class="ts-tblwrap"><table class="ts-tbl"><thead><tr>'
+      + '<th class="l">Lô · Hạn dùng</th><th class="l">Chuyển từ (dư)</th><th>Tồn</th><th>Dự trữ</th>'
+      + '<th>Số lượng</th><th class="l">Đến (thiếu)</th><th>Tồn</th><th>Dự trữ</th><th>BN dùng</th></tr></thead><tbody>'
+      + rows.map(function(x){
+          var _ne = x.exp ? String(_normExp(x.exp)) : '', _m = _ne.match(/^(\d{4})-(\d{2})/);
+          var hd = _m ? _m[2]+'/'+_m[1] : (x.exp || '—');
+          return '<tr><td class="l">'+E(x.lot)+' · '+E(hd)+'</td>'
+            + '<td class="l">'+E(_tsShortUnit(x.from))+'</td><td>'+fmtNum(x.fromTon)+'</td><td><span class="ts-mos '+mosCls(x.mosSrc)+'">'+x.mosSrc+' th</span></td>'
+            + '<td><b class="ts-move">'+fmtNum(x.qty)+' →</b></td>'
+            + '<td class="l">'+E(_tsShortUnit(x.to))+'</td><td>'+fmtNum(x.toTon)+'</td><td><span class="ts-mos '+mosCls(x.mosDst)+'">'+x.mosDst+' th</span></td>'
+            + '<td>'+(x.bnUsingDrug||0)+' → '+(x.toBnUsing||0)+'</td></tr>';
+        }).join('')
+      + '</tbody></table></div>'
+      + '<div class="ts-note">Dự trữ = tồn ÷ nhu cầu tháng (theo BN đang điều trị, không có thì theo AMC). Chỉ xét đơn vị có BN dùng thuốc này; chuyển tối đa 50% phần dư so với 3 tháng dự trữ.</div></div>';
+  }
+  el.innerHTML = h;
 }
 
 function _showAMCBNPopup(drugName, unitFilter){
