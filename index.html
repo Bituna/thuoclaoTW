@@ -1109,7 +1109,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
   <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
     <div>
       <h1>Tổng quan</h1>
-      <p id="tq-sub">TP. Hải Phòng</p>
+      <p id="tq-sub"></p>
     </div>
     <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
       <label style="font-size:12px;font-weight:600;color:var(--muted)">Kỳ thống kê:</label>
@@ -2994,9 +2994,9 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
   <div class="page-body">
     <div class="card" style="max-width:480px;margin-bottom:14px">
       <div class="card-title" style="color:var(--text)">Thông tin đơn vị</div>
-      <div class="fg" style="margin-bottom:10px"><label for="info-unit-name">Tên đơn vị</label><input type="text" id="info-unit-name" aria-label="Tên đơn vị" value="Bệnh viện Phổi Hải Phòng" style="width:100%"></div>
-      <div class="fg" style="margin-bottom:10px"><label for="info-address">Địa chỉ</label><input type="text" id="info-address" aria-label="Địa chỉ" value="TP. Hải Phòng" style="width:100%"></div>
-      <div class="fg" style="margin-bottom:12px"><label for="info-phone">Điện thoại</label><input type="text" id="info-phone" aria-label="Điện thoại" value="0225 123 456" style="width:100%"></div>
+      <div class="fg" style="margin-bottom:10px"><label for="info-unit-name">Tên đơn vị</label><input type="text" id="info-unit-name" aria-label="Tên đơn vị" value="" placeholder="Tên đơn vị" style="width:100%"></div>
+      <div class="fg" style="margin-bottom:10px"><label for="info-address">Địa chỉ</label><input type="text" id="info-address" aria-label="Địa chỉ" value="" placeholder="Địa chỉ" style="width:100%"></div>
+      <div class="fg" style="margin-bottom:12px"><label for="info-phone">Điện thoại</label><input type="text" id="info-phone" aria-label="Điện thoại" value="" placeholder="Số điện thoại" style="width:100%"></div>
       <button class="btn btn-primary btn-sm" onclick="toast('Tính năng lưu thông tin đơn vị chưa được kết nối với cơ sở dữ liệu.','var(--warning)')">Lưu thông tin</button>
     </div>
     <div class="card" style="max-width:480px">
@@ -3935,7 +3935,7 @@ async function checkSupabase(){
   var result = await Promise.race([fetchPr, timeout]);
   _supaOnline = !!(result && result.status >= 200 && result.status < 300);
   _updateCloudStatus();
-  if(_supaOnline){ try{ _loadUnitsTree(); }catch(e){} try{ loadCapPhat(); }catch(e){} try{ _loadThresholdFromCloud(); }catch(e){} try{ _loadAccountsFromCloud().then(function(){ if(!currentUser){ try{ fillLoginUnits(); }catch(e){} } }); }catch(e){} }  // tải cây tổ chức + cấp phát + ngưỡng + tài khoản khi online
+  if(_supaOnline){ try{ _loadUnitsTree(); }catch(e){} try{ loadCapPhat(); }catch(e){} try{ _loadThresholdFromCloud(); }catch(e){} try{ _loadPhacDoFromCloud(); }catch(e){} try{ _loadAccountsFromCloud().then(function(){ if(!currentUser){ try{ fillLoginUnits(); }catch(e){} } }); }catch(e){} }  // tải cây tổ chức + cấp phát + ngưỡng + tài khoản khi online
   if(_supaOnline && currentUser && currentUser.role==='donvi'){
     setTimeout(checkPendingTransfers, 500);
   }
@@ -4590,15 +4590,7 @@ function _mapRow(r){
 // ============================================================
 // DATA
 // ============================================================
-var DRUGS=[
-  "Rifampicin 150mg","Isoniazid 100mg","Isoniazid 300mg","Ethambutol 400mg","Pyrazinamid 500mg","Pyrazinamid 400mg",
-  "Levofloxacin 250mg","Levofloxacin 500mg","Levofloxacin 750mg","Moxifloxacin 400mg",
-  "Amikacin 500mg/2ml","Amikacin 1g/4ml","Kanamycin 1g","Streptomycin 1g","Capreomycin 1g",
-  "Cycloserine 250mg","Cycloserine 125mg","Prothionamide 125mg","Prothionamide 250mg","Ethionamide 125mg","Ethionamide 250mg","Para-aminosalicylic acid 4g",
-  "Linezolid 300mg","Linezolid 600mg","Linezolid 150mg","Linezolid 20mg/ml","Clofazimine 100mg","Clofazimine 50mg",
-  "Bedaquiline 100mg","Delamanid 50mg","Pretomanid 200mg",
-  "Meropenem 1g","Imipenem-cilastatin 500mg","Amoxicillin/Clavulanate 250mg","Amoxicillin/Clavulanate 500mg"
-];
+// Danh sách thuốc: lấy từ danh mục thuốc trên Supabase (catalogData) — xem getCatalogDrugs()
 
 var BVPH="Bệnh viện Phổi Hải Phòng";
 
@@ -5105,33 +5097,8 @@ Object.defineProperty(window,'UNITS',{configurable:true,get:function(){
 
 var SUBMITTED=[];  // không cứng — trạng thái nộp tính từ dữ liệu thật
 
-// Tài khoản hệ thống
-var ACCOUNTS=[
-  {name:"Quản trị viên",user:"admin",pass:"1",unit:"Bệnh viện Phổi Hải Phòng",role:"admin"},
-  {name:"",user:"bvph",pass:"1",unit:"Bệnh viện Phổi Hải Phòng",role:"bvph"},
-  {name:"",user:"kholen",pass:"1",unit:"Kho lẻ Bệnh viện Phổi Hải Phòng",role:"donvi"},
-  {name:"",user:"hongbang",pass:"1",unit:"Trung tâm Y tế Hồng Bàng",role:"donvi"},
-  {name:"",user:"lechan",pass:"1",unit:"Trung tâm Y tế Lê Chân",role:"donvi"},
-  {name:"",user:"ngoquyen",pass:"1",unit:"Trung tâm Y tế Ngô Quyền",role:"donvi"},
-  {name:"",user:"kienan",pass:"1",unit:"Trung tâm Y tế Kiến An",role:"donvi"},
-  {name:"",user:"doson",pass:"1",unit:"Trung tâm Y tế Đồ Sơn",role:"donvi"},
-  {name:"",user:"tienlang",pass:"1",unit:"Trung tâm Y tế Tiên Lãng",role:"donvi"},
-  {name:"",user:"vinhbao",pass:"1",unit:"Trung tâm Y tế Vĩnh Bảo",role:"donvi"},
-  {name:"",user:"cathai",pass:"1",unit:"Trung tâm Y tế Cát Hải",role:"donvi"},
-  {name:"",user:"haian",pass:"1",unit:"Trung tâm Y tế Hải An",role:"donvi"},
-  {name:"",user:"anlao",pass:"1",unit:"Trung tâm Y tế An Lão",role:"donvi"},
-  {name:"",user:"kienthuy",pass:"1",unit:"Trung tâm Y tế Kiến Thụy",role:"donvi"},
-  {name:"",user:"thuynguyen",pass:"1",unit:"Trung tâm Y tế Thủy Nguyên",role:"donvi"},
-  {name:"",user:"anduong",pass:"1",unit:"Trung tâm Y tế An Dương",role:"donvi"},
-  {name:"",user:"duongkinh",pass:"1",unit:"Trung tâm Y tế Dương Kinh",role:"donvi"},
-  {name:"",user:"cscn1",pass:"1",unit:"Cơ sở cai nghiện số 1",role:"donvi"},
-  {name:"",user:"cscn2",pass:"1",unit:"Cơ sở cai nghiện số 2",role:"donvi"},
-  {name:"",user:"xuannguyen",pass:"1",unit:"Trại giam Xuân Nguyên",role:"donvi"},
-  {name:"",user:"pk33",pass:"1",unit:"PK 33 Lê Đại Hành",role:"donvi"},
-  {name:"",user:"bvdhy",pass:"1",unit:"Bệnh viện Đại học Y Hải Phòng",role:"donvi"},
-  {name:"",user:"bvdkdl",pass:"1",unit:"Bệnh viện Đa khoa Đôn Lương",role:"donvi"},
-  {name:"",user:"bachlongvy",pass:"1",unit:"Trung tâm Y tế Bạch Long Vỹ",role:"donvi"}
-];
+// Tài khoản: tải từ Supabase (RPC list_accounts) — không viết cứng trong code
+var ACCOUNTS=[];
 
 var threshold={low:200,expMonths:6,warnMonths:3,dangerMonths:2,safetyStockMonths:1,dcLow:80,dcHigh:120};
 
@@ -6663,6 +6630,17 @@ function fillDrugSelects(){
 
   // Cập nhật select thêm vào danh mục (cat-drug)
   fillCatDrugSelect();
+  _fillStatDrugSelect();
+}
+
+// Ô chọn thuốc ở trang Thống kê — theo danh mục thuốc trên Supabase, giữ lựa chọn đang có
+function _fillStatDrugSelect(){
+  var sd = document.getElementById('sel-drug'); if(!sd) return;
+  var cur = sd.value, drugs = getCatalogDrugs();
+  sd.innerHTML = '';
+  if(!drugs.length){ var o0=document.createElement('option'); o0.value=''; o0.textContent='(Chưa có thuốc trong danh mục)'; sd.appendChild(o0); return; }
+  drugs.forEach(function(d){ var o=document.createElement('option'); o.value=d; o.textContent=d; sd.appendChild(o); });
+  if(cur && drugs.indexOf(cur) >= 0) sd.value = cur;
 }
 
 
@@ -6841,6 +6819,7 @@ function doLogin(){
 
     errEl.style.display='none';
     currentUser = acc;
+    try{ var _iu=document.getElementById('info-unit-name'); if(_iu && !_iu.value) _iu.value = (typeof _displayUnit==='function') ? _displayUnit(acc.unit) : acc.unit; }catch(e){}
     document.getElementById('login-screen').style.display='none';
 
     var now = new Date();
@@ -7107,8 +7086,7 @@ function initApp(){
     for(var i=0;i<sel.options.length;i++){if(sel.options[i].value===currentUser.unit){sel.selectedIndex=i;break;}}
   }
 
-  var sd=document.getElementById('sel-drug');sd.innerHTML='';
-  DRUGS.forEach(function(d){var o=document.createElement('option');o.value=d;o.textContent=d;sd.appendChild(o);});
+  _fillStatDrugSelect();
   var su=document.getElementById('sel-unit-stat');su.innerHTML='';
   UNITS.forEach(function(u){var o=document.createElement('option');o.value=u;o.textContent=_displayUnit(u);su.appendChild(o);});
 
@@ -18947,6 +18925,8 @@ function onAdminUnitFilterChange() {
 // LEGEND: B=Bedaquiline, Pa=Pretomanid, L/Lzd=Linezolid, M/Mfx=Moxifloxacin, 
 // Lfx=Levofloxacin, Cfz=Clofazimine, Cs=Cycloserine, E=Ethambutol, Z=Linezolid 300mg
 
+// Phác đồ điều trị: NGUỒN CHÍNH = Supabase (settings key 'PHAC_DO', tạo bằng sql/05_du_lieu_tham_chieu.sql).
+// Bảng dưới đây CHỈ là dự phòng khi Supabase chưa có / không tải được — sửa phác đồ trên Supabase.
 var PHAC_DO = {
   '6BPaLM': [
     {drug:'Bedaquiline 100mg', daily:1},
@@ -18978,24 +18958,48 @@ var PHAC_DO = {
   'Khác': []
 };
 
-// ── Giải mã chữ viết tắt phác đồ ──────────────────────────────
-var PHAC_DO_ABBR_MAP = {
-  // Dạng ngắn (6BPaLM)
-  'B': 'Bedaquiline 100mg',
-  'Pa': 'Pretomanid 200mg',
-  'L': 'Linezolid 600mg',
-  'M': 'Moxifloxacin 400mg',
-  // Dạng dài (18-20BdqLfxLzdCfzCs)
-  'Bdq': 'Bedaquiline 100mg',
-  'Lfx': 'Levofloxacin 250mg',
-  'Lzd': 'Linezolid 600mg',
-  'Cfz': 'Clofazimine 100mg',
-  'Cs': 'Cycloserine 250mg',
-  'Pto': 'Prothionamide 250mg',
-  'Eto': 'Ethionamide 250mg',
-  'E': 'Ethambutol 400mg',
-  'Z': 'Linezolid 300mg' // Riêng cho 18-20LfxZCfzCsE
-};
+// Phác đồ mặc định khi thêm bệnh nhân / nhập Excel thiếu cột phác đồ
+function _defaultPd(){ var k = Object.keys(PHAC_DO).filter(function(x){ return x !== 'Khác'; }); return k[0] || 'Khác'; }
+// Ô chọn phác đồ trong form bệnh nhân — dựng từ PHAC_DO (giữ lựa chọn đang có)
+function _fillPdSelect(){
+  var sel = document.getElementById('pt-pd'); if(!sel) return;
+  var cur = sel.value;
+  var keys = Object.keys(PHAC_DO).filter(function(k){ return k !== 'Khác'; }).concat(['Khác']);
+  sel.innerHTML = keys.map(function(k){ return '<option value="'+_escH(k)+'">'+_escH(k)+'</option>'; }).join('');
+  if(cur && keys.indexOf(cur) >= 0) sel.value = cur;
+}
+// Kiểm tra dữ liệu phác đồ từ Supabase: {tên: [{drug:"...", daily:số>0}], ...}
+function _validPhacDo(v){
+  if(!v || typeof v !== 'object' || Array.isArray(v)) return false;
+  var ks = Object.keys(v); if(!ks.length) return false;
+  return ks.every(function(k){
+    return k && Array.isArray(v[k]) && v[k].every(function(it){
+      return it && typeof it.drug === 'string' && it.drug.trim() && typeof it.daily === 'number' && isFinite(it.daily) && it.daily > 0;
+    });
+  });
+}
+var _PHAC_DO_SRC = 'mac-dinh';   // 'supabase' khi đã nạp từ cloud
+async function _loadPhacDoFromCloud(){
+  if(!_supaOnline) return;
+  try{
+    var r = await fetch(SUPA_URL+'/rest/v1/settings?key=eq.PHAC_DO&select=value&limit=1',{headers:_supaHdr,cache:'no-store'});
+    if(!r.ok) return;
+    var d = await r.json();
+    if(!d.length){ console.warn('[PHAC_DO] Supabase chưa có settings.PHAC_DO — đang dùng bảng dự phòng trong code. Chạy sql/05_du_lieu_tham_chieu.sql.'); return; }
+    var v = d[0].value;
+    if(!_validPhacDo(v)){ console.warn('[PHAC_DO] settings.PHAC_DO sai định dạng — giữ bảng dự phòng.', v); return; }
+    // Thay NỘI DUNG (giữ nguyên object) để mọi chỗ đang tham chiếu PHAC_DO thấy dữ liệu mới
+    Object.keys(PHAC_DO).forEach(function(k){ delete PHAC_DO[k]; });
+    Object.keys(v).forEach(function(k){ PHAC_DO[k] = v[k].map(function(it){ return {drug:it.drug.trim(), daily:it.daily}; }); });
+    if(!PHAC_DO['Khác']) PHAC_DO['Khác'] = [];
+    _PHAC_DO_SRC = 'supabase';
+    _fillPdSelect();
+    try{ if(typeof renderPatientTable==='function') renderPatientTable(); }catch(e){}
+    try{ if(typeof renderDuTru==='function') renderDuTru(); }catch(e){}
+  }catch(e){ console.warn('[PHAC_DO] lỗi tải', e); }
+}
+
+
 
 // ══════════════════════════════════════════════════════════════
 // MÃ HÓA DỮ LIỆU BỆNH NHÂN (AES-GCM 256-bit)
@@ -20901,7 +20905,10 @@ window.ptAddCustomDrugRow = function(btn) {
     var emptyMsg = document.getElementById('pt-empty-drug-msg');
     if(emptyMsg) emptyMsg.style.display = 'none';
     
-    var options = DRUGS.map(function(d){ return '<option value="'+d+'">'+d+'</option>'; }).join('');
+    // Thuốc lấy từ danh mục trên Supabase
+    var _cd = (typeof getCatalogDrugs === 'function') ? getCatalogDrugs() : [];
+    var options = _cd.length ? _cd.map(function(d){ return '<option value="'+_escH(d)+'">'+_escH(d)+'</option>'; }).join('')
+                             : '<option value="" disabled>(Chưa có thuốc trong danh mục)</option>';
     
     var row = document.createElement('div');
     row.className = 'pt-drug-row';
@@ -20926,7 +20933,8 @@ function openAddPatient(){
   ['pt-name','pt-age','pt-age-months','pt-weight','pt-address','pt-start','pt-end','pt-pd-custom'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.value = '';
   });
-  document.getElementById('pt-pd').value = '6BPaLM';
+  _fillPdSelect();
+  document.getElementById('pt-pd').value = _defaultPd();
   document.getElementById('pt-status').value = 'Đang điều trị';
   handlePdChange();
   
@@ -20961,7 +20969,8 @@ function editPatient(idx) {
   document.getElementById('pt-status').value = pt.status || 'Đang điều trị';
 
   // Chỉnh lý phác đồ
-  var currentPd = pt.pd || pt.phacDo || '6BPaLM';
+  var currentPd = pt.pd || pt.phacDo || _defaultPd();
+  _fillPdSelect();
   var pdSelect = document.getElementById('pt-pd');
   var pdOptions = [];
   for(var i=0; i<pdSelect.options.length; i++) pdOptions.push(pdSelect.options[i].value);
@@ -21335,7 +21344,7 @@ function importPatientExcel(input) {
            else genderVal = String(r[colGender]).trim();
         }
 
-        var pdValRaw = colPd !== -1 && r[colPd] ? String(r[colPd]).trim() : '6BPaLM';
+        var pdValRaw = colPd !== -1 && r[colPd] ? String(r[colPd]).trim() : _defaultPd();
         var pdVal = pdValRaw.replace(/\s+/g, '');
         var startDateVal = colStart !== -1 ? formatExcelDate(r[colStart]) : '';
         var endDateVal = colEnd !== -1 ? formatExcelDate(r[colEnd]) : '';
@@ -21622,11 +21631,7 @@ var _origStartAfterLogin = (typeof afterLogin==='function') ? afterLogin : null;
         <div class="fg">
           <label for="pt-pd">Phác đồ điều trị</label>
           <select id="pt-pd" title="Chọn phác đồ điều trị" onchange="handlePdChange()">
-            <option value="6BPaLM">6BPaLM</option>
-            <option value="18-20BdqLfxLzdCfzCs">18-20BdqLfxLzdCfzCs</option>
-            <option value="18-20LfxLzdCfzCsE">18-20LfxLzdCfzCsE</option>
-            <option value="18-20LfxZCfzCsE">18-20LfxZCfzCsE</option>
-            <option value="Khác">Khác</option>
+            <option value="Khác">Khác</option><!-- danh sách phác đồ dựng từ Supabase (_fillPdSelect) -->
           </select>
           <input type="text" id="pt-pd-custom" style="display:none;margin-top:6px" placeholder="VD: 9BdqLfx... (Hệ thống tự quét thuốc)" oninput="handlePdChange()">
         </div>
@@ -21689,7 +21694,12 @@ var _origStartAfterLogin = (typeof afterLogin==='function') ? afterLogin : null;
 <script>
 
 const REGIONS={bac:'Miền Bắc',trung:'Miền Trung',dong:'Miền Đông',tay:'Miền Tây'};
-const KHO_MIEN_LABEL={bac:'Kho miền Bắc — BVPTW',trung:'Kho miền Trung — BVPĐN',dong:'Kho miền Đông — BV PNT',tay:'Kho miền Tây — BV Phổi CT'};
+// Tên kho miền / kho toàn quốc: lấy từ cây đơn vị trên Supabase (không viết cứng)
+function _treeUnitName(pred, fallback){
+  try{ var u = (window.UNITS_TREE || []).find(pred); return (u && u.name) ? u.name : fallback; }catch(e){ return fallback; }
+}
+function _khoMienLabel(r){ return _treeUnitName(function(u){ return u.utype==='kho_mien' && u.mien===r; }, 'Kho miền '+(REGIONS[r]||r).replace(/^Miền /,'')); }
+function _khoTqLabel(){ return _treeUnitName(function(u){ return u.utype==='kho_tq' || !u.parent_id; }, 'Kho toàn quốc'); }
 const ROLES=[
   {val:'kho_tq',      label:'C1 — Kho toàn quốc',                    prefix:'tq'},
   {val:'kho_mien',    label:'C2 — Kho miền',                         prefix:'km'},
@@ -22893,13 +22903,13 @@ function buildParent(r,rv,tinh){
   }
   // C2 ← C1
   if(rv==='kho_mien'){
-    sp.innerHTML='<option value="kho_tq" selected>Kho toàn quốc — BVPTW</option>';
+    sp.innerHTML='<option value="kho_tq" selected>'+_escH(_khoTqLabel())+'</option>';
     showPbox('Kho miền '+REGIONS[r],'Kho toàn quốc'); return;
   }
   // C3.x ← C2 (kho miền)
   if(['bv_dm_mien','bv_ngoai','ttksbt_mien','bv_dm_tinh'].includes(rv)){
-    const lbl=KHO_MIEN_LABEL[r]||('Kho miền '+REGIONS[r]);
-    sp.innerHTML='<option value="kho_'+r+'" selected>'+lbl+'</option>';
+    const lbl=_khoMienLabel(r);
+    sp.innerHTML='<option value="kho_'+r+'" selected>'+_escH(lbl)+'</option>';
     showPbox(tinh||ROLES.find(x=>x.val===rv).label, lbl); return;
   }
   // C4.x ← C3.4 (BV đầu mối tỉnh)
