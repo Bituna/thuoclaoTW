@@ -3935,7 +3935,7 @@ async function checkSupabase(){
   var result = await Promise.race([fetchPr, timeout]);
   _supaOnline = !!(result && result.status >= 200 && result.status < 300);
   _updateCloudStatus();
-  if(_supaOnline){ try{ _loadUnitsTree(); }catch(e){} try{ loadCapPhat(); }catch(e){} try{ _loadThresholdFromCloud(); }catch(e){} try{ _loadPhacDoFromCloud(); }catch(e){} try{ _loadAccountsFromCloud().then(function(){ if(!currentUser){ try{ fillLoginUnits(); }catch(e){} } }); }catch(e){} }  // tải cây tổ chức + cấp phát + ngưỡng + tài khoản khi online
+  if(_supaOnline){ try{ _loadUnitsTree(); }catch(e){} try{ loadCapPhat(); }catch(e){} try{ _loadThresholdFromCloud(); }catch(e){} try{ _loadAccountsFromCloud().then(function(){ if(!currentUser){ try{ fillLoginUnits(); }catch(e){} } }); }catch(e){} }  // tải cây tổ chức + cấp phát + ngưỡng + tài khoản khi online
   if(_supaOnline && currentUser && currentUser.role==='donvi'){
     setTimeout(checkPendingTransfers, 500);
   }
@@ -18925,8 +18925,6 @@ function onAdminUnitFilterChange() {
 // LEGEND: B=Bedaquiline, Pa=Pretomanid, L/Lzd=Linezolid, M/Mfx=Moxifloxacin, 
 // Lfx=Levofloxacin, Cfz=Clofazimine, Cs=Cycloserine, E=Ethambutol, Z=Linezolid 300mg
 
-// Phác đồ điều trị: NGUỒN CHÍNH = Supabase (settings key 'PHAC_DO', tạo bằng sql/05_du_lieu_tham_chieu.sql).
-// Bảng dưới đây CHỈ là dự phòng khi Supabase chưa có / không tải được — sửa phác đồ trên Supabase.
 var PHAC_DO = {
   '6BPaLM': [
     {drug:'Bedaquiline 100mg', daily:1},
@@ -18958,47 +18956,24 @@ var PHAC_DO = {
   'Khác': []
 };
 
-// Phác đồ mặc định khi thêm bệnh nhân / nhập Excel thiếu cột phác đồ
-function _defaultPd(){ var k = Object.keys(PHAC_DO).filter(function(x){ return x !== 'Khác'; }); return k[0] || 'Khác'; }
-// Ô chọn phác đồ trong form bệnh nhân — dựng từ PHAC_DO (giữ lựa chọn đang có)
-function _fillPdSelect(){
-  var sel = document.getElementById('pt-pd'); if(!sel) return;
-  var cur = sel.value;
-  var keys = Object.keys(PHAC_DO).filter(function(k){ return k !== 'Khác'; }).concat(['Khác']);
-  sel.innerHTML = keys.map(function(k){ return '<option value="'+_escH(k)+'">'+_escH(k)+'</option>'; }).join('');
-  if(cur && keys.indexOf(cur) >= 0) sel.value = cur;
-}
-// Kiểm tra dữ liệu phác đồ từ Supabase: {tên: [{drug:"...", daily:số>0}], ...}
-function _validPhacDo(v){
-  if(!v || typeof v !== 'object' || Array.isArray(v)) return false;
-  var ks = Object.keys(v); if(!ks.length) return false;
-  return ks.every(function(k){
-    return k && Array.isArray(v[k]) && v[k].every(function(it){
-      return it && typeof it.drug === 'string' && it.drug.trim() && typeof it.daily === 'number' && isFinite(it.daily) && it.daily > 0;
-    });
-  });
-}
-var _PHAC_DO_SRC = 'mac-dinh';   // 'supabase' khi đã nạp từ cloud
-async function _loadPhacDoFromCloud(){
-  if(!_supaOnline) return;
-  try{
-    var r = await fetch(SUPA_URL+'/rest/v1/settings?key=eq.PHAC_DO&select=value&limit=1',{headers:_supaHdr,cache:'no-store'});
-    if(!r.ok) return;
-    var d = await r.json();
-    if(!d.length){ console.warn('[PHAC_DO] Supabase chưa có settings.PHAC_DO — đang dùng bảng dự phòng trong code. Chạy sql/05_du_lieu_tham_chieu.sql.'); return; }
-    var v = d[0].value;
-    if(!_validPhacDo(v)){ console.warn('[PHAC_DO] settings.PHAC_DO sai định dạng — giữ bảng dự phòng.', v); return; }
-    // Thay NỘI DUNG (giữ nguyên object) để mọi chỗ đang tham chiếu PHAC_DO thấy dữ liệu mới
-    Object.keys(PHAC_DO).forEach(function(k){ delete PHAC_DO[k]; });
-    Object.keys(v).forEach(function(k){ PHAC_DO[k] = v[k].map(function(it){ return {drug:it.drug.trim(), daily:it.daily}; }); });
-    if(!PHAC_DO['Khác']) PHAC_DO['Khác'] = [];
-    _PHAC_DO_SRC = 'supabase';
-    _fillPdSelect();
-    try{ if(typeof renderPatientTable==='function') renderPatientTable(); }catch(e){}
-    try{ if(typeof renderDuTru==='function') renderDuTru(); }catch(e){}
-  }catch(e){ console.warn('[PHAC_DO] lỗi tải', e); }
-}
-
+// ── Giải mã chữ viết tắt phác đồ ──────────────────────────────
+var PHAC_DO_ABBR_MAP = {
+  // Dạng ngắn (6BPaLM)
+  'B': 'Bedaquiline 100mg',
+  'Pa': 'Pretomanid 200mg',
+  'L': 'Linezolid 600mg',
+  'M': 'Moxifloxacin 400mg',
+  // Dạng dài (18-20BdqLfxLzdCfzCs)
+  'Bdq': 'Bedaquiline 100mg',
+  'Lfx': 'Levofloxacin 250mg',
+  'Lzd': 'Linezolid 600mg',
+  'Cfz': 'Clofazimine 100mg',
+  'Cs': 'Cycloserine 250mg',
+  'Pto': 'Prothionamide 250mg',
+  'Eto': 'Ethionamide 250mg',
+  'E': 'Ethambutol 400mg',
+  'Z': 'Linezolid 300mg' // Riêng cho 18-20LfxZCfzCsE
+};
 
 
 // ══════════════════════════════════════════════════════════════
@@ -20933,8 +20908,7 @@ function openAddPatient(){
   ['pt-name','pt-age','pt-age-months','pt-weight','pt-address','pt-start','pt-end','pt-pd-custom'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.value = '';
   });
-  _fillPdSelect();
-  document.getElementById('pt-pd').value = _defaultPd();
+  document.getElementById('pt-pd').value = '6BPaLM';
   document.getElementById('pt-status').value = 'Đang điều trị';
   handlePdChange();
   
@@ -20969,8 +20943,7 @@ function editPatient(idx) {
   document.getElementById('pt-status').value = pt.status || 'Đang điều trị';
 
   // Chỉnh lý phác đồ
-  var currentPd = pt.pd || pt.phacDo || _defaultPd();
-  _fillPdSelect();
+  var currentPd = pt.pd || pt.phacDo || '6BPaLM';
   var pdSelect = document.getElementById('pt-pd');
   var pdOptions = [];
   for(var i=0; i<pdSelect.options.length; i++) pdOptions.push(pdSelect.options[i].value);
@@ -21344,7 +21317,7 @@ function importPatientExcel(input) {
            else genderVal = String(r[colGender]).trim();
         }
 
-        var pdValRaw = colPd !== -1 && r[colPd] ? String(r[colPd]).trim() : _defaultPd();
+        var pdValRaw = colPd !== -1 && r[colPd] ? String(r[colPd]).trim() : '6BPaLM';
         var pdVal = pdValRaw.replace(/\s+/g, '');
         var startDateVal = colStart !== -1 ? formatExcelDate(r[colStart]) : '';
         var endDateVal = colEnd !== -1 ? formatExcelDate(r[colEnd]) : '';
@@ -21631,7 +21604,11 @@ var _origStartAfterLogin = (typeof afterLogin==='function') ? afterLogin : null;
         <div class="fg">
           <label for="pt-pd">Phác đồ điều trị</label>
           <select id="pt-pd" title="Chọn phác đồ điều trị" onchange="handlePdChange()">
-            <option value="Khác">Khác</option><!-- danh sách phác đồ dựng từ Supabase (_fillPdSelect) -->
+            <option value="6BPaLM">6BPaLM</option>
+            <option value="18-20BdqLfxLzdCfzCs">18-20BdqLfxLzdCfzCs</option>
+            <option value="18-20LfxLzdCfzCsE">18-20LfxLzdCfzCsE</option>
+            <option value="18-20LfxZCfzCsE">18-20LfxZCfzCsE</option>
+            <option value="Khác">Khác</option>
           </select>
           <input type="text" id="pt-pd-custom" style="display:none;margin-top:6px" placeholder="VD: 9BdqLfx... (Hệ thống tự quét thuốc)" oninput="handlePdChange()">
         </div>
