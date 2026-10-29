@@ -139,7 +139,6 @@ body{font-family:'Be Vietnam Pro',sans-serif;background:var(--bg);color:var(--te
 .tq-subtab{border:none;background:none;padding:9px 16px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1px}
 .tq-subtab:hover{color:var(--text)}
 .tq-subtab.act{color:#1a5276;border-bottom-color:#1a5276}
-#tq-pane-map{--vm-sea:#d4e6f6}
 .vm-toolbar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-bottom:12px}
 .vm-seg{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);font-weight:600}
 .vm-seg>span{margin:0 2px 0 4px}
@@ -155,12 +154,24 @@ body{font-family:'Be Vietnam Pro',sans-serif;background:var(--bg);color:var(--te
 .vm-prov{stroke:#334155;stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke;paint-order:stroke;cursor:pointer;transition:opacity .15s}
 .vm-prov:hover{stroke:#0f172a;stroke-width:2.2}
 .vm-prov.vm-sel{stroke:#0f172a;stroke-width:3}
+/* Chọn 1 tỉnh: các tỉnh khác chìm xuống, tỉnh chọn nổi lên & phóng to */
+.vm-prov{transition:opacity .45s ease,filter .45s ease}
+.vm-svg.vm-focus .vm-prov:not(.vm-sel){opacity:.16;filter:grayscale(1)}
+.vm-svg.vm-focus .vm-prov.vm-sel{filter:drop-shadow(0 0 .35px rgba(15,23,42,.55)) drop-shadow(0 .6px .9px rgba(15,23,42,.35))}
+.vm-svg.vm-focus .vm-lbl,.vm-svg.vm-focus .vm-lbl2,.vm-svg.vm-focus .vm-pname{display:none}
+.vm-flbl{font-weight:800;fill:#0f172a;paint-order:stroke;stroke:#fff;stroke-linejoin:round;text-anchor:middle;pointer-events:none;opacity:0;transition:opacity .3s ease .35s}
+.vm-svg.vm-focus .vm-flbl{opacity:1}
+.vm-back{position:absolute;top:44px;left:18px;z-index:5;border:1px solid #cbd5e0;background:#fff;border-radius:16px;padding:5px 12px;font-size:12px;font-weight:600;color:#1a5276;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.08)}
+.vm-back:hover{background:#f1f6fb}
+.vm-pside h3{margin:0 0 2px;font-size:16px;color:#1a2332}
+.vm-pside .vm-sub{font-size:11px;color:var(--muted);margin-bottom:10px}
+.vm-pside h4{margin:12px 0 6px;font-size:12px;color:#1a5276;text-transform:uppercase;letter-spacing:.4px}
+.vm-side .vm-pside .vm-tbl{max-height:30vh}
 .vm-prov[data-i="HS"],.vm-prov[data-i="TS"]{stroke:#1a5276;stroke-width:1}
 .vm-pname{font-size:9px;font-weight:700;fill:#0f172a;paint-order:stroke;stroke:#fff;stroke-width:2.2px;stroke-linejoin:round;pointer-events:none;text-anchor:middle}
 .vm-tbl .l{text-align:left!important}
 .vm-lbl{font-size:10px;font-weight:700;fill:#1a5276}
 .vm-lbl2{font-size:9px;fill:#5f6b7a}
-.vm-sea-lbl{font-size:12px;font-style:italic;fill:#8fb3d3;letter-spacing:1px}
 .vm-tip{position:absolute;display:none;pointer-events:none;background:#1a2332;color:#fff;font-size:12px;line-height:1.45;padding:7px 10px;border-radius:7px;max-width:290px;z-index:20;box-shadow:0 4px 14px rgba(0,0,0,.25)}
 .vm-legend{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:8px;font-size:11px;color:#475569}
 .vm-legend i,.vm-dot{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
@@ -24278,8 +24289,13 @@ function renderVNMap(){
   var max=0;
   if(_VM.layer==='exp') Object.keys(M.provs).forEach(function(p){ var v=_vmProvView(M.provs[p]).v||0; if(v>max) max=v; });
   if(isBn) Object.keys(BN.provs).forEach(function(p){ if(BN.provs[p].n>max) max=BN.provs[p].n; });
-  var svg='<svg viewBox="0 0 600 680" class="vm-svg" role="img" aria-label="Bản đồ Việt Nam '+_VM.bound+' tỉnh/thành">'
-    +'<rect x="0" y="0" width="600" height="680" fill="var(--vm-sea)"/>';
+  // Tỉnh đang chọn không còn trong ranh giới hiện tại (vd. đổi 34 ↔ 63) → bỏ chọn
+  if(_VM.sel && !feats.some(function(f){ return f.name===_VM.sel; })) _VM.sel=null;
+  var vbTo=_vmFocusBox(feats, _VM.sel), vbFrom=_VM.vb || vbTo;
+  var focusChanged=(_VM.vbSel!==_VM.sel);
+  var svg='<svg viewBox="'+vbFrom.join(' ')+'" class="vm-svg'+(_VM.sel && !focusChanged?' vm-focus':'')+'" role="img" aria-label="Bản đồ Việt Nam '+_VM.bound+' tỉnh/thành">';
+  // Tỉnh đang chọn vẽ sau cùng để nổi lên trên các tỉnh khác
+  feats=feats.filter(function(f){ return f.name!==_VM.sel; }).concat(feats.filter(function(f){ return f.name===_VM.sel; }));
   feats.forEach(function(f){
     var P=M.provs[f.name], v=isBn? null : _vmProvView(P);
     var fill = isBn ? _vmBnSeq((BN.provs[f.name]||{}).n||0, max) : (_VM.layer==='exp' ? (P? _vmSeq(v.v,max) : _VM_COL.none) : v.fill);
@@ -24294,10 +24310,14 @@ function renderVNMap(){
     });
   }
   // Nhãn quần đảo & Biển Đông
-  var hs=_vmXY(111.2,17.75), ts=_vmXY(113.0,12.0), bd=_vmXY(110.6,14.6);
+  var hs=_vmXY(111.2,17.75), ts=_vmXY(113.0,12.0);
   svg+='<text x="'+hs[0]+'" y="'+hs[1]+'" class="vm-lbl">QĐ. Hoàng Sa</text><text x="'+hs[0]+'" y="'+(hs[1]+11)+'" class="vm-lbl2">(TP. Đà Nẵng)</text>'
-     +'<text x="'+ts[0]+'" y="'+ts[1]+'" class="vm-lbl">QĐ. Trường Sa</text><text x="'+ts[0]+'" y="'+(ts[1]+11)+'" class="vm-lbl2">(Tỉnh Khánh Hòa)</text>'
-     +'<text x="'+bd[0]+'" y="'+bd[1]+'" class="vm-sea-lbl">B I Ể N &#160; Đ Ô N G</text>';
+     +'<text x="'+ts[0]+'" y="'+ts[1]+'" class="vm-lbl">QĐ. Trường Sa</text><text x="'+ts[0]+'" y="'+(ts[1]+11)+'" class="vm-lbl2">(Tỉnh Khánh Hòa)</text>';
+  if(_VM.sel){
+    // Tên tỉnh đặt ở mép trên khung phóng to; cỡ chữ theo tỉ lệ phóng để luôn ~15px trên màn hình
+    var k=vbTo[2]/600;
+    svg+='<text class="vm-flbl" x="'+(vbTo[0]+vbTo[2]/2).toFixed(1)+'" y="'+(vbTo[1]+20*k).toFixed(1)+'" style="font-size:'+(15*k).toFixed(2)+'px;stroke-width:'+(3*k).toFixed(2)+'px">'+_vmEsc(_vmDisp(_VM.sel))+'</text>';
+  }
   svg+='</svg>';
 
   // Chú giải
@@ -24325,13 +24345,17 @@ function renderVNMap(){
   host.innerHTML='<div class="vm-grid"><div class="vm-mapbox"><div class="vm-maphead">'
     +'<b>'+(isBn?('Số bệnh nhân '+(_VM.bnSt==='act'?'đang điều trị':'(mọi trạng thái)')+(_VM.pd?' — phác đồ '+_vmEsc(_VM.pd):'')):_VM.layer==='mos'?(_VM.drug?'MOS — '+_vmEsc(_VM.drug):'Nguy cơ thiếu thuốc (mọi mặt hàng)'):('Hạn dùng ≤ '+_VM.horizon+' tháng'+(_VM.drug?' — '+_vmEsc(_VM.drug):'')+' · tô màu theo '+(_VM.expBy==='waste'?'dự báo hủy':'SL cận hạn')))+'</b>'
     +'<span>'+(isBn?'Thời điểm hiện tại':'Kỳ '+pk.split('-').reverse().join('/'))+' · '+(_VM.bound==='34'?'34 tỉnh/thành (hiện hành)':'63 tỉnh/thành (trước 01/7/2025)')+'</span></div>'
+    +(_VM.sel?'<button class="vm-back" data-p="'+_vmEsc(_VM.sel)+'" title="Quay lại toàn quốc">← Toàn quốc</button>':'')
     +svg+'<div class="vm-tip" id="vm-tip"></div><div class="vm-legend">'+lg+'</div>'
     +(per.note?'<div class="vm-note">'+_vmEsc(per.note)+'</div>':'')
     +(!isBn && _VM.histKey!==(pk+'|'+_VM.nAmc+'|'+(_currentRootId()||''))?'<div class="vm-note">⏳ Đang tải lịch sử tiêu thụ để tính AMC…</div>':'')
-    +'</div><div class="vm-side">'+(isBn?_vmBnSide(BN):_vmSide(M))+'</div></div>'
+    +'</div><div class="vm-side">'+(_VM.sel?_vmProvSide(_VM.sel, M):(isBn?_vmBnSide(BN):_vmSide(M)))+'</div></div>'
     +'<div id="vm-detail">'+(isBn?_vmBnDetail(BN):_vmDetail(M))+'</div>';
 
   var svgEl=host.querySelector('.vm-svg'), tip=document.getElementById('vm-tip');
+  _VM.vbSel=_VM.sel;
+  _vmAnimVB(svgEl, vbFrom, vbTo, focusChanged? 650 : 0);
+  if(focusChanged && _VM.sel) requestAnimationFrame(function(){ requestAnimationFrame(function(){ svgEl.classList.add('vm-focus'); }); });
   svgEl.addEventListener('mousemove',function(ev){
     var t=ev.target; if(!t.classList.contains('vm-prov')){ tip.style.display='none'; return; }
     var p=t.getAttribute('data-p'), P=M.provs[p], v;
@@ -24348,8 +24372,79 @@ function renderVNMap(){
   svgEl.addEventListener('mouseleave',function(){ tip.style.display='none'; });
   host.onclick=function(ev){
     var t=ev.target.closest ? ev.target.closest('[data-p]') : null;
-    if(t && host.contains(t)) vmPick(t.getAttribute('data-p'));
+    if(t && host.contains(t)){ vmPick(t.getAttribute('data-p')); return; }
+    if(_VM.sel && ev.target===svgEl) vmPick(_VM.sel);
   };
+}
+
+// Khung nhìn SVG [x,y,w,h]: cả nước, hoặc ôm sát phần đất liền của tỉnh đang chọn
+var _VM_FULL=[0,0,600,680];
+function _vmFocusBox(feats, sel){
+  if(!sel) return _VM_FULL.slice();
+  var fs=feats.filter(function(f){ return f.name===sel; });
+  var land=fs.filter(function(f){ return !f.isl; }); if(land.length) fs=land;
+  var x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  fs.forEach(function(f){ f.rings.forEach(function(r){ r.forEach(function(pt){
+    var q=_vmXY(pt[0],pt[1]); if(q[0]<x0)x0=q[0]; if(q[0]>x1)x1=q[0]; if(q[1]<y0)y0=q[1]; if(q[1]>y1)y1=q[1];
+  }); }); });
+  if(x0>x1) return _VM_FULL.slice();
+  // Giữ tỉ lệ khung 600:680, chừa lề 18% và chừa chỗ cho tên tỉnh ở trên
+  var w=Math.max(x1-x0, 8), h=Math.max(y1-y0, 8), cx=(x0+x1)/2, cy=(y0+y1)/2;
+  var R=600/680; if(w/h>R) h=w/R; else w=h*R;
+  w*=1.36; h*=1.36; cy-=h*0.04;
+  return [cx-w/2, cy-h/2, w, h];
+}
+function _vmAnimVB(el, from, to, ms){
+  if(_VM._anim) cancelAnimationFrame(_VM._anim);
+  var set=function(v){ _VM.vb=v; el.setAttribute('viewBox', v.map(function(n){ return n.toFixed(2); }).join(' ')); };
+  var reduce=window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(!ms || reduce){ set(to); return; }
+  var t0=null;
+  var step=function(ts){
+    if(t0===null) t0=ts;
+    var t=Math.min(1,(ts-t0)/ms), e=t<.5? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2;
+    set(from.map(function(a,i){ return a+(to[i]-a)*e; }));
+    if(t<1) _VM._anim=requestAnimationFrame(step); else _VM._anim=null;
+  };
+  _VM._anim=requestAnimationFrame(step);
+}
+
+// Bảng bên cạnh khi chọn 1 tỉnh: thuốc (tồn, AMC, MOS, cận hạn) + bệnh nhân
+function _vmProvSide(p, M){
+  var P=M.provs[p];
+  var keep={pd:_VM.pd, bnSt:_VM.bnSt}; _VM.pd=''; _VM.bnSt='all';
+  var BNall; try{ BNall=_vmBnBuild(); } finally { _VM.pd=keep.pd; _VM.bnSt=keep.bnSt; }
+  var B=BNall.provs[p];
+  var nUnits={}; if(P) Object.keys(P.units).forEach(function(u){ nUnits[u]=1; }); if(B) Object.keys(B.units).forEach(function(u){ nUnits[u]=1; });
+  var ds=P? Object.keys(P.stock).map(function(d){ return {d:d, m:_vmMos(P,d)}; }).filter(function(x){ return x.m.st!=='none'; }) : [];
+  var nShort=ds.filter(function(x){ return x.m.st==='zero'||x.m.st==='danger'; }).length;
+  var soon={};
+  if(P) P.lots.forEach(function(L){ if(L.mLeft<=_VM.horizon){ var o=soon[L.drug]||(soon[L.drug]={qty:0,waste:0}); o.qty+=L.qty; o.waste+=(L.waste||0); } });
+  var h='<div class="vm-pside"><h3>📍 '+_vmEsc(_vmDisp(p))+'</h3>'
+    +'<div class="vm-sub">Kỳ '+_vmEsc(M.pk.split('-').reverse().join('/'))+' · '+Object.keys(nUnits).length+' đơn vị có số liệu</div>'
+    +'<div class="vm-kpis">'
+    +'<div class="vm-kpi" style="--c:#0b4f8a"><b>'+(B?B.act:0)+'</b><span>BN đang điều trị</span></div>'
+    +'<div class="vm-kpi" style="--c:#2a7fbf"><b>'+(B?B.n:0)+'</b><span>Tổng số BN</span></div>'
+    +'<div class="vm-kpi" style="--c:#1a5276"><b>'+ds.length+'</b><span>Mặt hàng thuốc</span></div>'
+    +'<div class="vm-kpi" style="--c:'+_VM_COL.danger+'"><b>'+nShort+'</b><span>Mặt hàng thiếu/hết</span></div></div>';
+  var ord={zero:0,danger:1,warn:2,idle:3,over:4,ok:5};
+  ds.sort(function(a,b){ return (ord[a.m.st]-ord[b.m.st]) || a.d.localeCompare(b.d,'vi'); });
+  h+='<h4>💊 Thuốc</h4><table class="vm-tbl"><thead><tr><th>Thuốc</th><th>Tồn</th><th>MOS</th><th>Cận hạn ≤'+_VM.horizon+'th</th></tr></thead><tbody>'
+    +(ds.length? ds.map(function(x){ var m=x.m, sn=soon[x.d];
+      return '<tr title="'+_vmEsc(_VM_LBL[m.st])+' · AMC '+_vmFmt(m.a)+'"><td><i class="vm-dot" style="background:'+_VM_COL[m.st]+'"></i>'+_vmEsc(x.d)+'</td><td>'+_vmFmt(m.s)+'</td><td><b>'+(m.mos!=null?m.mos.toFixed(1):'—')+'</b></td>'
+        +'<td style="color:'+(sn&&sn.waste?'#b8361e':'inherit')+'">'+(sn?_vmFmt(sn.qty):'')+'</td></tr>'; }).join('')
+      : '<tr><td colspan="4" class="vm-empty">Chưa có số liệu thuốc kỳ này.</td></tr>')
+    +'</tbody></table>';
+  h+='<h4>🧑‍⚕️ Bệnh nhân</h4>';
+  if(B && B.n){
+    var pk=Object.keys(B.pd).sort(function(a,b){ return B.pd[b]-B.pd[a]; });
+    h+='<table class="vm-tbl"><thead><tr><th>Phác đồ</th><th>Số BN</th><th>Tỉ lệ</th></tr></thead><tbody>'
+      +pk.map(function(k){ return '<tr><td>'+_vmEsc(k)+'</td><td><b>'+B.pd[k]+'</b></td><td>'+Math.round(B.pd[k]*100/B.n)+'%</td></tr>'; }).join('')
+      +'</tbody></table>'
+      +'<div class="vm-note">Trạng thái: '+_vmEsc(Object.keys(B.st).map(function(k){ return k+' '+B.st[k]; }).join(' · '))+'</div>';
+  } else h+='<div class="vm-empty">Chưa có bệnh nhân trong phạm vi.</div>';
+  h+='<div class="vm-note">Chi tiết theo từng đơn vị ở bảng bên dưới. Bấm "← Toàn quốc" hoặc bấm lại tỉnh để thu nhỏ.</div></div>';
+  return h;
 }
 
 function _vmSide(M){
@@ -24445,7 +24540,7 @@ function _vmBnDetail(BN){
   return '<div class="vm-detail">'+head+h+'<div class="vm-note">Trạng thái: '+_vmEsc(st)+'</div></div>';
 }
 
-function vmPick(p){ _VM.sel = (_VM.sel===p ? null : p); renderVNMap(); var d=document.getElementById('vm-detail'); if(_VM.sel && d) d.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+function vmPick(p){ _VM.sel = (_VM.sel===p ? null : p); renderVNMap(); var m=document.querySelector('#vm-root .vm-mapbox'); if(_VM.sel && m && m.getBoundingClientRect().top<0) m.scrollIntoView({behavior:'smooth',block:'start'}); }
 
 function _vmUnitName(uid){ var u=UNIT_BY_ID[uid]; return u? u.name : uid; }
 function _vmDetail(M){
