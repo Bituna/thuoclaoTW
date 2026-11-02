@@ -4622,7 +4622,7 @@ function _aggQuarterRows(rows, qk){
   (rows||[]).forEach(function(r){
     if(!r || r._agg || !(r.bcMonth in mi)) return;
     var u = _rowUid(r);
-    var k = (u || r.unit || '') + '||' + r.drug + '||' + r.lot + '||' + (r.exp||'');
+    var k = (u || r.unit || '') + '||' + r.drug + '||' + String(r.lot||'').trim() + '||' + _normExp(r.exp||'');
     var a = g[k];
     if(!a){
       a = g[k] = { unitId:u, unit:r.unit || (u ? unitNameById(u) : ''), drug:r.drug, lot:r.lot, exp:r.exp||'',
@@ -6561,15 +6561,19 @@ function getLotsForDrug(drugName){
 // Tính tồn cuối của 1 lô tại 1 đơn vị (tất cả kỳ, cộng dồn)
 // Tính tồn cuối toàn thành phố của 1 lô (gộp tất cả đơn vị)
 function getLotCityFinal(drug, lot, exp){
-  var total = 0, found = false;
+  // Mỗi đơn vị × lô chỉ lấy tồn cuối của KỲ MUỘN NHẤT đang có trong RAM
+  // (bản cũ cộng tồn cuối mọi kỳ → khi nạp nhiều kỳ, tồn bị nhân lên).
+  var last = {};
   bvphData.concat(bcData).forEach(function(r){
     if(r._agg) return;
     if(r.drug===drug && r.lot===lot && r.exp===exp){
-      total += calcRow(r).tonCuoi;
-      found = true;
+      var k = (_rowUid(r)||r.unit||'') + '||' + _rowPL(r), bm = r.bcMonth || '';
+      if(!last[k] || bm > last[k].bm) last[k] = {bm:bm, ton:calcRow(r).tonCuoi};
     }
   });
-  return found ? total : -1;
+  var ks = Object.keys(last);
+  if(!ks.length) return -1;
+  return ks.reduce(function(t, k){ return t + last[k].ton; }, 0);
 }
 
 function fillLotSelect(selectId, drugName, expInputId){
@@ -11007,7 +11011,32 @@ function delR(prefix, rowIdx){
       + 'Xóa sẽ mất số liệu của kỳ này (kỳ khác không ảnh hưởng).'
       + '</div></div>';
   }
-  _confirmModal('Xóa dòng này?', _delMsg, function(){
+  _confirmModal('Xóa dòng này?', _delMsg, async function(){
+    // Lô đang có phiếu điều chuyển (chờ nhận / đã nhận) trong kỳ → KHÔNG cho xóa dòng:
+    // xóa dòng nhưng phiếu còn → bảng đối chiếu điều chuyển lệch vĩnh viễn. Huỷ phiếu trước.
+    if(_supaOnline){
+      try{
+        var _cu = _rowUid(target), _cp = target.bcMonth || _currentPeriodKey();
+        if(_cu){
+          var _tr = await fetch(SUPA_URL+'/rest/v1/transfers?drug=eq.'+encodeURIComponent(target.drug)
+            +'&lot=eq.'+encodeURIComponent(target.lot)
+            +'&status=in.(pending,confirmed)'
+            +'&or=(from_unit_id.eq.'+_cu+',to_unit_id.eq.'+_cu+')'
+            +'&select=id,period,receive_date,exp,type,status', {headers:_supaHdr, cache:'no-store'});
+          var _tl = _tr.ok ? await _tr.json() : [];
+          var _hit = (_tl||[]).filter(function(t){
+            if(_normExp(t.exp||'') !== _normExp(target.exp||'')) return false;
+            var rp = t.receive_date ? (_periodFromDate(t.receive_date, t.period) || t.period) : t.period;
+            var inP = function(per){ return per === _cp || (_isQKey(_cp) && _isMKey(per) && _qOfMonth(per) === _cp); };
+            return inP(t.period) || inP(rp);
+          });
+          if(_hit.length){
+            toast('⛔ Không xóa được: lô này còn '+_hit.length+' phiếu điều chuyển (chờ nhận/đã nhận) trong kỳ. Huỷ phiếu trước rồi xóa dòng.','var(--danger)');
+            return;
+          }
+        }
+      }catch(e){ console.warn('kiểm tra phiếu trước khi xóa dòng', e); }
+    }
     // Dùng unit_id THẬT của dòng. Bản cũ gửi 'bvph' cho bảng kho riêng → ở bản đa tỉnh 'bvph'
     // được dịch thành KHO TỈNH đầu mối → đơn vị cơ sở bấm Xóa lại XÓA NHẦM dòng của tỉnh.
     var _delUid = _rowUid(target);
@@ -15421,7 +15450,11 @@ async function _editTransferDate(transferId, field, currentVal){
     // Xác định đơn vị + cột bị ảnh hưởng theo LOẠI phiếu
     var affUnit, affField;
     var _noMove = false;   // true = đổi ngày không ảnh hưởng số liệu
-    if(tx.type === 'dc3_to_tinh'){
+    if(tx.type === 'dc3_province'){
+      // Xuất tỉnh khác: bên gửi ghi x3 (dc3) theo NGÀY CHUYỂN, bên nhận ghi n2 (ntk) theo NGÀY NHẬN
+      if(isRx){ affUnit = tx.to_unit; affField = 'n2'; }
+      else    { affUnit = tx.from_unit; affField = 'x3'; }
+    } else if(tx.type === 'dc3_to_tinh'){
       // BVPH → Đơn vị: `tinh` cộng theo NGÀY CHUYỂN (không chờ xác nhận)
       // → sửa ngày NHẬN chỉ là ghi chú, không di chuyển số liệu.
       if(isRx){
@@ -15443,6 +15476,9 @@ async function _editTransferDate(transferId, field, currentVal){
       }
     }
     var dbUnit = affUnit ? ((affUnit===BVPH || affUnit==='bvph') ? 'bvph' : affUnit) : '';
+    // Lọc theo unit_id thật của phiếu (nếu có) + phân loại của kỳ — bản cũ lọc theo tên, không lọc phan_loai
+    var _affUid = affUnit ? ((affUnit === tx.to_unit ? tx.to_unit_id : tx.from_unit_id) || _uid(dbUnit)) : null;
+    var _uQ = function(){ return _affUid ? ('&unit_id=eq.'+encodeURIComponent(_affUid)) : ('&unit=eq.'+encodeURIComponent(dbUnit)); };
 
     // Không ảnh hưởng số liệu → chỉ update ngày rồi thoát
     if(_noMove){
@@ -15510,18 +15546,37 @@ async function _editTransferDate(transferId, field, currentVal){
         toast('⏳ Đang chuyển số liệu...','#94a3b8');
         var expQ = '&exp=eq.'+encodeURIComponent(tx.exp||'');
 
-        // 1) TRỪ ở kỳ CŨ
+        var plOld = '&phan_loai=eq.'+_plFromKey(oldPeriod), plNew = '&phan_loai=eq.'+_plFromKey(newPeriod);
+        // 0) Đọc trước 2 kỳ và CHẶN nếu việc chuyển làm tồn cuối âm (nhập rút khỏi kỳ cũ đã bị dùng,
+        //    hoặc xuất dồn sang kỳ mới vượt tồn)
         var gOld = await fetch(SUPA_URL+'/rest/v1/reports?period=eq.'+encodeURIComponent(oldPeriod)
-          + '&unit=eq.'+encodeURIComponent(dbUnit)
+          + _uQ() + plOld
           + '&drug=eq.'+encodeURIComponent(tx.drug)
           + '&lot=eq.'+encodeURIComponent(tx.lot)
           + expQ + '&limit=1', {headers:_supaHdr, cache:'no-store'});
         var rowsOld = gOld.ok ? await gOld.json() : [];
+        var gNew0 = await fetch(SUPA_URL+'/rest/v1/reports?period=eq.'+encodeURIComponent(newPeriod)
+          + _uQ() + plNew
+          + '&drug=eq.'+encodeURIComponent(tx.drug)
+          + '&lot=eq.'+encodeURIComponent(tx.lot)
+          + expQ + '&limit=1', {headers:_supaHdr, cache:'no-store'});
+        var rowsNew0 = gNew0.ok ? await gNew0.json() : [];
+        var _isIn = (affField.charAt(0) === 'n');
+        if(_isIn && rowsOld.length){
+          var _tOld = Object.assign({}, rowsOld[0]); _tOld[affField] = Math.max(0, (_tOld[affField]||0) - qty);
+          if(calcRow(_tOld).tonCuoi < 0) throw new Error('kỳ '+_fmtPeriodVN(oldPeriod)+' đã dùng số thuốc này — rút ra sẽ làm tồn cuối âm ('+calcRow(_tOld).tonCuoi+')');
+        }
+        if(!_isIn){
+          var _tNew = Object.assign({t0:0,n1:0,n2:0,n3:0,n4:0,x1:0,x2:0,x3:0,x4:0}, rowsNew0[0]||{}); _tNew[affField] = (_tNew[affField]||0) + qty;
+          if(calcRow(_tNew).tonCuoi < 0) throw new Error('kỳ '+_fmtPeriodVN(newPeriod)+' không đủ tồn để ghi xuất này (tồn cuối sẽ là '+calcRow(_tNew).tonCuoi+')');
+        }
+
+        // 1) TRỪ ở kỳ CŨ
         if(rowsOld.length){
           var newOldVal = Math.max(0, (rowsOld[0][affField]||0) - qty);
           var bodyOld = {}; bodyOld[affField] = newOldVal;
           var pOld = await fetch(SUPA_URL+'/rest/v1/reports?period=eq.'+encodeURIComponent(oldPeriod)
-            + '&unit=eq.'+encodeURIComponent(dbUnit)
+            + _uQ() + plOld
             + '&drug=eq.'+encodeURIComponent(tx.drug)
             + '&lot=eq.'+encodeURIComponent(tx.lot) + expQ, {
             method:'PATCH',
@@ -15532,17 +15587,12 @@ async function _editTransferDate(transferId, field, currentVal){
         }
 
         // 2) CỘNG ở kỳ MỚI
-        var gNew = await fetch(SUPA_URL+'/rest/v1/reports?period=eq.'+encodeURIComponent(newPeriod)
-          + '&unit=eq.'+encodeURIComponent(dbUnit)
-          + '&drug=eq.'+encodeURIComponent(tx.drug)
-          + '&lot=eq.'+encodeURIComponent(tx.lot)
-          + expQ + '&limit=1', {headers:_supaHdr, cache:'no-store'});
-        var rowsNew = gNew.ok ? await gNew.json() : [];
+        var rowsNew = rowsNew0;
         if(rowsNew.length){
           var newNewVal = (rowsNew[0][affField]||0) + qty;
           var bodyNew = {}; bodyNew[affField] = newNewVal;
           var pNew = await fetch(SUPA_URL+'/rest/v1/reports?period=eq.'+encodeURIComponent(newPeriod)
-            + '&unit=eq.'+encodeURIComponent(dbUnit)
+            + _uQ() + plNew
             + '&drug=eq.'+encodeURIComponent(tx.drug)
             + '&lot=eq.'+encodeURIComponent(tx.lot) + expQ, {
             method:'PATCH',
@@ -15553,7 +15603,9 @@ async function _editTransferDate(transferId, field, currentVal){
         } else {
           // Kỳ mới chưa có dòng → INSERT
           var ins = { period:newPeriod, unit:dbUnit, drug:tx.drug, lot:tx.lot, exp:tx.exp||'',
+            phan_loai:_plFromKey(newPeriod), period_type:(_isQKey(newPeriod)?'quarter':'month'),
             t0:0, n1:0, n2:0, n3:0, n4:0, x1:0, x2:0, x3:0, x4:0, locked:false, bc_month:newPeriod };
+          if(_affUid){ ins.unit_id = _affUid; delete ins.unit; }
           ins[affField] = qty;
           var pIns = await fetch(SUPA_URL+'/rest/v1/reports', {
             method:'POST',
@@ -18918,6 +18970,7 @@ function renderTransferSuggestions(){
   var addRow = function(r){
     if(!r.drug || !r.unitId || !inScope(r.unitId)) return;
     var u = UNIT_BY_ID[r.unitId]; if(!u || u.utype === 'kho_tq' || u.utype === 'kho_mien') return;
+    if(isExpiredStr(r.exp)) return;   // lô đã hết hạn: không cấp phát/điều chuyển được → không tính tồn, không đề xuất
     var tonCuoi = Math.max(0, calcRow(r).tonCuoi);
     var k = r.unitId + '||' + r.drug;
     var o = UD[k] || (UD[k] = {uid:r.unitId, unit:u.name, drug:r.drug, ton:0, lots:{}});
@@ -20632,14 +20685,15 @@ var WHO_DOSE = {
     if(w<70) return { monthTotal:+(4*2*DOSE_DAYS_PER_MONTH/4).toFixed(2), note:'4 g × 2 lần/ngày' };
     return { monthTotal:+(5*2*DOSE_DAYS_PER_MONTH/4).toFixed(2), note:'4–6 g × 2 lần/ngày' };
   },
-  // Meropenem lọ 1g (pha 20ml) — luôn kèm acid clavulanic
+  // Meropenem lọ 1g (pha 20ml) — luôn kèm acid clavulanic. Đơn vị kho = LỌ: liều ml của trẻ em quy ra
+  // số lọ mở mỗi lần (ceil(ml/20)); bản cũ lấy thẳng số ml làm số lọ (gấp ~20 lần).
   'Meropenem 1g': function(w){
-    if(w<5)  return { monthTotal:+(1*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'1 ml × 3 lần/ngày (lọ pha 20ml)' };
-    if(w<7)  return { monthTotal:+(2*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'2 ml × 3 lần/ngày (lọ pha 20ml)' };
-    if(w<10) return { monthTotal:+(4*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'4 ml × 3 lần/ngày (lọ pha 20ml)' };
-    if(w<16) return { monthTotal:+(6*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'6 ml × 3 lần/ngày (lọ pha 20ml)' };
-    if(w<24) return { monthTotal:+(9*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'9 ml × 3 lần/ngày (lọ pha 20ml)' };
-    if(w<30) return { monthTotal:+(11*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'11 ml × 3 lần/ngày (lọ pha 20ml)' };
+    if(w<5)  return { monthTotal:+(Math.ceil(1/20)*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'1 ml × 3 lần/ngày (lọ pha 20ml → 1 lọ/lần, phần thừa huỷ)' };
+    if(w<7)  return { monthTotal:+(Math.ceil(2/20)*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'2 ml × 3 lần/ngày (lọ pha 20ml → 1 lọ/lần, phần thừa huỷ)' };
+    if(w<10) return { monthTotal:+(Math.ceil(4/20)*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'4 ml × 3 lần/ngày (lọ pha 20ml → 1 lọ/lần, phần thừa huỷ)' };
+    if(w<16) return { monthTotal:+(Math.ceil(6/20)*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'6 ml × 3 lần/ngày (lọ pha 20ml → 1 lọ/lần, phần thừa huỷ)' };
+    if(w<24) return { monthTotal:+(Math.ceil(9/20)*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'9 ml × 3 lần/ngày (lọ pha 20ml → 1 lọ/lần, phần thừa huỷ)' };
+    if(w<30) return { monthTotal:+(Math.ceil(11/20)*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'11 ml × 3 lần/ngày (lọ pha 20ml → 1 lọ/lần, phần thừa huỷ)' };
     return { monthTotal:+(3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'1 lọ × 3 lần/ngày hoặc 2 lọ × 2 lần/ngày' }; // ≥30kg
   },
   // Imipenem-cilastatin — không dùng <15 tuổi (thay Meropenem); người đủ điều kiện 2 lọ×2 lần/ngày
@@ -20683,20 +20737,21 @@ var WHO_DOSE = {
     if(w<30) return _notUsed();
     return _md(1);                   // 30–<36, 36–<46, 46–<56, 56–<70, ≥70
   },
-  // Amoxicillin/Clavulanate — luôn kèm Imipenem hoặc Meropenem
+  // Amoxicillin/Clavulanate — luôn kèm Imipenem hoặc Meropenem. Đơn vị kho 250mg = GÓI (5ml):
+  // quy ml ra gói/lần (ceil(ml/5)); bản cũ lấy số ml làm số gói (gấp ~5 lần).
   'Amoxicillin/Clavulanate 250mg': function(w){
-    if(w<5)  return { monthTotal:+(1.5*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'1,5 ml × 3 lần/ngày (gói pha 5ml)' };
-    if(w<7)  return { monthTotal:+(2*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'2 ml × 3 lần/ngày (gói pha 5ml)' };
-    if(w<10) return { monthTotal:+(3*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'3 ml × 3 lần/ngày (gói pha 5ml)' };
-    if(w<16) return { monthTotal:+(5*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'5 ml × 3 lần/ngày (gói pha 5ml)' };
-    if(w<24) return { monthTotal:+(8*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'8 ml × 3 lần/ngày (gói pha 5ml)' };
-    if(w<46) return { monthTotal:+(10*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'10 ml × 3 lần/ngày (gói pha 5ml)' }; // 24–<30 và 30–<46
+    if(w<5)  return { monthTotal:+(Math.ceil(1.5/5)*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'1,5 ml × 3 lần/ngày (gói pha 5ml → 1 gói/lần)' };
+    if(w<7)  return { monthTotal:+(Math.ceil(2/5)*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'2 ml × 3 lần/ngày (gói pha 5ml → 1 gói/lần)' };
+    if(w<10) return { monthTotal:+(Math.ceil(3/5)*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'3 ml × 3 lần/ngày (gói pha 5ml → 1 gói/lần)' };
+    if(w<16) return { monthTotal:+(Math.ceil(5/5)*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'5 ml × 3 lần/ngày (gói pha 5ml → 1 gói/lần)' };
+    if(w<24) return { monthTotal:+(Math.ceil(8/5)*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'8 ml × 3 lần/ngày (gói pha 5ml → 2 gói/lần)' };
+    if(w<46) return { monthTotal:+(Math.ceil(10/5)*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'10 ml × 3 lần/ngày (gói pha 5ml → 2 gói/lần)' }; // 24–<30 và 30–<46
     return _notUsed();                // 46–≥70: dùng viên 500mg
   },
   'Amoxicillin/Clavulanate 500mg': function(w){
     if(w<16) return _notUsed();
-    if(w<24) return { monthTotal:+(3*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'1 viên × 3 lần/ngày' };
-    return { monthTotal:+(2*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'1 viên × 2 lần hoặc 3 lần/ngày (lấy mốc 2 lần/ngày)' }; // 24–≥70
+    if(w<24) return { monthTotal:+(1*3*DOSE_DAYS_PER_MONTH).toFixed(2), note:'1 viên × 3 lần/ngày' };   // bản cũ 3*3 (9 viên/ngày)
+    return { monthTotal:+(1*2*DOSE_DAYS_PER_MONTH).toFixed(2), note:'1 viên × 2 lần hoặc 3 lần/ngày (lấy mốc 2 lần/ngày)' }; // 24–≥70 (bản cũ 2*3)
   }
 };
 
@@ -24493,11 +24548,12 @@ function _vmBuild(pk){
     var tonCuoi=calcRow(r).tonCuoi, d=r.drug||'(không tên)';
     drugs[d]=1;
     var pv=_vmProvOf(r.unitId);
-    if(!pv){ central.stock[d]=(central.stock[d]||0)+tonCuoi; return; }
+    if(!pv){ if(!isExpiredStr(r.exp)) central.stock[d]=(central.stock[d]||0)+tonCuoi; return; }
     var P=get(B==='34'?pv.p34:pv.p63);
     if(B==='63' && pv.guess63 && MERGE_MAP[pv.p34]) P.guess=true;
-    P.stock[d]=(P.stock[d]||0)+tonCuoi;
-    var U=P.units[r.unitId]||(P.units[r.unitId]={stock:{}}); U.stock[d]=(U.stock[d]||0)+tonCuoi;
+    var _use=isExpiredStr(r.exp)?0:tonCuoi;   // tồn dùng được (MOS) — bỏ lô đã hết hạn
+    P.stock[d]=(P.stock[d]||0)+_use;
+    var U=P.units[r.unitId]||(P.units[r.unitId]={stock:{}}); U.stock[d]=(U.stock[d]||0)+_use;
     if(tonCuoi>0) P.lots.push({uid:r.unitId, drug:d, lot:r.lot||'', exp:r.exp||'', qty:tonCuoi});
   });
   // Hàng 1 (báo cáo theo quý): thuốc không có dòng tháng → lấy tồn quý gần nhất của từng đơn vị
@@ -24506,11 +24562,12 @@ function _vmBuild(pk){
     var d=r.drug||'(không tên)'; if(!_h1Only(d, pk)) return;
     var tonCuoi=calcRow(r).tonCuoi, pv=_vmProvOf(r.unitId);
     drugs[d]=1; h1d[d]=1;
-    if(!pv){ central.stock[d]=(central.stock[d]||0)+tonCuoi; return; }
+    if(!pv){ if(!isExpiredStr(r.exp)) central.stock[d]=(central.stock[d]||0)+tonCuoi; return; }
     var P=get(B==='34'?pv.p34:pv.p63);
     if(B==='63' && pv.guess63 && MERGE_MAP[pv.p34]) P.guess=true;
-    P.stock[d]=(P.stock[d]||0)+tonCuoi;
-    var U=P.units[r.unitId]||(P.units[r.unitId]={stock:{}}); U.stock[d]=(U.stock[d]||0)+tonCuoi;
+    var _use=isExpiredStr(r.exp)?0:tonCuoi;   // tồn dùng được (MOS) — bỏ lô đã hết hạn
+    P.stock[d]=(P.stock[d]||0)+_use;
+    var U=P.units[r.unitId]||(P.units[r.unitId]={stock:{}}); U.stock[d]=(U.stock[d]||0)+_use;
     if(tonCuoi>0) P.lots.push({uid:r.unitId, drug:d, lot:r.lot||'', exp:r.exp||'', qty:tonCuoi});
   });
   // AMC: tỉnh & đơn vị (loại tháng stockout: tồn đầu = 0 và sử dụng = 0)
