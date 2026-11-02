@@ -5833,7 +5833,14 @@ function validateMonthExp(str){
   var mm=parseInt(m[1]);
   return mm>=1&&mm<=12;
 }
-function isExpiredStr(s){return s&&new Date(s)<new Date();}
+function isExpiredStr(s){
+  if(!s) return false;
+  // 'YYYY-MM-DD': new Date() hiểu là 00:00 UTC (= 07:00 giờ VN) → lô bị coi hết hạn từ sáng ngày hạn dùng.
+  // Lô chỉ hết hạn sau 23:59:59 giờ địa phương của ngày hạn dùng.
+  var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s));
+  if(m) return new Date(+m[1], +m[2]-1, +m[3], 23, 59, 59, 999) < new Date();
+  var d = new Date(s); return !isNaN(d) && d < new Date();
+}
 function monthsLeft(s){return s?Math.round((new Date(s)-new Date())/(1000*60*60*24*30.44)):99;}
 
 
@@ -11525,8 +11532,7 @@ async function checkPendingTransfers(){
     var r = await fetch(
       SUPA_URL+'/rest/v1/transfers?to_unit=eq.'+encodeURIComponent(myUnit)
       +'&status=eq.pending'
-      +'&order=created_at.desc'
-      +'&limit=50',
+      +'&order=created_at.desc',   // không giới hạn 50 — phiếu thứ 51 trở đi vẫn phải được báo
       {headers:_supaHdr}
     );
     if(!r.ok) return;
@@ -12654,6 +12660,9 @@ async function saveBC(){
   // ── FLUSH: đọc giá trị mọi ô input đang mở trên màn hình vào model ──
   // Cần cho chế độ "Làm báo cáo": các ô không có nút Lưu riêng, giá trị
   // cuối cùng có thể chưa kịp qua onchange (đang focus dở) → đọc thẳng DOM.
+  // Gom thay đổi vào bản nháp → kiểm tra TỒN ÂM theo từng lô trước khi ghi (chế độ "Làm báo cáo"
+  // không đi qua updField nên trước đây lưu thẳng được tồn cuối âm).
+  var _staged = [], _preview = new Map();
   ['bvph-body','bc-body'].forEach(function(bodyId){
     var tb = document.getElementById(bodyId);
     if(!tb) return;
@@ -12669,11 +12678,23 @@ async function saveBC(){
       if(fld === 't0' && _openHardLocked(arr[realIdx], pfx==='bvph')) return;
       var v = Math.max(0, parseInt(inp.value)||0);
       if((arr[realIdx][fld]||0) !== v){
-        arr[realIdx][fld] = v;
-        arr[realIdx]._dirty = true;
+        var row0 = arr[realIdx];
+        if(!_preview.has(row0)) _preview.set(row0, Object.assign({}, row0));
+        _preview.get(row0)[fld] = v;
+        _staged.push({row:row0, fld:fld, v:v});
       }
     });
   });
+  var _neg = [];
+  _preview.forEach(function(cp, row0){
+    var tc = calcRow(cp).tonCuoi;
+    if(tc < 0 && tc < calcRow(row0).tonCuoi) _neg.push((row0.unit||BVPH)+' · '+row0.drug+' lô '+row0.lot+' (tồn cuối '+tc.toLocaleString()+')');
+  });
+  if(_neg.length){
+    toast('⛔ Chưa lưu — tồn cuối bị ÂM: '+_neg.slice(0,3).join('; ')+(_neg.length>3?' … và '+(_neg.length-3)+' lô khác':'')+'. Sửa lại số xuất rồi lưu.','var(--danger)');
+    return;
+  }
+  _staged.forEach(function(c){ c.row[c.fld] = c.v; c.row._dirty = true; });
 
   // Tắt chế độ "Làm báo cáo" — lưu xong là đóng các ô nhập
   if(_bulkEditBC){
@@ -14094,8 +14115,8 @@ function onDc2BVPHChange(prefix, rowIdx, inp){
   var receiveUnits = _dc2ReceiveUnits();   // Xuất Tổ CL chỉ cấp cho đơn vị TRỰC THUỘC kho đang xem
 
   var srcRow0 = arr[realIdx];
-  var availStock = (srcRow0.t0||0)+(srcRow0.n1||0)+(srcRow0.n3||0)+(srcRow0.n4||0)
-                  -(srcRow0.x1||0)-(srcRow0.x3||0)-(srcRow0.x4||0);
+  // Phiếu mới CỘNG thêm (Xuất TCL = Σ Tỉnh cấp) → tối đa = tồn cuối hiện tại (có cả n2)
+  var availStock = calcRow(srcRow0).tonCuoi;
   var maxCanTransfer = Math.max(0, availStock);
   var currentDc2 = srcRow0.x2||0;
 
@@ -14121,7 +14142,7 @@ function onDc2BVPHChange(prefix, rowIdx, inp){
   _showTransferModal({
     mode: 'dc2_bvph',
     drug: row.drug, lot: row.lot, exp: expToMMYYYY(row.exp), fromUnit: fromUnit,
-    maxCan: maxCanTransfer, currentVal: currentDc2,
+    maxCan: maxCanTransfer, currentVal: 0,   // không điền sẵn số cũ (tránh tạo phiếu trùng)
     receiveUnits: receiveUnits,
     arr: arr, realIdx: realIdx, prefix: prefix, rowIdx: rowIdx, inp: inp, periodKey: periodKey, row: row,
     breakdown: breakdownHTML || null,
@@ -14171,15 +14192,15 @@ function onDc2Change(prefix, rowIdx, inp){
   if(!receiveUnits.length){ toast('Không có đơn vị nào cùng tỉnh/TP để điều chuyển.','var(--warning)'); return; }
 
   var srcRow0 = arr[realIdx];
-  var availStock = (srcRow0.t0||0) + (srcRow0.n1||0) + (srcRow0.n3||0) + (srcRow0.n4||0)
-                  - (srcRow0.x1||0) - (srcRow0.x3||0) - (srcRow0.x4||0);
+  // Phiếu mới được CỘNG thêm vào x2 → tối đa = tồn cuối hiện tại (đã trừ x2 cũ, có cả n2 Nhập tỉnh khác)
+  var availStock = calcRow(srcRow0).tonCuoi;
   var maxCanTransfer = Math.max(0, availStock);
   var currentDc2 = srcRow0.x2||0;
 
   _showTransferModal({
     mode: 'x2',
     drug: row.drug, lot: row.lot, exp: expToMMYYYY(row.exp), fromUnit: fromUnit,
-    maxCan: maxCanTransfer, currentVal: currentDc2,
+    maxCan: maxCanTransfer, currentVal: 0,   // không điền sẵn số cũ (điền sẵn + chọn đơn vị = tạo phiếu trùng)
     receiveUnits: receiveUnits,
     arr: arr, realIdx: realIdx, prefix: prefix, rowIdx: rowIdx, inp: inp, periodKey: periodKey, row: row,
     onConfirmMulti: function(allocs, total, txDateISO){
@@ -14342,8 +14363,9 @@ function onDc3Change(prefix, rowIdx, inp){
 
   // Tính tồn tối đa có thể xuất
   var srcRow0 = arr[realIdx];
-  var availStock = (srcRow0.t0||0)+(srcRow0.n1||0)+(srcRow0.n3||0)+(srcRow0.n4||0)
-                  -(srcRow0.x1||0)-(srcRow0.x2||0)-(srcRow0.x4||0);
+  // Mỗi lần xác nhận = 1 PHIẾU MỚI, CỘNG thêm vào x3 → tối đa = tồn cuối hiện tại (có cả n2).
+  // (Bản cũ gán x3 = số mới → phiếu thứ 2 ghi đè mất số của phiếu thứ nhất.) Huỷ phiếu: nút ✕ ở danh sách.
+  var availStock = calcRow(srcRow0).tonCuoi;
   var maxCanTransfer = Math.max(0, availStock);
   var currentDc3 = srcRow0.x3||0;
 
@@ -14375,10 +14397,10 @@ function onDc3Change(prefix, rowIdx, inp){
 
   // Số lượng
   var qtyLabel = document.createElement('div'); qtyLabel.style.cssText='font-size:12px;font-weight:600;color:#333;margin-bottom:4px';
-  qtyLabel.innerHTML = 'Số lượng (viên): <span style="color:#27ae60;font-weight:700">Tối đa '+maxCanTransfer.toLocaleString()+'</span> <span style="font-weight:400;color:#888">(0=xóa)</span>';
+  qtyLabel.innerHTML = 'Số lượng phiếu mới (viên): <span style="color:#27ae60;font-weight:700">Tối đa '+maxCanTransfer.toLocaleString()+'</span>'+(currentDc3>0?' <span style="font-weight:400;color:#888">(đã xuất '+currentDc3.toLocaleString()+' — huỷ phiếu bằng nút ✕)</span>':'');
   var qtyInp = document.createElement('input');
   qtyInp.type='number'; qtyInp.min='0'; qtyInp.max=maxCanTransfer;
-  qtyInp.value = currentDc3 > 0 ? currentDc3 : '';
+  qtyInp.value = '';
   qtyInp.placeholder='Nhập số lượng (tối đa '+maxCanTransfer+')...';
   qtyInp.style.cssText='width:100%;padding:9px;border:2px solid #8e44ad;border-radius:7px;font-size:15px;font-weight:700;margin-bottom:4px;box-sizing:border-box;text-align:center';
   var qtyWarn = document.createElement('div'); qtyWarn.style.cssText='font-size:11px;color:#e74c3c;margin-bottom:10px;display:none'; qtyWarn.textContent='⚠ Vượt tồn kho!';
@@ -14406,7 +14428,7 @@ function onDc3Change(prefix, rowIdx, inp){
   btnO.style.cssText='padding:8px 18px;border:none;border-radius:18px;background:#8e44ad;color:white;cursor:pointer;font-size:13px;font-weight:600';
   btnO.onclick=function(){
     var qty=parseInt(qtyInp.value);
-    if(isNaN(qty)||qty<0){ toast('Số lượng không hợp lệ!','var(--warning)'); qtyInp.focus(); return; }
+    if(isNaN(qty)||qty<=0){ toast('Nhập số lượng > 0 (huỷ phiếu cũ bằng nút ✕ ở danh sách)','var(--warning)'); qtyInp.focus(); return; }
     if(qty>maxCanTransfer){ toast('⚠ Vượt tồn! Tối đa: '+maxCanTransfer,'var(--danger)'); qtyInp.focus(); return; }
     var _tg = _tgt.get(), province = _tg.name;
     if(qty>0 && !province){ toast('Chọn tỉnh/thành phố nhận!','var(--warning)'); _tgt.focus(); return; }
@@ -14415,15 +14437,11 @@ function onDc3Change(prefix, rowIdx, inp){
     var txDate = txDate2.toISOString().slice(0,10);
     var txPeriod = isNaN(txDate2) ? periodKey : _periodKeyOfDate(txDate2);
     ov.remove();
-    // Set dc3 tuyệt đối
-    arr[realIdx].x3 = qty;
-    inp.value = qty;
-    updField(prefix,rowIdx,'x3',qty);
-    if(qty===0){
-      toast('Đã xóa xuất tỉnh khác','var(--warning)');
-      renderBVPH(); renderBC(); _syncPeriodToCloud();
-      return;
-    }
+    // CỘNG DỒN: phiếu mới thêm vào tổng Xuất tỉnh khác của lô
+    var _newDc3 = (arr[realIdx].x3||0) + qty;
+    arr[realIdx].x3 = _newDc3;
+    inp.value = _newDc3;
+    updField(prefix,rowIdx,'x3',_newDc3);
     // CHỈ cộng vào tổng xuất, KHÔNG rơi vào đơn vị nào
     renderBVPH(); renderBC(); renderTP();
     _syncPeriodToCloud();
@@ -14705,10 +14723,12 @@ async function showDcOutDetail(prefix, rowIdx){
       var r = await fetch(
         SUPA_URL + '/rest/v1/transfers'
         + '?from_unit=eq.' + encodeURIComponent(fromUnit)
+        + '&drug=eq.' + encodeURIComponent(row.drug)
+        + '&lot=eq.' + encodeURIComponent(row.lot)
         + '&status=in.(confirmed,pending)'
         + '&type=in.(dc2_to_dc,dc3_to_tinh)'
-        + '&order=transfer_date.asc,created_at.asc'
-        + '&limit=200',
+        + '&order=transfer_date.asc,created_at.asc',
+        // Bản cũ: limit=200 và lọc thuốc/lô ở client → đơn vị có >200 phiếu (xếp cũ→mới) mất phiếu kỳ gần đây
         {headers: _supaHdr}
       );
       if(r.ok){
@@ -17721,37 +17741,11 @@ function renderDoiChieu(){
     var monthEnd   = new Date(tYear, tMonth, 0);
 
     BN_DATA.forEach(function(bn){
-      if(getRealStatus(bn) !== 'Đang điều trị') return;
       var bnUnit = bn.unit || bn.donVi || '';
-      var startD = new Date(bn.startDate||bn.ngayBD||bn.ngayBatDau);
-      var endD   = getEndDate(bn);
-      if(isNaN(startD)||!endD||isNaN(endD)) return;
-      if(startD > monthEnd || endD < monthStart) return;
-
-      var drugs = bn.customDrugs && bn.customDrugs.length > 0 ? bn.customDrugs
-        : (typeof getDrugsByWeight==='function' ? getDrugsByWeight(bn.pd||bn.phacDo, bn.weight, bn.age, bn.ageMonths) : []);
-      if(!drugs) return;
-
-      drugs.forEach(function(d){
-        var nm = d.drug||d.d||'';
-        if(!nm) return;
-
-        // Kiểm tra ranges
-        if(d.ranges && d.ranges.length){
-          var msSinceStart = (tYear - startD.getFullYear())*12 + (tMonth - startD.getMonth() - 1);
-          var inRange = d.ranges.some(function(rg){ return msSinceStart>=(rg.startMonth||0) && msSinceStart<(rg.endMonth||999); });
-          if(!inRange) return;
-        }
-
-        var activeStart = startD > monthStart ? startD : monthStart;
-        var activeEnd   = endD < monthEnd ? endD : monthEnd;
-        var days = Math.round((activeEnd - activeStart)/86400000) + 1;
-        if(days <= 0) return;
-
-        var qty = d.qty||d.q||d.monthTotal||0;
-        var pills = Math.round((qty * Math.min(days, monthEnd.getDate())) / monthEnd.getDate());
+      var need = _bnNeedForMonth(bn, tYear, tMonth);   // hàm lõi dùng chung (cùng thuật toán bảng Dự trù)
+      Object.keys(need).forEach(function(nm){
+        var pills = need[nm];
         if(!pills) return;
-
         if(!duTruByDrug[nm]) duTruByDrug[nm] = {total:0, byUnit:{}};
         duTruByDrug[nm].total += pills;
         if(!duTruByDrug[nm].byUnit[bnUnit]) duTruByDrug[nm].byUnit[bnUnit] = 0;
@@ -18171,9 +18165,10 @@ function _calcAMC(drugName, unitFilter, nMonths, currentPeriodKey){
 }
 
 // Lấy tồn cuối gộp theo thuốc + đơn vị
+// Tồn KHẢ DỤNG cho MOS / Dự trù: bỏ lô đã hết hạn (đang chờ huỷ, không cấp phát được).
 function _getTonCuoi(drugName, unitFilter, periodKey){
   if(_h1Only(drugName, periodKey)){
-    return _h1Ctx.rows.filter(function(r){ return r.drug === drugName && _h1Match(r, unitFilter); })
+    return _h1Ctx.rows.filter(function(r){ return r.drug === drugName && _h1Match(r, unitFilter) && !isExpiredStr(r.exp); })
       .reduce(function(t, r){ return t + calcRow(r).tonCuoi; }, 0);
   }
   var rows = [];
@@ -18186,7 +18181,7 @@ function _getTonCuoi(drugName, unitFilter, periodKey){
     rows = bcData.filter(function(r){ return r.bcMonth===periodKey && r.drug===drugName && r.unit===unitFilter; });
   }
   var tot = 0;
-  rows.forEach(function(r){ var res = calcRow(r); tot += res.tonCuoi; });
+  rows.forEach(function(r){ if(isExpiredStr(r.exp)) return; var res = calcRow(r); tot += res.tonCuoi; });
   return tot;
 }
 
@@ -18245,7 +18240,7 @@ function _getDuTruBN(drugName, unitFilter, nMonths, currentPeriodKey){
     if(!drugs) return;
     if(drugs.some(function(d){
       var nm = d.drug||d.d||'';
-      return nm===drugName || nm.indexOf(drugName.split(' ')[0])>=0 || drugName.indexOf(nm.split(' ')[0])>=0;
+      return nm===drugName;   // so ĐÚNG tên (Linezolid 300mg ≠ Linezolid 600mg)
     })) nBN++;
   });
 
@@ -18271,48 +18266,13 @@ function _getDuTruBN(drugName, unitFilter, nMonths, currentPeriodKey){
     }
 
     if(!usedStats){
-      // Tính trực tiếp từ BN_DATA
-      var monthStart = new Date(yr, m-1, 1);
-      var monthEnd   = new Date(yr, m, 0);
-      activeBN.forEach(function(bn){
-        var endD = getEndDate(bn);
-        var startD = new Date(bn.startDate||bn.ngayBD||bn.ngayBatDau);
-        if(isNaN(startD)||!endD||isNaN(endD)) return;
-        if(startD > monthEnd || endD < monthStart) return;
-
-        var drugs = bn.customDrugs && bn.customDrugs.length > 0 ? bn.customDrugs
-          : (typeof getDrugsByWeight==='function' ? getDrugsByWeight(bn.pd||bn.phacDo, bn.weight, bn.age, bn.ageMonths) : []);
-        if(!drugs) return;
-
-        drugs.forEach(function(d){
-          var nm = d.drug||d.d||'';
-          if(nm!==drugName && nm.indexOf(drugName.split(' ')[0])<0 && drugName.indexOf(nm.split(' ')[0])<0) return;
-
-          // Bedaquiline: dùng phân phối đặc biệt
-          if(nm.indexOf('Bedaquiline')>=0 && typeof _bdqMonthlyDist==='function'){
-            var dist = _bdqMonthlyDist(bn.startDate||bn.ngayBD, bn.weight||bn.canNang);
-            monthNeed += dist[yr+'-'+m] || 0;
-            return;
-          }
-
-          // Kiểm tra ranges
-          if(d.ranges && d.ranges.length){
-            var monthsSinceStart = (yr - new Date(bn.startDate||bn.ngayBD).getFullYear())*12
-              + (m - new Date(bn.startDate||bn.ngayBD).getMonth() - 1);
-            var inRange = d.ranges.some(function(rg){
-              return monthsSinceStart >= (rg.startMonth||0) && monthsSinceStart < (rg.endMonth||999);
-            });
-            if(!inRange) return;
-          }
-
-          var activeStart = startD > monthStart ? startD : monthStart;
-          var activeEnd   = endD < monthEnd ? endD : monthEnd;
-          var days = Math.round((activeEnd - activeStart)/86400000) + 1;
-          if(days <= 0) return;
-          var proratedDays = Math.round((days / monthEnd.getDate()) * 26);
-          var qty = d.qty||d.q||d.monthTotal||0;
-          monthNeed += Math.round((qty * proratedDays) / 26);
-        });
+      // Tính trực tiếp từ BN_DATA — hàm lõi dùng chung, so ĐÚNG tên thuốc.
+      // Lọc đơn vị như activeBN nhưng KHÔNG lọc trạng thái hôm nay: tháng quá khứ vẫn tính BN đã hoàn thành.
+      BN_DATA.forEach(function(bn){
+        if(unitFilter !== '__all__' && unitFilter !== 'bvph'){
+          if(normalizeUnit(bn.unit||bn.donVi||'') !== normalizeUnit(unitFilter)) return;
+        }
+        monthNeed += (_bnNeedForMonth(bn, yr, m)[drugName] || 0);
       });
     }
 
@@ -18339,30 +18299,47 @@ var _TQA = { tab:'thieu', days:7, token:0, data:null, prevKey:null, prevRows:[],
 
 function _tqaTab(t){ _TQA.tab=t; _tqaPaint(); }
 
-// Nhu cầu 1 BN trong tháng yr-m → {tên thuốc: số viên} (cùng thuật toán bảng "Dự trù theo bệnh nhân",
-// nhưng so ĐÚNG tên thuốc — không gộp các hàm lượng khác nhau)
+// Nhu cầu 1 BN trong tháng yr-m → {tên thuốc: số viên}.
+// HÀM LÕI DÙNG CHUNG cho Đối chiếu, Phân tích AMC (Dự trù BN) và Tổng quan "Cần xử lý":
+// cùng thuật toán bảng "Dự trù theo bệnh nhân" (renderDuTru): số ngày thực dùng thuốc trong
+// tháng (giao với khoảng [n] tháng của thuốc theo NGÀY THỰC) → quy 26 ngày → Math.ceil;
+// Bedaquiline theo lịch _bdqMonthlyDist. So ĐÚNG tên thuốc (không gộp hàm lượng khác nhau).
+// Không lọc theo trạng thái "hôm nay" (Hoàn thành / Chưa bắt đầu) — khoảng ngày điều trị đã
+// tự giới hạn; chỉ loại BN Bỏ trị / Tử vong / Chuyển viện (chưa có ngày ngừng để cắt liều).
 function _bnNeedForMonth(bn, yr, m){
   var out = {};
-  if(getRealStatus(bn) !== 'Đang điều trị') return out;
+  var _st = getRealStatus(bn);
+  if(_st === 'Bỏ trị' || _st === 'Tử vong' || _st === 'Chuyển viện') return out;
   var endD = getEndDate(bn), startD = new Date(bn.startDate||bn.ngayBD||bn.ngayBatDau);
   var monthStart = new Date(yr, m-1, 1), monthEnd = new Date(yr, m, 0);
   if(isNaN(startD) || !endD || isNaN(endD) || startD > monthEnd || endD < monthStart) return out;
   var drugs = (bn.customDrugs && bn.customDrugs.length) ? bn.customDrugs
     : (typeof getDrugsByWeight==='function' ? getDrugsByWeight(bn.pd||bn.phacDo, bn.weight, bn.age, bn.ageMonths) : []);
+  var aS = startD > monthStart ? startD : monthStart, aE = endD < monthEnd ? endD : monthEnd;
   (drugs||[]).forEach(function(d){
     var nm = d.drug||d.d||''; if(!nm) return;
     var q = 0;
     if(nm.indexOf('Bedaquiline') >= 0 && typeof _bdqMonthlyDist === 'function'){
-      q = (_bdqMonthlyDist(bn.startDate||bn.ngayBD, bn.weight||bn.canNang) || {})[yr+'-'+m] || 0;
+      q = (_bdqMonthlyDist(bn.startDate||bn.ngayBD||bn.ngayBatDau, bn.weight||bn.canNang) || {})[yr+'-'+m] || 0;
     } else {
+      var daily = parseFloat(d.monthTotal || d.daily || 0) / 26;
+      if(!(daily > 0)) return;
+      var segS = aS, segE = aE;
       if(d.ranges && d.ranges.length){
-        var ms = (yr - startD.getFullYear())*12 + (m - startD.getMonth() - 1);
-        if(!d.ranges.some(function(rg){ return ms >= (rg.startMonth||0) && ms < (rg.endMonth||999); })) return;
+        var inAny = false, bS = null, bE = null;
+        d.ranges.forEach(function(rg){
+          var rgS = new Date(startD); rgS.setMonth(rgS.getMonth() + (rg.startMonth||0));
+          var rgE = new Date(startD); rgE.setMonth(rgE.getMonth() + (rg.endMonth==null?999:rg.endMonth));
+          var gs = rgS > monthStart ? rgS : monthStart, ge = rgE < monthEnd ? rgE : monthEnd;
+          if(gs < startD) gs = startD; if(ge > endD) ge = endD;
+          if(ge >= gs){ inAny = true; if(bS===null || gs < bS) bS = gs; if(bE===null || ge > bE) bE = ge; }
+        });
+        if(!inAny) return;
+        segS = bS; segE = bE;
       }
-      var aS = startD > monthStart ? startD : monthStart, aE = endD < monthEnd ? endD : monthEnd;
-      var days = Math.round((aE - aS)/86400000) + 1; if(days <= 0) return;
-      var pro = Math.round((days / monthEnd.getDate()) * 26);
-      q = Math.round(((d.qty||d.q||d.monthTotal||0) * pro) / 26);
+      var realDays = Math.round((segE - segS)/86400000) + 1; if(realDays <= 0) return;
+      var pro = Math.round((realDays / monthEnd.getDate()) * 26);
+      q = Math.ceil(daily * pro);
     }
     if(q > 0) out[nm] = (out[nm]||0) + q;
   });
@@ -19917,18 +19894,19 @@ function toggleDienGiai() {
 
 // Phân bổ Bedaquiline theo tháng cho 1 bệnh nhân — THEO CÂN NẶNG, 6 tháng (24 tuần) thời gian thực.
 // Liều viên 100mg (WHO 2022):
-//   • 16–≥70 kg: nạp 4v/ngày × 14 ngày (56v) → duy trì 2v × 3 ngày/tuần × 22 tuần (132v) = 188v
-//   • 10–<16 kg: nạp 2v/ngày × 14 ngày (28v) → duy trì 1v × 3 ngày/tuần × 22 tuần (66v) = 94v
+//   • ≥30 kg   : nạp 4v/ngày × 14 ngày (56v) → duy trì 2v × 3 ngày/tuần × 22 tuần (132v) = 188v
+//   • 10–<30 kg: nạp 2v/ngày × 14 ngày (28v) → duy trì 1v × 3 ngày/tuần × 22 tuần (66v) = 94v
+//     (khớp bảng liều _bdqDoseByWeightAge: 16–<30 kg = 2v nạp / 1v duy trì)
 //   • <10 kg : dùng dạng phân tán/ml (ngoài phạm vi viên 100mg) → ước lượng nửa liều 10-16, có cảnh báo
 // Trả về object { '<year>-<month>': số_viên }. Kết thúc = ngày BĐ + 6 tháng.
 function _bdqMonthlyDist(startDateStr, weight){
   var w = parseFloat(weight);
   // Xác định liều nạp/ngày và liều duy trì/lần theo cân nặng
   var loadPerDay, maintPerDose, P2Total;
-  if(isNaN(w) || w >= 16){
-    loadPerDay = 4; maintPerDose = 2; P2Total = 132;   // người lớn ≥16kg → tổng 188
+  if(isNaN(w) || w >= 30){
+    loadPerDay = 4; maintPerDose = 2; P2Total = 132;   // ≥30kg (liều người lớn) → tổng 188
   } else if(w >= 10){
-    loadPerDay = 2; maintPerDose = 1; P2Total = 66;    // 10–<16kg → tổng 94
+    loadPerDay = 2; maintPerDose = 1; P2Total = 66;    // 10–<30kg → tổng 94
   } else {
     loadPerDay = 2; maintPerDose = 1; P2Total = 66;    // <10kg: tạm theo mức 10-16 (cảnh báo ở note)
   }
@@ -20499,8 +20477,7 @@ var WHO_DOSE = {
     if(w<30) return _mml(5,   '5 ml (0,5 viên)/ngày');
     if(w<36) return _mml(7.5, '7,5 ml (0,75 viên)/ngày');
     if(w<56) return _md(1);              // 36–<46 và 46–<56
-    if(w<70) return _md(1);              // 56–<70: 1 viên
-    return _blank();                     // ≥70: tài liệu gốc để trống
+    return _md(1);                       // 56–<70 và ≥70: 1 viên (600 mg/ngày; tài liệu gốc để trống dải ≥70 → lấy liều người lớn)
   },
   // Linezolid viên 300mg (suy ra: 1 viên 300mg = ½ viên 600mg)
   'Linezolid 300mg': function(w){
@@ -20509,8 +20486,7 @@ var WHO_DOSE = {
     if(w<16) return _mml(5,   '5 ml/ngày (≈ 0,5 viên 300mg)');
     if(w<30) return _md(1);              // ≈ ½ viên 600 = 1 viên 300
     if(w<36) return _md(1.5);
-    if(w<70) return _md(2);              // 36–<56, 56–<70
-    return _blank();                     // ≥70: tài liệu gốc để trống
+    return _md(2);                       // 36–<56, 56–<70, ≥70: 2 viên (= 600 mg/ngày)
   },
 
   // ════════ NHÓM B ════════
