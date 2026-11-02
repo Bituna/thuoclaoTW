@@ -3827,8 +3827,28 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
     Object.keys(src).forEach(function (k) { if (REPORT_COLS[k]) out[k] = src[k]; });
     return isPatch ? out : fixPL(out);
   }
+  // Phiếu/thông báo ghi vào transfers: cột from_unit_id (NOT NULL) phải có → tự điền từ tên.
+  // Thông báo hệ thống (from_unit 'admin') không có đơn vị gửi → dùng đơn vị nhận.
+  // Kèm period_type theo kỳ (quý ⇔ quarter) — bản cũ để mặc định 'month' cho cả phiếu quý.
+  function fixTransferObj(o) {
+    if (!o || typeof o !== 'object') return o;
+    var c = Object.assign({}, o), U = (typeof window._uid === 'function') ? window._uid : null;
+    if (U) {
+      if (!c.to_unit_id && c.to_unit) { var ti = U(c.to_unit); if (ti) c.to_unit_id = ti; }
+      if (!c.from_unit_id && c.from_unit) { var fi = (c.from_unit === 'admin') ? null : U(c.from_unit); c.from_unit_id = fi || c.to_unit_id || undefined; }
+    }
+    if (!c.period_type && typeof c.period === 'string') c.period_type = /^\d{4}-Q[1-4]$/.test(c.period) ? 'quarter' : 'month';
+    if (c.from_unit_id === undefined) delete c.from_unit_id;
+    return c;
+  }
   function normalizeWrite(url, method, init) {
     if (!init || typeof init.body !== 'string' || !init.body) return init;
+    if (method === 'POST' && /\/rest\/v1\/transfers(\?|$)/.test(url)) {
+      var tb; try { tb = JSON.parse(init.body); } catch (e) { return init; }
+      var tn = Array.isArray(tb) ? tb.map(fixTransferObj) : fixTransferObj(tb);
+      var ts = JSON.stringify(tn);
+      return ts === init.body ? init : Object.assign({}, init, { body: ts });
+    }
     if (!/\/rest\/v1\/reports(\?|$)/.test(url)) return init;
     if (method !== 'POST' && method !== 'PATCH') return init;
     var b; try { b = JSON.parse(init.body); } catch (e) { return init; }
