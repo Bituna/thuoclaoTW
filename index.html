@@ -5630,7 +5630,7 @@ function showLockManager(){
         var arr = (u===BVPH) ? bvphData : bcData;
         arr.filter(function(r){return r.bcMonth===periodKey && (u===BVPH || r.unit===u);}).forEach(function(r){ r.locked=true; r.editing=false; r.openLocked=true; });
       } else {
-        if(lockedPeriods[key]) unlockedCount++;
+        if(lockedPeriods[key]){ unlockedCount++; try{ _sendUnlockNotification(periodKey, u); }catch(e){} }
         delete lockedPeriods[key];
         var arr2 = (u===BVPH) ? bvphData : bcData;
         arr2.filter(function(r){return r.bcMonth===periodKey && (u===BVPH || r.unit===u);}).forEach(function(r){ r.locked=false; r.openLocked=false; });
@@ -11203,6 +11203,47 @@ document.addEventListener('click', function(e){
 // action: 'report_new' (nộp) | 'report_edit' (sửa) | 'report_delete' (xóa)
 // Chỉ ghi khi người thao tác KHÔNG phải admin (admin tự thao tác thì không cần tự báo).
 var _lastLogKey = '';
+// Đơn vị của người đăng nhập: TÊN THẬT (theo unit_id) và ID. Bản cũ dùng
+// currentUser.unit || (role==='bvph' ? BVPH : '') → ở bản quốc gia tên giữ chỗ BVPH
+// là "Bệnh viện Phổi Hải Phòng" cho MỌI kho tỉnh.
+function _myUnitId(){
+  if(!currentUser) return null;
+  return currentUser.unitId || (currentUser.unit ? _uid(currentUser.unit) : null);
+}
+function _myUnitName(){
+  if(!currentUser) return '';
+  var id = _myUnitId(), nm = id ? unitNameById(id) : '';
+  return nm || currentUser.unit || '';
+}
+// Lọc thêm theo unit_id để đơn vị TRÙNG TÊN ở tỉnh khác không nhận nhầm thông báo/phiếu
+function _myIdFilter(){
+  var id = _myUnitId();
+  return id ? '&or=(from_unit_id.eq.'+id+',to_unit_id.eq.'+id+')' : '';
+}
+// Đã-đọc CỤC BỘ: dùng khi người xem KHÔNG phải người nhận (admin/tuyến trên xem phiếu của
+// đơn vị khác) → không ghi notif_read lên máy chủ, tránh tắt chuông của người nhận thật.
+var _notifSeenLocal = (function(){ try{ return JSON.parse(localStorage.getItem('_notifSeen')||'{}')||{}; }catch(e){ return {}; } })();
+function _notifIsMine(t){
+  if(!t || !currentUser) return false;
+  if(isAdmin()) return t.notif_for === '__admin__' || t.notif_for === 'admin' || t.type === 'report_log';
+  var id = _myUnitId();
+  if(t.notif_for !== _myUnitName()) return false;
+  return !id || t.to_unit_id === id || t.from_unit_id === id || (!t.to_unit_id && !t.from_unit_id);
+}
+function _notifRead(t){ return _notifIsMine(t) ? !!t.notif_read : !!_notifSeenLocal[t.id]; }
+function _markSeenLocal(id){
+  _notifSeenLocal[id] = 1;
+  try{
+    var ks = Object.keys(_notifSeenLocal); if(ks.length > 2000) ks.slice(0, ks.length-2000).forEach(function(k){ delete _notifSeenLocal[k]; });
+    localStorage.setItem('_notifSeen', JSON.stringify(_notifSeenLocal));
+  }catch(e){}
+}
+// Tài khoản quản lý (có đơn vị trực thuộc) → các đơn vị con trong nhánh (không gồm mình)
+function _mySubUnitIds(){
+  var id = _myUnitId(); if(!id || isAdmin()) return [];
+  try{ return _subtreeIds(id).filter(function(x){ return x !== id; }); }catch(e){ return []; }
+}
+
 async function _logReportActivity(action, unitName, detail){
   if(!_supaOnline || !currentUser) return;
   if(isAdmin()) return; // admin thao tác thì không tự thông báo
@@ -11219,7 +11260,8 @@ async function _logReportActivity(action, unitName, detail){
       method:'POST', headers: hdPost,
       body: JSON.stringify([{
         period: periodKey,
-        from_unit: unitName || (currentUser.unit || (currentUser.role==='bvph'?BVPH:'')),
+        from_unit: (unitName && unitName !== BVPH) ? unitName : _myUnitName(),
+        from_unit_id: (unitName && unitName !== BVPH && _uid(unitName)) || _myUnitId(),
         to_unit: '',
         drug: detail || '',
         lot: '', exp: '', qty: 0,
@@ -11249,17 +11291,30 @@ async function loadNotifications(){
       +'?or=(notif_for.eq.__admin__,notif_for.eq.admin,type.eq.report_log,type.in.(dc2_to_dc,dc3_to_tinh,dc3_province))'
       +'&order=created_at.desc&limit=80';
   } else {
-    // Đơn vị: chỉ lấy notif gửi cho mình
-    var myUnit = currentUser.unit || (currentUser.role==='bvph'?BVPH:'');
+    // Đơn vị: chỉ lấy notif gửi cho mình — lọc thêm unit_id (đơn vị trùng tên ở tỉnh khác)
+    var myUnit = _myUnitName();
     if(!myUnit) return;
     url = SUPA_URL+'/rest/v1/transfers'
-      +'?notif_for=eq.'+encodeURIComponent(myUnit)
+      +'?notif_for=eq.'+encodeURIComponent(myUnit) + _myIdFilter()
       +'&order=created_at.desc&limit=50';
   }
   try{
     var r = await fetch(url, {headers:_supaHdr});
     if(!r.ok) return;
     var notifs = await r.json();
+    // Tuyến quản lý (tỉnh / miền / khu vực): thấy NỘP/SỬA/XOÁ/CHỐT báo cáo của đơn vị trực thuộc
+    var _subs = _mySubUnitIds();
+    if(_subs.length){
+      try{
+        var r2 = await fetch(SUPA_URL+'/rest/v1/transfers?or=(type.eq.report_log,and(type.eq.system_notif,status.eq.locked))'
+          +'&from_unit_id=in.('+_subs.join(',')+')&order=created_at.desc&limit=50', {headers:_supaHdr});
+        if(r2.ok){
+          var seenIds = {}; notifs.forEach(function(x){ seenIds[x.id] = 1; });
+          (await r2.json()).forEach(function(x){ if(!seenIds[x.id]) notifs.push(x); });
+          notifs.sort(function(a,b){ return String(b.created_at||'').localeCompare(String(a.created_at||'')); });
+        }
+      }catch(e){}
+    }
     // Cập nhật cache — GIỮ NGUYÊN trạng thái notif_read từ server (không override)
     _notifCache = notifs;
     renderNotifPanel(notifs);
@@ -11277,7 +11332,7 @@ function renderNotifPanel(notifs){
   }
   var isAdminView = isAdmin();
   list.innerHTML = notifs.map(function(t){
-    var isRead = t.notif_read;
+    var isRead = _notifRead(t);
     var bg = isRead ? 'var(--color-background-primary)' : 'var(--color-background-secondary)';
     var dot = isRead ? '' : '<span style="width:7px;height:7px;background:#185FA5;border-radius:50%;flex-shrink:0;margin-top:4px"></span>';
     var expDisp = t.exp ? (function(){ var ep=t.exp.split('-'); return ep.length>=2?ep[1]+'/'+ep[0]:t.exp; })() : '';
@@ -11390,7 +11445,7 @@ function updateNotifBadge(notifs){
       return t.notif_for === '__admin__' || t.notif_for === 'admin' || t.type === 'report_log';
     }).length;
   } else {
-    unread = notifs.filter(function(t){ return !t.notif_read; }).length;
+    unread = notifs.filter(function(t){ return !_notifRead(t); }).length;
   }
   var badge = document.getElementById('notif-badge');
   if(!badge) return;
@@ -11405,6 +11460,13 @@ function updateNotifBadge(notifs){
 // Đánh dấu 1 thông báo đã đọc
 async function markNotifRead(transferId){
   if(!_supaOnline) return;
+  var _t0 = (_notifCache||[]).find(function(x){ return x.id==transferId; });
+  if(_t0 && !_notifIsMine(_t0)){
+    // Người xem không phải người nhận → chỉ đánh dấu trên máy này
+    _markSeenLocal(transferId);
+    renderNotifPanel(_notifCache); updateNotifBadge(_notifCache);
+    return;
+  }
   try{
     await fetch(SUPA_URL+'/rest/v1/transfers?id=eq.'+transferId, {
       method:'PATCH',
@@ -11438,16 +11500,17 @@ async function markAllNotifsRead(){
         })
       ]);
     } else {
-      var myUnit = currentUser.unit || (currentUser.role==='bvph'?BVPH:'');
+      var myUnit = _myUnitName();
       if(!myUnit) return;
-      await fetch(SUPA_URL+'/rest/v1/transfers?notif_for=eq.'+encodeURIComponent(myUnit)+'&notif_read=eq.false', {
+      await fetch(SUPA_URL+'/rest/v1/transfers?notif_for=eq.'+encodeURIComponent(myUnit)+_myIdFilter()+'&notif_read=eq.false', {
         method:'PATCH',
         headers: Object.assign({}, _supaHdr, {'Content-Type':'application/json','Prefer':'return=minimal'}),
         body: JSON.stringify({notif_read:true})
       });
     }
-    // Cập nhật local cache và UI
-    _notifCache = _notifCache.map(function(t){ return Object.assign({},t,{notif_read:true}); });
+    // Cập nhật local cache và UI (mục của đơn vị khác chỉ đánh dấu cục bộ)
+    _notifCache.forEach(function(t){ if(!_notifIsMine(t)) _markSeenLocal(t.id); });
+    _notifCache = _notifCache.map(function(t){ return _notifIsMine(t) ? Object.assign({},t,{notif_read:true}) : t; });
     renderNotifPanel(_notifCache);
     updateNotifBadge(_notifCache);
   }catch(e){}
@@ -11463,7 +11526,8 @@ async function _sendLockNotification(periodKey, unitName) {
       method: 'POST',
       headers: Object.assign({}, _supaHdr, {'Content-Type':'application/json','Prefer':'return=minimal'}),
       body: JSON.stringify([{
-        period: periodKey, from_unit: unitName, to_unit: 'admin',
+        period: periodKey, from_unit: (unitName && unitName !== BVPH) ? unitName : _myUnitName(),
+        from_unit_id: (unitName && unitName !== BVPH && _uid(unitName)) || _myUnitId(), to_unit: 'admin',
         drug: 'Hệ thống', lot: '', exp: '', qty: 0,
         type: 'system_notif', status: 'locked', notif_for: '__admin__', notif_read: false
       }])
@@ -11474,13 +11538,15 @@ async function _sendLockNotification(periodKey, unitName) {
 // Gửi thông báo khi Admin mở khóa cho đơn vị
 async function _sendUnlockNotification(periodKey, unitName) {
   if(!_supaOnline) return;
-  var _toUnit = (unitName === 'bvph' || unitName === BVPH) ? BVPH : unitName;
+  // unitName có thể là unit_id (bộ lọc đơn vị trả id), tên, hoặc 'bvph'/BVPH (kho đang xem)
+  var _toId = _uid(unitName), _toUnit = (_toId && unitNameById(_toId)) || unitName;
+  if(!_toId) return;
   try {
     await fetch(SUPA_URL+'/rest/v1/transfers', {
       method: 'POST',
       headers: Object.assign({}, _supaHdr, {'Content-Type':'application/json','Prefer':'return=minimal'}),
       body: JSON.stringify([{
-        period: periodKey, from_unit: 'admin', to_unit: _toUnit,
+        period: periodKey, from_unit: 'admin', to_unit: _toUnit, from_unit_id: _toId, to_unit_id: _toId,
         drug: 'Hệ thống', lot: '', exp: '', qty: 0,
         type: 'system_notif', status: 'unlocked', notif_for: _toUnit, notif_read: false
       }])
@@ -11505,13 +11571,13 @@ async function _notifTickBody(){
     if(!_supaOnline || !currentUser) return;
     if(document.hidden) return;  // tab ẩn → bỏ qua, tiết kiệm request
     _notifPollCount++;
-    var myUnit = currentUser.role === 'admin' ? '__admin__' : (currentUser.unit || (currentUser.role==='bvph'?BVPH:''));
+    var myUnit = currentUser.role === 'admin' ? '__admin__' : _myUnitName();
     if(!myUnit) return;
     try{
       // Admin: kiểm tra cả notif_for=__admin__ lẫn report_log chưa đọc
       var pollUrl = isAdmin()
         ? SUPA_URL+'/rest/v1/transfers?or=(notif_for.eq.__admin__,notif_for.eq.admin,type.eq.report_log)&notif_read=eq.false&limit=5'
-        : SUPA_URL+'/rest/v1/transfers?notif_for=eq.'+encodeURIComponent(myUnit)+'&notif_read=eq.false&limit=5';
+        : SUPA_URL+'/rest/v1/transfers?notif_for=eq.'+encodeURIComponent(myUnit)+_myIdFilter()+'&notif_read=eq.false&limit=5';
       var r = await fetch(pollUrl, {headers:_supaHdr, cache:'no-store'});
       if(!r.ok) return;
       var unreadNew = await r.json();
@@ -11571,7 +11637,7 @@ function initNotifBell(){
 // Kiểm tra phiếu chờ xác nhận khi đăng nhập
 async function checkPendingTransfers(){
   if(!_supaOnline || !currentUser) return;
-  var myUnit = currentUser.unit || (currentUser.role==='bvph' ? BVPH : '');
+  var myUnit = _myUnitName(), myId = _myUnitId();
   if(!myUnit) return;
   // FIX: KHÔNG lọc theo period của UI đang xem — phiếu pending gửi cho đơn vị này
   // phải luôn được thông báo, bất kể họ đang xem kỳ nào trên màn hình.
@@ -11579,7 +11645,7 @@ async function checkPendingTransfers(){
   //  kỳ đang hiển thị trên UI Tổng quan/Báo cáo thuốc)
   try{
     var r = await fetch(
-      SUPA_URL+'/rest/v1/transfers?to_unit=eq.'+encodeURIComponent(myUnit)
+      SUPA_URL+'/rest/v1/transfers?'+(myId ? 'to_unit_id=eq.'+myId : 'to_unit=eq.'+encodeURIComponent(myUnit))
       +'&status=eq.pending'
       +'&order=created_at.desc',   // không giới hạn 50 — phiếu thứ 51 trở đi vẫn phải được báo
       {headers:_supaHdr}
@@ -11623,10 +11689,10 @@ async function checkPendingTransfers(){
 function openPendingTransferById(transferId){
   var t = _notifCache.find(function(x){ return x.id==transferId; });
   if(!t) return;
-  var myUnit = currentUser ? (currentUser.unit||(currentUser.role==='bvph'?BVPH:'')) : '';
+  var myUnit = _myUnitName();
   var periodKey = t.period || _currentPeriodKey();
-  // Đánh dấu đã đọc ngay khi mở (nếu chưa đọc) — dù là pending hay confirmed
-  if(!t.notif_read){
+  // Đánh dấu đã đọc ngay khi mở (nếu chưa đọc) — chỉ ghi máy chủ khi mình là người nhận (xem markNotifRead)
+  if(!_notifRead(t)){
     markNotifRead(transferId);
   }
   _showPendingTransferPopup([t], myUnit, periodKey);
@@ -11680,8 +11746,11 @@ function _showPendingTransferPopup(transfers, myUnit, periodKey){
     // ── QUYỀN XÁC NHẬN: CHỈ đơn vị nhận (to_unit) mới được xác nhận/từ chối.
     //    Admin (giám sát mọi phiếu) hay bên gửi mở phiếu → chế độ CHỈ XEM,
     //    tránh xác nhận nhầm danh nghĩa làm số cộng sai chỗ.
-    var _isRecipient = (t.to_unit === myUnit)
-                    || ((t.to_unit === BVPH || t.to_unit === 'bvph') && (myUnit === BVPH || myUnit === 'bvph'));
+    // So theo unit_id (đơn vị trùng tên ở tỉnh khác KHÔNG được xác nhận hộ); phiếu cũ thiếu id → so tên
+    var _myId0 = _myUnitId();
+    var _isRecipient = !isAdmin() && (t.to_unit_id && _myId0 ? (t.to_unit_id === _myId0)
+                    : ((t.to_unit === myUnit)
+                    || ((t.to_unit === BVPH || t.to_unit === 'bvph') && (myUnit === BVPH || myUnit === 'bvph'))));
 
     var card = document.createElement('div');
     card.style.cssText='border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#fafbfd';
@@ -15327,6 +15396,7 @@ async function cancelTransferById(transferId, toUnit){
           method:'POST', headers: hdPost,
           body: JSON.stringify([{
             period: t.period, from_unit: sndUnit, to_unit: rcvUnit,
+            from_unit_id: t.from_unit_id || undefined, to_unit_id: t.to_unit_id || undefined,
             drug: t.drug, lot: t.lot, exp: t.exp||'', qty: qty,
             type: 'cancel_notif',
             status: 'cancelled',
@@ -15698,7 +15768,7 @@ async function _editTransferDate(transferId, field, currentVal){
               headers: Object.assign({}, _supaHdr, {'Content-Type':'application/json','Prefer':'return=minimal'}),
               body: JSON.stringify([{
                 period: newPeriod,
-                from_unit: 'admin', to_unit: affUnit,
+                from_unit: 'admin', to_unit: affUnit, from_unit_id: _affUid || undefined, to_unit_id: _affUid || undefined,
                 drug: tx.drug, lot: tx.lot, exp: tx.exp||'', qty: qty,
                 type: 'date_changed', status: 'date_changed',
                 transfer_date: tx.transfer_date || null,
