@@ -22,6 +22,10 @@
 -- cách cũ, nên có thể cập nhật app trước hay chạy SQL trước đều được.
 -- ═══════════════════════════════════════════════════════════════════════
 
+-- Xuất tỉnh khác cho nơi NGOÀI hệ thống (gõ tên) không có đơn vị nhận → to_unit_id phải được để trống.
+-- (Khoá ngoại vẫn giữ: có giá trị thì phải là đơn vị thật.)
+alter table public.transfers alter column to_unit_id drop not null;
+
 -- Kỳ báo cáo chứa 1 ngày, theo kiểu kỳ tham chiếu (quý ⇔ Hàng 1, tháng ⇔ Hàng 2)
 create or replace function app_private._period_of(p_date date, p_ref text)
 returns text language sql immutable as $$
@@ -184,9 +188,9 @@ begin
    where id = p_id;
 
   -- thông báo cho bên gửi (giống app)
-  insert into public.transfers(period, from_unit, to_unit, from_unit_id, to_unit_id,
+  insert into public.transfers(period, period_type, from_unit, to_unit, from_unit_id, to_unit_id,
                                drug, lot, exp, qty, phan_loai, type, status, notif_for, notif_read)
-  values (t.period, t.from_unit, t.to_unit, t.from_unit_id, t.to_unit_id,
+  values (t.period, t.period_type, t.from_unit, t.to_unit, t.from_unit_id, t.to_unit_id,
           t.drug, t.lot, coalesce(t.exp, ''), t.qty, t.phan_loai, 'cancel_notif', 'cancelled', t.from_unit, false);
 
   -- bên gửi
