@@ -14241,6 +14241,7 @@ function onDc2Change(prefix, rowIdx, inp){
 // Gọi sau khi tạo/hủy phiếu để ô luôn khớp với danh sách phiếu.
 async function _syncDc2FromTransfers(periodKey, fromUnit, row, arr, realIdx, prefix, rowIdx, listType){
   if(!_supaOnline) return;
+  fromUnit = _txUnitName(fromUnit);
   try{
     var r = await fetch(
       SUPA_URL+'/rest/v1/transfers?period=eq.'+encodeURIComponent(periodKey)
@@ -14269,6 +14270,7 @@ async function _syncDc2FromTransfers(periodKey, fromUnit, row, arr, realIdx, pre
 
 async function _loadTransferList(el, periodKey, fromUnit, row, inp, arr, realIdx, prefix, rowIdx, field, ov){
   if(!_supaOnline){ el.innerHTML='<div style="font-size:12px;color:#e67e22">Offline — không thể tải lịch sử</div>'; return; }
+  fromUnit = _txUnitName(fromUnit);
   try{
     // dc3_to_tinh: BVPH xuất Tổ CL → tỉnh cấp đơn vị nhận
     // dc2_to_dc:   đơn vị xuất điều chuyển → nhập ĐC đơn vị nhận
@@ -15626,11 +15628,25 @@ function _fmtPeriodVN(p){
   return pp.length>=2 ? ('Tháng '+parseInt(pp[1])+'/'+pp[0]) : p;
 }
 
+// Tên đơn vị ghi vào phiếu: tên cũ BVPH ("Bệnh viện Phổi Hải Phòng") / 'bvph' là TÊN GIỮ CHỖ của
+// "kho riêng của node đang xem" → đổi ra tên thật của kho đó (bản quốc gia: kho tỉnh nào cũng có thể).
+function _txUnitName(n){
+  if(n === BVPH || n === 'bvph'){
+    var id = _uid(n), nm = id ? unitNameById(id) : '';
+    return nm || n;
+  }
+  return n;
+}
 async function _saveTransfer(period, fromUnit, toUnit, row, qty, type, txDate){
   if(!_supaOnline) return false;
   var hdPost = Object.assign({}, _supaHdr, {'Prefer':'return=representation','Content-Type':'application/json'});
+  fromUnit = _txUnitName(fromUnit); toUnit = _txUnitName(toUnit);
+  // Gửi kèm unit_id — cột from_unit_id NOT NULL; bản cũ chỉ gửi tên, máy chủ không dò ra id
+  // (vd tên giữ chỗ BVPH) → lỗi 23502 "null value in column from_unit_id".
+  var _fid = _uid(fromUnit), _tid = _uid(toUnit);
+  if(!_fid) throw new Error('Không xác định được đơn vị xuất "'+fromUnit+'" trong cây đơn vị');
   var payload = {
-    period:period, from_unit:fromUnit, to_unit:toUnit,
+    period:period, from_unit:fromUnit, to_unit:toUnit, from_unit_id:_fid,
     drug:row.drug, lot:row.lot, exp:row.exp||'', qty:qty,
     phan_loai: _plFromKey(period),
     type: type||'dc2_to_dc',
@@ -15638,6 +15654,7 @@ async function _saveTransfer(period, fromUnit, toUnit, row, qty, type, txDate){
     notif_for: toUnit,   // Đơn vị nhận thấy chuông thông báo ngay
     notif_read: false
   };
+  if(_tid) payload.to_unit_id = _tid;   // nơi nhận ngoài hệ thống → để trống
   if(txDate) payload.transfer_date = txDate;
   var res = await fetch(SUPA_URL+'/rest/v1/transfers', {
     method:'POST', headers:hdPost,
