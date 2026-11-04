@@ -1198,7 +1198,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
       <div class="stat-card c-green" style="cursor:pointer" onclick="_showTQUnitList('submitted')" title="Bấm xem danh sách"><div class="stat-left"><div class="lbl">Đã nộp BC</div><div class="sub" id="tq-pct">—</div></div><div class="val" id="tq-da">—</div></div>
       <div class="stat-card c-red" style="cursor:pointer" onclick="_showTQUnitList('notsub')" title="Bấm xem danh sách"><div class="stat-left"><div class="lbl">Chưa nộp</div><div class="sub">Bấm xem danh sách</div></div><div class="val" id="tq-chua">—</div></div>
       <div class="stat-card c-amber" style="cursor:pointer" onclick="_showTQAlert('low')" title="Bấm xem chi tiết"><div class="stat-left"><div class="lbl">Cảnh báo tồn kho</div><div class="sub" id="tq-low-sub">Mặt hàng dưới ngưỡng</div></div><div class="val" id="tq-low">—</div></div>
-      <div class="stat-card c-red" style="cursor:pointer" onclick="_showTQAlert('exp')" title="Bấm xem chi tiết"><div class="stat-left"><div class="lbl">Lô sắp hết hạn</div><div class="sub">HSD &lt; 6 tháng — bấm xem</div></div><div class="val" id="tq-exp-count" style="color:var(--danger)">—</div></div>
+      <div class="stat-card c-red" style="cursor:pointer" onclick="_showTQAlert('exp')" title="Bấm xem chi tiết"><div class="stat-left"><div class="lbl">Lô sắp hết hạn</div><div class="sub" id="tq-exp-sub">HSD &lt; 6 tháng — bấm xem</div></div><div class="val" id="tq-exp-count" style="color:var(--danger)">—</div></div>
     </div>
 
     <!-- CẦN XỬ LÝ: thiếu thuốc cho BN · kiểm tra số liệu · phiếu chưa nhận -->
@@ -3051,10 +3051,11 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
   <div class="page-body">
     <div class="card" style="max-width:480px;margin-bottom:14px">
       <div class="card-title" style="color:var(--text)">Thông tin đơn vị</div>
-      <div class="fg" style="margin-bottom:10px"><label for="info-unit-name">Tên đơn vị</label><input type="text" id="info-unit-name" aria-label="Tên đơn vị" value="" placeholder="Tên đơn vị" style="width:100%"></div>
+      <div class="fg" style="margin-bottom:10px"><label for="info-unit-name">Tên đơn vị</label><input type="text" id="info-unit-name" aria-label="Tên đơn vị" value="" placeholder="Tên đơn vị" style="width:100%;background:#f1f5f9" readonly title="Tên đơn vị lấy từ cây tổ chức — admin đổi ở trang Tài khoản"></div>
       <div class="fg" style="margin-bottom:10px"><label for="info-address">Địa chỉ</label><input type="text" id="info-address" aria-label="Địa chỉ" value="" placeholder="Địa chỉ" style="width:100%"></div>
       <div class="fg" style="margin-bottom:12px"><label for="info-phone">Điện thoại</label><input type="text" id="info-phone" aria-label="Điện thoại" value="" placeholder="Số điện thoại" style="width:100%"></div>
-      <button class="btn btn-primary btn-sm" onclick="toast('Tính năng lưu thông tin đơn vị chưa được kết nối với cơ sở dữ liệu.','var(--warning)')">Lưu thông tin</button>
+      <div style="font-size:11px;color:var(--muted);margin:-4px 0 10px">Địa chỉ và điện thoại in ở đầu mẫu báo cáo của đơn vị bạn.</div>
+      <button class="btn btn-primary btn-sm" id="btn-save-unit-info" onclick="saveUnitInfo()">Lưu thông tin</button>
     </div>
     <div class="card" style="max-width:480px">
       <div class="card-title" style="color:var(--text)">Ngưỡng cảnh báo</div>
@@ -3065,7 +3066,8 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
       <div class="fg" style="margin-bottom:10px"><label for="threshold-danger-months">Cảnh báo AMC — dưới X tháng tồn (Nguy hiểm): <strong id="cur-danger-months">2</strong></label><input type="number" id="threshold-danger-months" min="1" max="12" value="2" style="width:80px"> tháng</div>
       <div class="fg" style="margin-bottom:10px"><label for="threshold-safety-stock">Safety stock (tháng AMC): <strong id="cur-safety-stock">1</strong></label><input type="number" id="threshold-safety-stock" min="0" max="6" value="1" step="0.5" style="width:80px"> tháng</div>
       <div class="fg" style="margin-bottom:12px"><label for="threshold-exp">Hạn dùng sắp hết (tháng) — hiện: <strong id="cur-exp">6</strong></label><input type="number" id="threshold-exp" aria-label="Ngưỡng hạn dùng sắp hết" value="6" style="width:130px"></div>
-      <button class="btn btn-primary btn-sm" onclick="saveSettings()">Lưu cài đặt</button>
+      <div id="thr-note" style="display:none;font-size:12px;color:#92400e;background:#fffbeb;border-radius:8px;padding:8px 10px;margin-bottom:10px">🔒 Ngưỡng cảnh báo áp dụng chung toàn quốc — chỉ quản trị viên được thay đổi.</div>
+      <button class="btn btn-primary btn-sm" id="btn-save-thr" onclick="saveSettings()">Lưu cài đặt</button>
     </div>
   </div>
 </div>
@@ -4018,17 +4020,73 @@ async function _loadThresholdFromCloud(){
 
 // Áp threshold hiện hành vào các ô hiển thị + input trong trang Cài đặt
 function _applyThresholdToUI(){
-  var cl=document.getElementById('cur-low');  if(cl) cl.textContent=threshold.low;
-  var ce=document.getElementById('cur-exp');  if(ce) ce.textContent=threshold.expMonths;
-  var il=document.getElementById('threshold-low'); if(il) il.value=threshold.low;
-  var ie=document.getElementById('threshold-exp'); if(ie) ie.value=threshold.expMonths;
-  var idl=document.getElementById('threshold-dc-low');  if(idl)  idl.value=threshold.dcLow||80;
-  var idh=document.getElementById('threshold-dc-high'); if(idh)  idh.value=threshold.dcHigh||120;
-  var cdl=document.getElementById('cur-dc-low');  if(cdl)  cdl.textContent=threshold.dcLow||80;
-  var cdh=document.getElementById('cur-dc-high'); if(cdh)  cdh.textContent=threshold.dcHigh||120;
+  _thrFillUI();
   try{ if(typeof renderBVPH==='function') renderBVPH(); }catch(e){}
   try{ if(typeof renderBC==='function') renderBC(); }catch(e){}
   try{ if(typeof renderTQ==='function') renderTQ(); }catch(e){}
+}
+function _thrFillUI(){
+  // [id ô nhập, id nhãn "hiện:", khoá trong threshold, mặc định]
+  _THR_FIELDS.forEach(function(f){
+    var v = (threshold[f[2]] != null) ? threshold[f[2]] : f[3];
+    var inp=document.getElementById(f[0]); if(inp) inp.value=v;
+    var lb=document.getElementById(f[1]); if(lb) lb.textContent=v;
+  });
+  _thrLockUI();
+}
+var _THR_FIELDS = [
+  ['threshold-low',            'cur-low',            'low',               200],
+  ['threshold-dc-low',         'cur-dc-low',         'dcLow',             80],
+  ['threshold-dc-high',        'cur-dc-high',        'dcHigh',            120],
+  ['threshold-warn-months',    'cur-warn-months',    'warnMonths',        3],
+  ['threshold-danger-months',  'cur-danger-months',  'dangerMonths',      2],
+  ['threshold-safety-stock',   'cur-safety-stock',   'safetyStockMonths', 1],
+  ['threshold-exp',            'cur-exp',            'expMonths',         6]
+];
+// Ngưỡng dùng chung toàn quốc → chỉ admin sửa; tài khoản khác xem (ô bị khoá)
+function _thrLockUI(){
+  var adm = !!(currentUser && currentUser.role==='admin');
+  _THR_FIELDS.forEach(function(f){ var inp=document.getElementById(f[0]); if(inp) inp.disabled = !adm; });
+  var bt=document.getElementById('btn-save-thr'); if(bt) bt.style.display = adm ? '' : 'none';
+  var nt=document.getElementById('thr-note'); if(nt) nt.style.display = adm ? 'none' : '';
+}
+
+// ── THÔNG TIN ĐƠN VỊ (địa chỉ, điện thoại) — settings.key='unit_info' = {unit_id: {address, phone}}
+// Mỗi đơn vị sửa phần của mình; ghi gộp (_saveSettingsDiff) nên không đè phần đơn vị khác.
+// (Bản cũ: nút Lưu chỉ báo "chưa kết nối", không lưu gì.)
+var UNIT_INFO = {};
+async function _loadUnitInfo(){
+  if(!_supaOnline) return;
+  try{
+    var r = await fetch(SUPA_URL+'/rest/v1/settings?key=eq.unit_info&select=value&limit=1',{headers:_supaHdr,cache:'no-store'});
+    if(!r.ok) return;
+    var d = await r.json();
+    UNIT_INFO = (d.length && d[0].value && typeof d[0].value==='object') ? d[0].value : {};
+    _snapBlob('unit_info', UNIT_INFO);
+  }catch(e){ console.warn('[unit_info] đọc lỗi', e); }
+}
+function _myInfoUnitId(){ return (currentUser && (currentUser.unitId || _uid(currentUser.unit))) || null; }
+function _fillUnitInfoUI(){
+  var uid=_myInfoUnitId(), inf=(uid && UNIT_INFO[uid]) || {};
+  var n=document.getElementById('info-unit-name'); if(n) n.value = uid ? (_displayUnit(unitNameById(uid)) || (currentUser&&currentUser.unit) || '') : '';
+  var a=document.getElementById('info-address'); if(a) a.value = inf.address || '';
+  var p=document.getElementById('info-phone');   if(p) p.value = inf.phone || '';
+}
+async function saveUnitInfo(){
+  if(!_supaOnline){ toast('⚠ Đang offline — chưa lưu được','var(--danger)'); return; }
+  var uid=_myInfoUnitId(); if(!uid){ toast('⚠ Không xác định được đơn vị của tài khoản','var(--danger)'); return; }
+  var address=(document.getElementById('info-address').value||'').trim().slice(0,200);
+  var phone=(document.getElementById('info-phone').value||'').trim().slice(0,40);
+  var bt=document.getElementById('btn-save-unit-info'); if(bt) bt.disabled=true;
+  try{
+    await _loadUnitInfo();                     // lấy bản mới nhất trước khi gộp
+    var next=Object.assign({}, UNIT_INFO);
+    if(address || phone) next[uid]={address:address, phone:phone}; else delete next[uid];
+    await _saveSettingsDiff('unit_info', next);
+    UNIT_INFO=next;
+    toast('✓ Đã lưu thông tin đơn vị — sẽ in ở đầu mẫu báo cáo','var(--success)');
+  }catch(e){ toast('❌ Chưa lưu được: '+(e.message||e),'var(--danger)'); }
+  finally{ if(bt) bt.disabled=false; }
 }
 
 // Lưu ngưỡng cảnh báo (threshold) lên cloud — KHÔNG dùng localStorage
@@ -4085,6 +4143,7 @@ async function _autoLoadOnLogin(){
   if(!_supaOnline) return;
   try{
     try{ await _loadAccountsFromCloud(); }catch(eAcc){}
+    try{ await _loadUnitInfo(); }catch(eUi){}
     // settings: noUsagePeriods + deletedRows (song song)
     var _blobKeys = ['noUsagePeriods','deletedRows'];
     var _blobRes = await Promise.all(_blobKeys.map(function(k){
@@ -7171,7 +7230,7 @@ function _regateHubUI(){
     // Dữ liệu vẫn tự giới hạn theo phạm vi mình quản lý (bvphData/bcData/UNITS đã lọc theo path).
     _sh('sb-tq', isHub);
     _sh('sb-thuoc', isHub);
-    _sh('sb-cd', isHub);
+    _sh('sb-cd', true);   // mọi cấp: thông tin đơn vị; ngưỡng cảnh báo chỉ xem (admin sửa)
     _sh('sb-tk', true);
     _sh('sb-sec-system', true);
     _sh('sb-sec-main', true);
@@ -7275,14 +7334,14 @@ function initApp(){
   } else if(role==='bvph'){
     // BVPH: thấy Báo cáo + Danh sách thuốc, ẩn Tổng quan, Tài khoản, Cài đặt
     _sbShow('sb-tq',false); _sbShow('sb-thuoc',true);
-    _sbShow('sb-tk',true); _sbShow('sb-cd',false);
+    _sbShow('sb-tk',true); _sbShow('sb-cd',true);
     _sbShow('sb-sec-system',true);
     // Vào thẳng trang Báo cáo
     nav('bc', document.getElementById('sb-bc'));
   } else {
     // Đơn vị tuyến: thấy Báo cáo + Bệnh nhân
     _sbShow('sb-tq',false); _sbShow('sb-thuoc',false);
-    _sbShow('sb-tk',true); _sbShow('sb-cd',false);
+    _sbShow('sb-tk',true); _sbShow('sb-cd',true);
     _sbShow('sb-sec-system',true);
     _sbShow('sb-sec-main',true);
     _sbShow('sb-bn',true);
@@ -7402,6 +7461,7 @@ function nav(page,el){
   if(page==='bc'){renderBVPH();renderBC();}
   if(page==='thuoc'){renderCatalog();renderDrugTable();}
   if(page==='tk')renderAccounts();
+  if(page==='cd'){ _thrFillUI(); _fillUnitInfoUI(); _loadUnitInfo().then(_fillUnitInfoUI); }
   if(page==='bn'){ renderPatientPage(); }
 }
 
@@ -8917,6 +8977,8 @@ function updateAlerts(){
   _tqExpList = expList;
   var expCntEl = document.getElementById('tq-exp-count');
   if(expCntEl) expCntEl.textContent = expList.length || '0';
+  var expSubEl = document.getElementById('tq-exp-sub');
+  if(expSubEl) expSubEl.textContent = 'HSD < '+(threshold.expMonths||6)+' tháng — bấm xem';
 }
 
 // ── Dữ liệu cho popup Tổng quan ──
@@ -16465,6 +16527,9 @@ function _doRenderPrint(unitName,rows,periodKey,month,year,ngayKy,isBVPH,ghiChuS
     +'<div class="hl"><div class="byt">BỘ Y TẾ</div><div class="ctlao">Chương trình Chống Lao quốc gia</div></div>'
     +'<div class="td">'+_printTitle(periodKey)+'</div>'
     +'<div class="ir"><span>Đơn vị: <b>'+_displayUnit(unitName)+'</b></span><span>'+escH(placeLabel||'')+'</span><span>Báo cáo '+_periodPhrase(periodKey)+'</span></div>'
+    +(function(){ var _inf=(typeof UNIT_INFO!=='undefined' && UNIT_INFO[_uid(unitName)])||{}; var _p=[];
+        if(_inf.address) _p.push('Địa chỉ: '+escH(_inf.address)); if(_inf.phone) _p.push('Điện thoại: '+escH(_inf.phone));
+        return _p.length ? '<div class="ir" style="font-size:11px;margin-top:-2px"><span>'+_p.join(' · ')+'</span></div>' : ''; })()
     +'<div class="tbl-scale" id="tbl-scale"><table><thead>'
     +'<tr>'
     +'<th rowspan="3" class="mn" style="width:35px">STT</th>'
@@ -17093,24 +17158,42 @@ function switchTab(t,el){
 // CÀI ĐẶT
 // ============================================================
 function saveSettings(){
+  if(!(currentUser && currentUser.role==='admin')){ toast('🔒 Chỉ quản trị viên được thay đổi ngưỡng cảnh báo (áp dụng chung toàn quốc).','var(--warning)'); return; }
   if(!_supaOnline){ toast('⚠ Đang offline — cần kết nối cloud để lưu cài đặt.','var(--danger)'); return; }
-  var low=parseInt(document.getElementById('threshold-low').value)||200;
-  var exp=parseInt(document.getElementById('threshold-exp').value)||6;
-  threshold.low=Math.max(0,low);
-  threshold.expMonths=Math.max(1,exp);
-  var dcLowEl=document.getElementById('threshold-dc-low');
-  var dcHighEl=document.getElementById('threshold-dc-high');
-  if(dcLowEl)  threshold.dcLow  = Math.max(1,  Math.min(99,  parseInt(dcLowEl.value)||80));
-  if(dcHighEl) threshold.dcHigh = Math.max(101, Math.min(300, parseInt(dcHighEl.value)||120));
-  var cdl=document.getElementById('cur-dc-low');   if(cdl)  cdl.textContent  = threshold.dcLow;
-  var cdh=document.getElementById('cur-dc-high');  if(cdh)  cdh.textContent  = threshold.dcHigh;
-  document.getElementById('cur-low').textContent=threshold.low;
-  document.getElementById('cur-exp').textContent=threshold.expMonths;
+  var num=function(id){ var e=document.getElementById(id); var v=e?parseFloat(e.value):NaN; return isNaN(v)?null:v; };
+  var nv={
+    low:               num('threshold-low'),
+    dcLow:             num('threshold-dc-low'),
+    dcHigh:            num('threshold-dc-high'),
+    warnMonths:        num('threshold-warn-months'),
+    dangerMonths:      num('threshold-danger-months'),
+    safetyStockMonths: num('threshold-safety-stock'),
+    expMonths:         num('threshold-exp')
+  };
+  // Kiểm tra hợp lệ (bản cũ: 3 ô Gần hết / Nguy hiểm / Safety stock không được đọc → sửa không có tác dụng)
+  var err='';
+  if(nv.low===null || nv.low<0) err='Tồn kho thấp phải ≥ 0';
+  else if(nv.dcLow===null || nv.dcLow<1 || nv.dcLow>99) err='Đối chiếu SD — ngưỡng thấp phải từ 1 đến 99%';
+  else if(nv.dcHigh===null || nv.dcHigh<101 || nv.dcHigh>300) err='Đối chiếu SD — ngưỡng cao phải từ 101 đến 300%';
+  else if(nv.warnMonths===null || nv.warnMonths<1 || nv.warnMonths>12) err='Cảnh báo "Gần hết" phải từ 1 đến 12 tháng';
+  else if(nv.dangerMonths===null || nv.dangerMonths<0.5 || nv.dangerMonths>12) err='Cảnh báo "Nguy hiểm" phải từ 0,5 đến 12 tháng';
+  else if(nv.dangerMonths >= nv.warnMonths) err='"Nguy hiểm" phải NHỎ HƠN "Gần hết" (vd: Nguy hiểm 2, Gần hết 3)';
+  else if(nv.safetyStockMonths===null || nv.safetyStockMonths<0 || nv.safetyStockMonths>6) err='Safety stock phải từ 0 đến 6 tháng';
+  else if(nv.expMonths===null || nv.expMonths<1 || nv.expMonths>36) err='Hạn dùng sắp hết phải từ 1 đến 36 tháng';
+  if(err){ toast('⚠ '+err,'var(--danger)'); return; }
+  var old=Object.assign({}, threshold);
+  nv.low=Math.round(nv.low); nv.dcLow=Math.round(nv.dcLow); nv.dcHigh=Math.round(nv.dcHigh); nv.expMonths=Math.round(nv.expMonths);
+  Object.assign(threshold, nv);
   _saveThresholdToCloud().then(function(ok){
-    if(ok) toast('Đã lưu cài đặt lên hệ thống — Ngưỡng tồn kho: '+threshold.low+' viên, Hạn dùng: '+threshold.expMonths+' tháng','var(--success)');
-    else toast('❌ Chưa lưu được cài đặt lên cloud. Thử lại.','var(--danger)');
+    if(ok){
+      _applyThresholdToUI();
+      try{ if(typeof renderAllAMC==='function') renderAllAMC(); }catch(e){}
+      toast('✓ Đã lưu ngưỡng cảnh báo — áp dụng cho toàn hệ thống','var(--success)');
+    } else {
+      Object.assign(threshold, old); _applyThresholdToUI();
+      toast('❌ Chưa lưu được cài đặt lên hệ thống — đã giữ ngưỡng cũ. Thử lại.','var(--danger)');
+    }
   });
-  renderBVPH();renderBC();renderTQ();
 }
 
 // ============================================================
@@ -18851,7 +18934,7 @@ async function renderAllAMC(){
     else if(expStr.match(/\d{4}-\d{2}/)){var ep2=expStr.split('-');expD=new Date(parseInt(ep2[0]),parseInt(ep2[1]),0);}
     if(!expD||isNaN(expD))return;
     var monthsLeft=Math.round((expD-now)/(86400000*30));
-    if(monthsLeft>6||monthsLeft<0)return;
+    if(monthsLeft>(threshold.expMonths||6)||monthsLeft<0)return;   // theo ngưỡng 'Hạn dùng sắp hết' trong Cài đặt
     var amcD=_calcAMC(lot.drug,unitFilter,nMonths,periodKey);
     var canUse=Math.round(amcD.amc*Math.max(0,monthsLeft));
     var risk=lot.totalTon-canUse;

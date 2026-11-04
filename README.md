@@ -12,3 +12,4 @@ Chạy lần lượt, mỗi file 1 lần (chạy lại vẫn an toàn):
 6. `sql/06_dieu_chuyen_giao_dich.sql` — xác nhận / từ chối / huỷ phiếu điều chuyển chạy trọn 1 giao dịch trên máy chủ (app tự quay về cách cũ nếu chưa chạy)
 7. `sql/07_siet_bao_mat_rpc.sql` — `list_accounts` / `settings_merge` bắt buộc đăng nhập (chặn lộ email, SĐT tài khoản và ghi cài đặt không đăng nhập); bỏ chỉ mục trùng
 8. `sql/08_tai_khoan_an_toan.sql` — tài khoản: khoá là không đăng nhập được, admin không tự mất quyền, cấp dưới không đổi được cấp đơn vị, mật khẩu ≥ 8 ký tự, hàm tự sửa email/điện thoại
+9. `sql/09_cai_dat_chi_admin.sql` — cài đặt dùng chung toàn quốc (ngưỡng cảnh báo, miền, tên tỉnh, gộp miền, gom đơn vị) chỉ admin được ghi
