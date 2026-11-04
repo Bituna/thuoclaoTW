@@ -1159,6 +1159,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
     <div>
       <h1>Tổng quan</h1>
       <p id="tq-sub"></p>
+      <button class="btn btn-ghost btn-sm no-print" style="margin-top:4px" onclick="showSubmitTracker()">📋 Theo dõi nộp báo cáo cả năm</button>
     </div>
     <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
       <label style="font-size:12px;font-weight:600;color:var(--muted)">Kỳ thống kê:</label>
@@ -1523,6 +1524,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 <!-- BÁO CÁO THUỐC -->
 <div class="page" id="page-bc">
   <div class="bc-sticky-top">
+  <div id="bc-deadline-banner" style="display:none"></div>
   <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
     <div>
       <h1>Báo cáo thuốc</h1>
@@ -4689,6 +4691,8 @@ async function loadFromSupabase(periodKey, silent){
         var _sv0 = srParallel && srParallel.ok ? await srParallel.json() : [];
         if(!silent && _sv0 && _sv0.length && _sv0[0].value){ lockedPeriods = _blobClone(_sv0[0].value); _snapBlob('lockedPeriods', lockedPeriods); }
       }catch(eL){}
+      // Kỳ chưa có số liệu nào mà đã quá hạn → tự khoá (đây đúng là trường hợp cần khoá nhất)
+      try{ if(p.type !== 'year') _applyDeadlineAutoLock(periodKey).catch(function(e){ console.warn('[hạn nộp]', e); }); }catch(eDl){}
       if(!silent && crParallel && crParallel.ok){
         try{
           var _cd0 = await crParallel.json();
@@ -5806,12 +5810,12 @@ function showLockManager(){
       btnSyncLock.textContent='⏳ Đang khóa...';
       checks.forEach(function(chk){
         var u=chk.dataset.unit, key=_lockKey(u);
-        lockedPeriods[key]=true;
+        lockedPeriods[key]='admin';
         var arr=(u===BVPH)?bvphData:bcData;
         arr.filter(function(r){return r.bcMonth===periodKey&&(u===BVPH||r.unit===u);})
           .forEach(function(r){r.locked=true;r.editing=false;r.openLocked=true;});
       });
-      lockedPeriods[periodKey]=true;
+      lockedPeriods[periodKey]='admin';
 
       // 4. Đánh dấu tất cả dòng kỳ này là _dirty rồi lưu TOÀN BỘ lên Supabase
       //    (saveToSupabase bình thường chỉ ghi dòng _dirty — ép dirty để đẩy hết,
@@ -5855,7 +5859,7 @@ function showLockManager(){
       var u=chk.dataset.unit, key=_lockKey(u);
       if(chk.checked){
         if(!lockedPeriods[key]) lockedCount++;
-        lockedPeriods[key]=true;
+        lockedPeriods[key]=(lockedPeriods[key]||'admin');   // giữ loại khoá cũ (đơn vị tự chốt = true)
         var arr = (u===BVPH) ? bvphData : bcData;
         arr.filter(function(r){return r.bcMonth===periodKey && (u===BVPH || r.unit===u);}).forEach(function(r){ r.locked=true; r.editing=false; r.openLocked=true; });
       } else {
@@ -5865,7 +5869,7 @@ function showLockManager(){
         arr2.filter(function(r){return r.bcMonth===periodKey && (u===BVPH || r.unit===u);}).forEach(function(r){ r.locked=false; r.openLocked=false; });
       }
     });
-    if(checks.every(function(c){return c.checked;})) lockedPeriods[periodKey]=true;
+    if(checks.every(function(c){return c.checked;})) lockedPeriods[periodKey]='admin';
     else delete lockedPeriods[periodKey];
     // Sau hạn nộp: đơn vị bỏ tích = admin MỞ LẠI → nhớ để không tự khoá lại; tích lại = bỏ nhớ
     // Chỉ tính đơn vị ĐANG KHOÁ bị bỏ tích (= mở lại); đơn vị chưa từng khoá giữ nguyên quy tắc tự khoá.
@@ -5986,13 +5990,226 @@ async function _applyDeadlineAutoLock(pk){
   var key = pk + '_' + (isB ? 'bvph' : currentUser.unit);
   if(lockedPeriods[pk] || lockedPeriods[key]) return;
   if(_dlIsOpened(pk, currentUser.unit)) return;
-  lockedPeriods[key] = true;
+  lockedPeriods[key] = 'auto';   // khoá do quá hạn — KHÔNG tính là đã nộp
   (isB ? bvphData : bvphData.concat(bcData)).forEach(function(r){
     if(r.bcMonth===pk && (isB || r.unit===currentUser.unit || r.unitId===currentUser.unitId)){ r.locked=true; r.editing=false; r.openLocked=true; }
   });
   var ok = await _saveLockedPeriodsToCloud();
   try{ renderBVPH(); renderBC(); updateSaveBtnUI(); updateLockedUI(); }catch(e){}
   if(ok) toast('🔒 Kỳ '+_keyToLabel(pk)+' đã quá hạn nộp ('+_fmtDl(_deadlineOf(pk))+') — báo cáo tự khoá. Cần sửa: liên hệ quản trị viên mở lại.','var(--warning)');
+}
+
+// ── TRẠNG THÁI NỘP BÁO CÁO của 1 đơn vị trong 1 kỳ ─────────────────────────
+//  ok      : đã nộp đúng hạn (hoặc chưa đặt hạn)     late    : đã nộp nhưng sau hạn (days = số ngày trễ)
+//  overdue : chưa nộp, đã quá hạn (days = số ngày quá) soon    : chưa nộp, còn ≤ 3 ngày (days = số ngày còn)
+//  pending : chưa nộp, còn hạn / chưa đặt hạn
+// "Đã nộp" = có số liệu phát sinh, đơn vị tự chốt kỳ, hoặc đánh dấu "không có báo cáo"
+// (getSubmittedUnits). Thời điểm nộp = mốc lưu SỚM NHẤT trong các dòng có số liệu của đơn vị
+// (lấy sớm nhất để việc sửa / nhận điều chuyển sau hạn không bị tính nhầm là nộp trễ).
+var _SUB_SOON_DAYS = 3;
+function _subFirstTimes(rows){
+  var t = {};
+  (rows||[]).forEach(function(r){
+    if(r._agg || !r._ts) return;
+    var act = _num(r.n1)+_num(r.n2)+_num(r.n3)+_num(r.n4)+_num(r.x1)+_num(r.x2)+_num(r.x3)+_num(r.x4);
+    if(!(act > 0)) return;
+    var u = (r.unit && r.unit !== BVPH && r.unit !== 'bvph') ? r.unit : ((function(){ try{ return unitNameById(_currentRootId()); }catch(e){ return ''; } })() || BVPH), ms = Date.parse(r._ts);
+    if(!isNaN(ms) && (!(u in t) || ms < t[u])) t[u] = ms;
+  });
+  return t;
+}
+// số ngày lịch giữa 2 thời điểm (bỏ giờ phút)
+function _dayDiff(a, b){
+  var A = new Date(a), B = new Date(b);
+  return Math.round((Date.UTC(B.getFullYear(),B.getMonth(),B.getDate()) - Date.UTC(A.getFullYear(),A.getMonth(),A.getDate()))/86400000);
+}
+function _subState(unitName, pk, submittedSet, firstTimes){
+  var dl = _deadlineOf(pk), now = Date.now();
+  if(submittedSet[unitName]){
+    var at = firstTimes && firstTimes[unitName];
+    if(dl && at && at > dl.getTime()) return {st:'late', days:Math.max(1, _dayDiff(dl, at))};
+    return {st:'ok'};
+  }
+  if(!dl) return {st:'pending'};
+  if(now > dl.getTime()) return {st:'overdue', days:Math.max(1, _dayDiff(dl, now))};
+  var left = _dayDiff(now, dl);
+  return left <= _SUB_SOON_DAYS ? {st:'soon', days:left} : {st:'pending', days:left};
+}
+var _SUB_STYLE = {
+  ok:      {bg:'#f0fff4', bd:'#9ae6b4', dot:'#27ae60', fg:'#1e7e44', lbl:'Đúng hạn'},
+  late:    {bg:'#fff7ed', bd:'#fdba74', dot:'#ea580c', fg:'#9a3412', lbl:'Nộp trễ'},
+  overdue: {bg:'#fff0f0', bd:'#fca5a5', dot:'#dc2626', fg:'#991b1b', lbl:'Quá hạn chưa nộp'},
+  soon:    {bg:'#fefce8', bd:'#fde047', dot:'#ca8a04', fg:'#854d0e', lbl:'Sắp đến hạn'},
+  pending: {bg:'#fff0f0', bd:'#fbb',    dot:'#e74c3c', fg:'#7f1d1d', lbl:'Chưa nộp'}
+};
+function _subTag(s){
+  if(!s) return '';
+  if(s.st==='late')    return 'trễ '+s.days+' ngày';
+  if(s.st==='overdue') return 'quá '+s.days+' ngày';
+  if(s.st==='soon')    return s.days<=0 ? 'hạn hôm nay' : 'còn '+s.days+' ngày';
+  return '';
+}
+
+// ── DẢI NHẮC HẠN NỘP ở đầu trang Báo cáo (dùng trạng thái renderTQ vừa tính cho cùng kỳ / phạm vi)
+//  • Đơn vị: sắp đến hạn (≤ 3 ngày) / quá hạn chưa nộp (kèm "đã bị khoá" nếu tự khoá)
+//  • Cấp quản lý / admin: số đơn vị trực thuộc quá hạn + tên, bấm xem danh sách
+function _renderDeadlineBanner(){
+  var el = document.getElementById('bc-deadline-banner'); if(!el) return;
+  var hide = function(){ el.style.display='none'; el.innerHTML=''; };
+  if(!currentUser || !_tqSubKey) return hide();
+  var dl = _deadlineOf(_tqSubKey); if(!dl) return hide();
+  var lbl = _keyToLabel(_tqSubKey), msgs = [];
+  var own = currentUser.role==='admin' ? '' : (unitNameById(currentUser.unitId) || currentUser.unit || '');
+  var so = own ? _tqSubState[own] : null;
+  if(so && so.st==='overdue'){
+    var lk = !!(lockedPeriods[_tqSubKey] || lockedPeriods[_tqSubKey+'_'+(currentUser.unit||own)]);
+    msgs.push({c:'overdue', t:'🔴 Báo cáo '+lbl+' của đơn vị đã <b>quá hạn '+so.days+' ngày</b> (hạn '+_fmtDl(dl)+')'
+      + (lk ? ' và đã bị khoá — liên hệ quản trị viên để mở lại.' : '. Vui lòng nhập và chốt báo cáo ngay.')});
+  } else if(so && so.st==='soon'){
+    msgs.push({c:'soon', t:'⏰ '+(so.days<=0 ? 'Hôm nay là hạn' : 'Còn <b>'+so.days+' ngày</b> đến hạn')+' nộp báo cáo '+lbl+' ('+_fmtDl(dl)+').'});
+  }
+  var kids = Object.keys(_tqSubState).filter(function(u){ return u!==own && _tqSubState[u].st==='overdue'; })
+    .sort(function(a,b){ return _tqSubState[b].days - _tqSubState[a].days; });
+  if(kids.length){
+    var names = kids.slice(0,4).map(function(u){ return _escH(_displayUnit(u))+' ('+_subTag(_tqSubState[u])+')'; }).join(', ') + (kids.length>4 ? '… ' : '');
+    msgs.push({c:'overdue', t:'🔴 <b>'+kids.length+' đơn vị'+(own?' trực thuộc':'')+'</b> quá hạn chưa nộp báo cáo '+lbl+': '+names
+      + ' <a href="#" onclick="nav(\'tq\',document.getElementById(\'sb-tq\'));setTimeout(function(){_showTQUnitList(\'notsub\')},300);return false;" style="color:inherit;font-weight:700;text-decoration:underline">Xem danh sách</a>'});
+  }
+  if(!msgs.length) return hide();
+  el.innerHTML = msgs.map(function(m){ var S=_SUB_STYLE[m.c];
+    return '<div style="margin:0 0 8px;padding:9px 14px;border-radius:10px;font-size:13px;line-height:1.5;background:'+S.bg+';border:1px solid '+S.bd+';color:'+S.fg+'">'+m.t+'</div>'; }).join('');
+  el.style.display = '';
+}
+
+// Gắn dấu trạng thái nộp vào tên đơn vị trong các ô chọn đơn vị (Báo cáo: phạm vi + "Chọn đơn vị")
+function _subMark(name){
+  var s0 = _tqSubState[name]; if(!s0) return '';
+  if(s0.st==='overdue') return '  🔴 quá hạn '+s0.days+' ngày';
+  if(s0.st==='soon')    return '  ⏰ '+_subTag(s0);
+  if(s0.st==='late')    return '  🟠 nộp trễ';
+  return '';
+}
+function _markUnitOptions(){
+  ['filter-unit-bc','tpc-picker'].forEach(function(id){
+    var sel = document.getElementById(id); if(!sel) return;
+    Array.prototype.forEach.call(sel.options, function(o){
+      if(!o.value || o.value==='__all__' || !UNIT_BY_ID[o.value]) return;
+      if(o.dataset.base === undefined) o.dataset.base = o.textContent;
+      var m = _subMark(unitNameById(o.value));
+      o.textContent = o.dataset.base + m;
+      o.style.color = m.indexOf('🔴')>=0 ? '#b91c1c' : '';
+    });
+  });
+}
+
+// ── BẢNG THEO DÕI NỘP BÁO CÁO CẢ NĂM (đơn vị × tháng / quý) ───────────────────
+var _trkLast = null;   // dữ liệu bảng vừa dựng (để xuất Excel)
+async function showSubmitTracker(){
+  if(!_supaOnline){ toast('⚠ Đang offline','var(--danger)'); return; }
+  var y = parseInt((document.getElementById('tq-year')||document.getElementById('sel-year')||{}).value,10) || new Date().getFullYear();
+  var rid = _currentRootId(), root = rid ? UNIT_BY_ID[rid] : null;
+  var units = (UNITS_TREE||[]).filter(function(u){
+    return u.utype!=='kho_tq' && u.utype!=='kho_mien' && (!root || _pathIn(u.path, root.path)) && canViewUnit(u.id);
+  }).sort(function(a,b){ return String(a.path).localeCompare(String(b.path)); });
+  if(!units.length){ toast('Không có đơn vị nào trong phạm vi','var(--warning)'); return; }
+  toast('⏳ Đang tải số liệu năm '+y+'…','#1a5276');
+  await _loadDeadlineCfg();
+  var rows;
+  try{
+    var r = await fetch(SUPA_URL+'/rest/v1/reports?period=like.'+y+'-*&select=unit_id,period,tinh,ntk,dc,n4,sd,dc2,dc3,hh,edited_at', {headers:_supaHdr, cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    rows = await r.json();
+  }catch(e){ toast('❌ Không tải được số liệu: '+(e.message||e),'var(--danger)'); return; }
+  var inScope = {}; units.forEach(function(u){ inScope[u.id] = u; });
+  var hasH1 = (catalogData||[]).some(function(c){ return c.phan_loai==='h1'; });
+  var periods = [];
+  for(var m=1;m<=12;m++) periods.push({k:y+'-'+(m<10?'0':'')+m, lbl:'T'+m, end:new Date(y, m, 1)});
+  if(hasH1) for(var q=1;q<=4;q++) periods.push({k:y+'-Q'+q, lbl:'Q'+q, end:new Date(y, q*3, 1)});
+  // Gom: kỳ → tên đơn vị → {đã nộp, thời điểm nộp sớm nhất}
+  var subByP = {}, timeByP = {};
+  periods.forEach(function(P){ subByP[P.k] = {}; timeByP[P.k] = {}; });
+  rows.forEach(function(x){
+    var u = inScope[x.unit_id]; if(!u || !subByP[x.period]) return;
+    var act = _num(x.n1)+_num(x.n2)+_num(x.n3)+_num(x.n4)+_num(x.x1)+_num(x.x2)+_num(x.x3)+_num(x.x4);
+    if(!(act>0)) return;
+    subByP[x.period][u.name] = 1;
+    var ms = Date.parse(x.edited_at||''); var T = timeByP[x.period];
+    if(!isNaN(ms) && (!(u.name in T) || ms < T[u.name])) T[u.name] = ms;
+  });
+  periods.forEach(function(P){
+    units.forEach(function(u){
+      if(lockedPeriods[P.k+'_'+u.name]===true || noUsagePeriods[P.k+'_'+u.name]) subByP[P.k][u.name] = 1;   // tự chốt / không có báo cáo
+    });
+  });
+  var now = Date.now();
+  var cellOf = function(u, P){
+    if(P.end.getTime() > now) return {t:'—', st:'future'};
+    var s0 = _subState(u.name, P.k, subByP[P.k], timeByP[P.k]);
+    if(s0.st==='ok') return {t:'✓', st:'ok'};
+    if(s0.st==='late') return {t:'⚠'+s0.days, st:'late', d:s0.days};
+    if(s0.st==='overdue') return {t:'✗'+s0.days, st:'overdue', d:s0.days};
+    if(s0.st==='soon') return {t:'⏰', st:'soon'};
+    return _deadlineOf(P.k) ? {t:'·', st:'pending'} : {t:'✗', st:'overdue'};   // chưa đặt hạn + kỳ đã qua mà chưa nộp
+  };
+  var matrix = units.map(function(u){
+    var cells = periods.map(function(P){ return cellOf(u, P); });
+    var due = cells.filter(function(c){ return c.st!=='future' && c.st!=='pending' && c.st!=='soon'; });
+    var ok = due.filter(function(c){ return c.st==='ok'; }).length;
+    return {u:u, cells:cells, ok:ok, due:due.length};
+  });
+  _trkLast = {y:y, periods:periods, matrix:matrix};
+  var C = {ok:'#dcfce7;color:#166534', late:'#ffedd5;color:#9a3412', overdue:'#fee2e2;color:#991b1b', soon:'#fef9c3;color:#854d0e', pending:'#f8fafc;color:#94a3b8', future:'#fff;color:#cbd5e1'};
+  var th = 'padding:5px 6px;border:1px solid #e2e8f0;background:#f1f5f9;font-size:11px;position:sticky;top:0';
+  var h = '<div style="font-size:11.5px;color:#64748b;margin-bottom:8px">✓ đúng hạn · ⚠N nộp trễ N ngày · ✗N quá hạn N ngày chưa nộp · ⏰ sắp đến hạn · · còn hạn · — chưa tới kỳ'
+    + (DEADLINE_CFG.enabled ? '' : ' · <b>Chưa bật hạn nộp</b> (Cài đặt) — ✗ = kỳ đã qua mà chưa nộp')+'</div>'
+    + '<div style="overflow:auto;max-height:62vh"><table style="border-collapse:collapse;font-size:12px;min-width:100%">'
+    + '<thead><tr><th style="'+th+';text-align:left;left:0;z-index:2">Đơn vị</th>'
+    + periods.map(function(P){ return '<th style="'+th+'">'+P.lbl+'</th>'; }).join('')
+    + '<th style="'+th+'">Đúng hạn</th></tr></thead><tbody>'
+    + matrix.map(function(R){
+        var pct = R.due ? Math.round(R.ok/R.due*100) : null;
+        return '<tr><td style="padding:4px 8px;border:1px solid #e2e8f0;white-space:nowrap;background:#fff;position:sticky;left:0">'+_escH(_unitDistinctName(R.u))+'</td>'
+          + R.cells.map(function(c){ return '<td style="padding:4px 6px;border:1px solid #e2e8f0;text-align:center;font-weight:700;background:'+C[c.st]+'">'+c.t+'</td>'; }).join('')
+          + '<td style="padding:4px 8px;border:1px solid #e2e8f0;text-align:center;font-weight:700;color:'+(pct===null?'#94a3b8':(pct>=90?'#166534':(pct>=60?'#9a3412':'#991b1b')))+'">'+(pct===null?'—':R.ok+'/'+R.due+' ('+pct+'%)')+'</td></tr>';
+      }).join('')
+    + '</tbody></table></div>'
+    + '<div style="margin-top:10px;text-align:right"><button type="button" onclick="exportSubmitTracker()" style="padding:7px 16px;border:none;border-radius:16px;background:#1a5276;color:#fff;cursor:pointer;font-size:13px;font-weight:700">⬇ Xuất Excel</button></div>';
+  var titleHtml = '<div><div style="font-size:11px;font-weight:700;color:#1a5276;text-transform:uppercase;letter-spacing:.5px">Theo dõi nộp báo cáo</div>'
+    + '<div style="font-size:14px;font-weight:700;color:#1e293b;margin-top:3px">Năm '+y+(root?' — '+_escH(root.name):'')+'</div>'
+    + '<div style="font-size:12px;color:#64748b;margin-top:2px">'+units.length+' đơn vị'+(DEADLINE_CFG.enabled?' · hạn: tháng → ngày '+DEADLINE_CFG.monthDay+' tháng sau, quý → ngày '+DEADLINE_CFG.quarterDay:'')+'</div></div>';
+  _tqPopup(titleHtml, h);
+}
+function exportSubmitTracker(){
+  var d = _trkLast; if(!d){ return; }
+  if(typeof XLSX==='undefined'){ toast('⚠ Chưa tải được thư viện Excel','var(--warning)'); return; }
+  var NAME = {ok:'Đúng hạn', late:'Trễ', overdue:'Chưa nộp', soon:'Sắp hạn', pending:'Còn hạn', future:''};
+  var aoa = [['Theo dõi nộp báo cáo năm '+d.y], [], ['Đơn vị','Cấp'].concat(d.periods.map(function(P){ return P.lbl; })).concat(['Đúng hạn','Số kỳ đến hạn','Tỷ lệ'])];
+  d.matrix.forEach(function(R){
+    aoa.push([_unitDistinctName(R.u), R.u.utype].concat(R.cells.map(function(c){
+      return c.st==='future' ? '' : (NAME[c.st] + (c.d ? ' '+c.d+' ngày' : ''));
+    })).concat([R.ok, R.due, R.due ? Math.round(R.ok/R.due*100)+'%' : '']));
+  });
+  var wb = XLSX.utils.book_new(), ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:40},{wch:12}].concat(d.periods.map(function(){ return {wch:12}; })).concat([{wch:9},{wch:12},{wch:8}]);
+  XLSX.utils.book_append_sheet(wb, ws, 'Nop bao cao '+d.y);
+  XLSX.writeFile(wb, 'TheoDoiNopBaoCao_'+d.y+'.xlsx');
+}
+
+// Tính trạng thái nộp của các đơn vị trong phạm vi đang xem, kỳ đang chọn → _tqSubState
+// (renderTQ bỏ qua khi trang Tổng quan đóng, nên dải nhắc / dấu ở ô chọn đơn vị gọi hàm này trực tiếp)
+function _computeSubStates(){
+  var tqP = getTQPeriod();
+  var rep = UNITS.filter(function(u){ var n = UNIT_BY_NAME[_normName(u)]; return !n || (n.utype!=='kho_tq' && n.utype!=='kho_mien'); });
+  var subSet = {}; getSubmittedUnits().forEach(function(u){ subSet[u] = 1; });
+  var dlKey = (tqP.type !== 'year') ? tqP.val : null;
+  var ft = _subFirstTimes(bvphData.filter(matchTQPeriod).concat(bcData.filter(matchTQPeriod)));
+  var nSt = {ok:0, late:0, overdue:0, soon:0, pending:0};
+  _tqSubState = {}; _tqSubKey = dlKey;
+  rep.forEach(function(u){
+    var st = dlKey ? _subState(u, dlKey, subSet, ft) : {st: subSet[u] ? 'ok' : 'pending'};
+    _tqSubState[u] = st; nSt[st.st]++;
+  });
+  return {nSt:nSt, dlKey:dlKey};
 }
 
 function isCurrentPeriodLocked(){
@@ -8313,7 +8530,8 @@ function getSubmittedUnits(){
   // "Đã nộp" = đơn vị đã CHỐT (khóa) báo cáo kỳ đó, HOẶC có nhập dữ liệu thật.
   // Ưu tiên: đơn vị nào đã khóa kỳ (lockedPeriods) → coi là ĐÃ NỘP dù nội dung thế nào.
   function _hasActivity(r){
-    if(r.locked === true) return true;
+    // (bỏ r.locked: dòng bị khoá do admin / tự khoá quá hạn cũng mang locked=true — không phải đã nộp;
+    //  đơn vị tự chốt đã được tính qua lockedPeriods = true bên dưới)
     if(r.submitted === true) return true;
     var act = (r.n1||0)+(r.n2||0)+(r.n3||0)+(r.n4||0)+(r.x1||0)+(r.x2||0)+(r.x3||0)+(r.x4||0);
     return act > 0;
@@ -8322,7 +8540,10 @@ function getSubmittedUnits(){
   var bvphFiltered = bvphData.filter(matchTQPeriod);
   var bcFiltered   = bcData.filter(matchTQPeriod);
 
-  if(bvphFiltered.some(_hasActivity)) set[BVPH] = true;
+  // Kho riêng của node đang xem: ghi theo TÊN THẬT của đơn vị (bản cũ ghi tên giữ chỗ BVPH
+  // "Bệnh viện Phổi Hải Phòng" → chính đơn vị đang đăng nhập luôn bị tính là "chưa nộp")
+  var _rootNm = (function(){ try{ return unitNameById(_currentRootId()) || BVPH; }catch(e){ return BVPH; } })();
+  bvphFiltered.forEach(function(r){ if(_hasActivity(r)) set[(r.unit && r.unit !== BVPH && r.unit !== 'bvph') ? r.unit : _rootNm] = true; });
   bcFiltered.forEach(function(r){
     if(r.unit && _hasActivity(r)) set[r.unit] = true;
   });
@@ -8333,17 +8554,19 @@ function getSubmittedUnits(){
   var curMon = _tqMonKey();
   if(curMon){
     Object.keys(lockedPeriods).forEach(function(k){
-      if(!lockedPeriods[k]) return;
+      // Chỉ khoá do ĐƠN VỊ tự chốt (true) mới tính là đã nộp. Khoá của admin ('admin', kể cả khoá
+      // toàn bộ) và tự khoá do quá hạn ('auto') không có nghĩa là đơn vị đã nộp.
+      if(lockedPeriods[k] !== true) return;
       var sep = k.indexOf('_');
       var kMon = (sep<0) ? k : k.slice(0, sep);
       var kSuffix = (sep<0) ? '' : k.slice(sep+1);
       if(kMon !== curMon) return;
       if(kSuffix === ''){
         // Khóa toàn cục kỳ này → coi MỌI đơn vị (kể cả BVPH) đã nộp
-        set[BVPH] = true;
+        set[_rootNm] = true;
         UNITS.forEach(function(u){ set[u] = true; });
       } else if(kSuffix === 'bvph'){
-        set[BVPH] = true;
+        set[_rootNm] = true;
       } else {
         set[kSuffix] = true;
       }
@@ -8406,6 +8629,8 @@ function renderTQ(){
   var notSub = _repUnits.filter(function(u){ return submitted.indexOf(u)===-1; });
   _tqSubmitted = submitted;
   _tqNotSub = notSub;
+  // Trạng thái nộp theo hạn (đúng hạn / trễ / quá hạn / sắp hạn) — hàm dùng chung với dải nhắc
+  var _csTQ = _computeSubStates(), _nSt = _csTQ.nSt, _tqDlKey = _csTQ.dlKey;
 
   // ── Thẻ số liệu ──
   var _tEl = document.getElementById('tq-total-units'); if(_tEl) _tEl.textContent = _repUnits.length;
@@ -8414,12 +8639,15 @@ function renderTQ(){
   // Hạn nộp của kỳ đang xem (Cài đặt → Hạn nộp báo cáo)
   var _chSub = document.getElementById('tq-chua-sub');
   if(_chSub){
-    var _dlTQ = (tqP.type !== 'year') ? _deadlineOf(tqP.val) : null;
-    if(_dlTQ && _deadlinePassed(tqP.val) && notSub.length){ _chSub.textContent = '⏰ Quá hạn từ '+_fmtDl(_dlTQ); _chSub.style.color = 'var(--danger)'; _chSub.style.fontWeight = '700'; }
-    else if(_dlTQ){ _chSub.textContent = 'Hạn nộp: '+_fmtDl(_dlTQ); _chSub.style.color = ''; _chSub.style.fontWeight = ''; }
-    else { _chSub.textContent = 'Bấm xem danh sách'; _chSub.style.color = ''; _chSub.style.fontWeight = ''; }
+    var _dlTQ = _tqDlKey ? _deadlineOf(_tqDlKey) : null, _p=[];
+    if(_nSt.overdue) _p.push('🔴 '+_nSt.overdue+' quá hạn');
+    if(_nSt.soon)    _p.push('🟡 '+_nSt.soon+' sắp đến hạn');
+    _chSub.textContent = _p.length ? _p.join(' · ') : (_dlTQ ? 'Hạn nộp: '+_fmtDl(_dlTQ) : 'Bấm xem danh sách');
+    _chSub.style.color = _nSt.overdue ? 'var(--danger)' : ''; _chSub.style.fontWeight = _p.length ? '700' : '';
+    _chSub.title = _dlTQ ? 'Hạn nộp: '+_fmtDl(_dlTQ) : '';
   }
   document.getElementById('tq-pct').textContent = 'Đạt '+(_repUnits.length ? Math.round(submitted.length/_repUnits.length*100) : 0)+'%';
+  if(_nSt.late){ var _pctEl=document.getElementById('tq-pct'); if(_pctEl) _pctEl.textContent += ' · 🟠 '+_nSt.late+' nộp trễ'; }
 
   // Tổng hợp TOÀN PHẠM VI node đang xem — cùng công thức với bảng "Tổng hợp theo cấp":
   // điều chuyển nội bộ trong nhánh triệt tiêu, chỉ tính nhập từ ngoài / xuất ra ngoài.
@@ -9312,27 +9540,40 @@ function _tqPopup(titleHtml, bodyHtml){
 }
 
 // Popup danh sách đơn vị đã nộp / chưa nộp
+var _tqSubState = {}, _tqSubKey = null;
 function _showTQUnitList(which){
-  var list = which==='submitted' ? _tqSubmitted : _tqNotSub;
+  var list = (which==='submitted' ? _tqSubmitted : _tqNotSub).slice();
   var isSub = which==='submitted';
   var color = isSub ? '#27ae60' : '#e74c3c';
   var title = isSub ? 'Đơn vị đã nộp báo cáo' : 'Đơn vị chưa nộp báo cáo';
+  var dl = _tqSubKey ? _deadlineOf(_tqSubKey) : null;
+  // Đếm theo trạng thái + xếp: quá hạn lâu nhất → sắp hạn → còn hạn; nộp trễ → đúng hạn
+  var ORD = {overdue:0, soon:1, pending:2, late:0, ok:1};
+  var stOf = function(u){ return _tqSubState[u] || {st: isSub ? 'ok' : 'pending'}; };
+  list.sort(function(a,b){ var x=stOf(a), y=stOf(b); return (ORD[x.st]-ORD[y.st]) || ((y.days||0)-(x.days||0)) || String(a).localeCompare(String(b),'vi'); });
+  var cnt = {}; list.forEach(function(u){ var k=stOf(u).st; cnt[k]=(cnt[k]||0)+1; });
+  var parts = (isSub ? ['ok','late'] : ['overdue','soon','pending']).filter(function(k){ return cnt[k]; })
+    .map(function(k){ var S=_SUB_STYLE[k]; return '<span style="color:'+S.fg+';font-weight:700">'+cnt[k]+' '+S.lbl.toLowerCase()+'</span>'; });
   var titleHtml = '<div>'
     + '<div style="font-size:11px;font-weight:700;color:'+color+';text-transform:uppercase;letter-spacing:.5px">Danh sách đơn vị</div>'
     + '<div style="font-size:14px;font-weight:700;color:#1e293b;margin-top:3px">'+title+'</div>'
-    + '<div style="font-size:12px;color:#64748b;margin-top:2px">'+list.length+' đơn vị</div>'
+    + '<div style="font-size:12px;color:#64748b;margin-top:2px">'+list.length+' đơn vị'+(parts.length?' · '+parts.join(' · '):'')
+    + (dl ? ' · hạn nộp '+_fmtDl(dl) : '')+'</div>'
+    + '<button type="button" onclick="this.closest(\'.app-popup\').remove();showSubmitTracker()" style="margin-top:6px;padding:4px 10px;border:1px solid #cbd5e0;border-radius:14px;background:#fff;cursor:pointer;font-size:12px">📋 Theo dõi cả năm</button>'
     + '</div>';
   var body;
   if(!list.length){
     body = '<div style="color:#888;font-style:italic;font-size:13px;padding:8px 0">'
       + (isSub ? 'Chưa có đơn vị nào nộp.' : '✓ Tất cả đơn vị đã nộp!') + '</div>';
   } else {
-    // Chia 2 cột để popup không quá dài (tự co về 1 cột nếu màn hình hẹp)
     body = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:6px;min-width:min(460px,80vw);max-width:600px">'
       + list.map(function(u){
-          return '<div style="display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 10px;background:'+(isSub?'#f0fff4':'#fff0f0')+';border:1px solid '+(isSub?'#9ae6b4':'#fbb')+';border-radius:7px">'
-            + '<span style="width:8px;height:8px;border-radius:50%;background:'+color+';flex-shrink:0"></span>'
-            + '<span style="color:#1a2332;font-weight:500">'+_displayUnit(u)+'</span></div>';
+          var s0 = stOf(u), S = _SUB_STYLE[s0.st] || _SUB_STYLE.pending, tag = _subTag(s0);
+          return '<div style="display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 10px;background:'+S.bg+';border:1px solid '+S.bd+';border-radius:8px">'
+            + '<span style="width:8px;height:8px;border-radius:50%;background:'+S.dot+';flex-shrink:0"></span>'
+            + '<span style="color:#1a2332;font-weight:500;flex:1">'+_displayUnit(u)+'</span>'
+            + (tag ? '<span style="font-size:11px;font-weight:700;color:'+S.fg+';white-space:nowrap">'+tag+'</span>' : '')
+            + '</div>';
         }).join('')
       + '</div>';
   }
@@ -13877,8 +14118,8 @@ function openReport(){
           delete lockedPeriods[periodKey + '_' + unitVal];
           if (lockedPeriods[periodKey]) {
               delete lockedPeriods[periodKey];
-              if(unitVal !== 'bvph') lockedPeriods[periodKey + '_bvph'] = true;
-              UNITS.forEach(function(u){ if(u !== BVPH && u !== unitVal) lockedPeriods[periodKey + '_' + u] = true; });
+              if(unitVal !== 'bvph') lockedPeriods[periodKey + '_bvph'] = 'admin';
+              UNITS.forEach(function(u){ if(u !== BVPH && u !== unitVal) lockedPeriods[periodKey + '_' + u] = 'admin'; });
           }
           if (unitVal === 'bvph') {
               bvphData.filter(function(r){return r.bcMonth===periodKey;}).forEach(function(r){ r.locked=false;r._dirty=true; });
@@ -16435,7 +16676,7 @@ function _showPrintUnitPicker(periodKey){
     // --- CHỐT (KHÓA) SỐ LIỆU SAU KHI IN: admin, hoặc đơn vị in CHÍNH MÌNH ---
     var isLocking = ((role==='admin') || (unitId === myId)) && !_printRO;
     if(isLocking){
-      lockedPeriods[printPeriod + '_' + unit] = true;
+      lockedPeriods[printPeriod + '_' + unit] = (role==='admin' && unitId !== myId) ? 'admin' : true;   // đơn vị tự chốt = true (tính là đã nộp)
       bvphData.concat(bcData).forEach(function(r){
         if(r.bcMonth===printPeriod && _rowUid(r)===unitId && !r._agg){ r.locked = true; r.editing = false; r.openLocked = true; }
       });
@@ -17625,6 +17866,8 @@ function fullRender(){
   window._inFullRender = true;
   try{ renderBVPH(); renderBC(); } finally { window._inFullRender = false; }
   renderTP(); renderTQ(); updateLockedUI();
+  try{ _computeSubStates(); _renderDeadlineBanner(); }catch(eDb){ console.warn('[nhắc hạn nộp]', eDb); }
+  try{ _markUnitOptions(); }catch(eMk){}
   // Nếu đang filter bảng thuốc → chỉ cập nhật data cache, không re-render (tránh xóa kết quả search)
   var _sd3 = document.getElementById('search-drug');
   var _hasSearch = _sd3 && (_sd3.value||'').trim();
