@@ -1196,7 +1196,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
     <div class="stat-row" style="grid-template-columns:repeat(5,1fr)">
       <div class="stat-card c-blue"><div class="stat-left"><div class="lbl">Tổng đơn vị</div><div class="sub">Đơn vị tham gia</div></div><div class="val" id="tq-total-units">—</div></div>
       <div class="stat-card c-green" style="cursor:pointer" onclick="_showTQUnitList('submitted')" title="Bấm xem danh sách"><div class="stat-left"><div class="lbl">Đã nộp BC</div><div class="sub" id="tq-pct">—</div></div><div class="val" id="tq-da">—</div></div>
-      <div class="stat-card c-red" style="cursor:pointer" onclick="_showTQUnitList('notsub')" title="Bấm xem danh sách"><div class="stat-left"><div class="lbl">Chưa nộp</div><div class="sub">Bấm xem danh sách</div></div><div class="val" id="tq-chua">—</div></div>
+      <div class="stat-card c-red" style="cursor:pointer" onclick="_showTQUnitList('notsub')" title="Bấm xem danh sách"><div class="stat-left"><div class="lbl">Chưa nộp</div><div class="sub" id="tq-chua-sub">Bấm xem danh sách</div></div><div class="val" id="tq-chua">—</div></div>
       <div class="stat-card c-amber" style="cursor:pointer" onclick="_showTQAlert('low')" title="Bấm xem chi tiết"><div class="stat-left"><div class="lbl">Cảnh báo tồn kho</div><div class="sub" id="tq-low-sub">Mặt hàng dưới ngưỡng</div></div><div class="val" id="tq-low">—</div></div>
       <div class="stat-card c-red" style="cursor:pointer" onclick="_showTQAlert('exp')" title="Bấm xem chi tiết"><div class="stat-left"><div class="lbl">Lô sắp hết hạn</div><div class="sub" id="tq-exp-sub">HSD &lt; 6 tháng — bấm xem</div></div><div class="val" id="tq-exp-count" style="color:var(--danger)">—</div></div>
     </div>
@@ -3054,20 +3054,54 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
       <div class="fg" style="margin-bottom:10px"><label for="info-unit-name">Tên đơn vị</label><input type="text" id="info-unit-name" aria-label="Tên đơn vị" value="" placeholder="Tên đơn vị" style="width:100%;background:#f1f5f9" readonly title="Tên đơn vị lấy từ cây tổ chức — admin đổi ở trang Tài khoản"></div>
       <div class="fg" style="margin-bottom:10px"><label for="info-address">Địa chỉ</label><input type="text" id="info-address" aria-label="Địa chỉ" value="" placeholder="Địa chỉ" style="width:100%"></div>
       <div class="fg" style="margin-bottom:12px"><label for="info-phone">Điện thoại</label><input type="text" id="info-phone" aria-label="Điện thoại" value="" placeholder="Số điện thoại" style="width:100%"></div>
-      <div style="font-size:11px;color:var(--muted);margin:-4px 0 10px">Địa chỉ và điện thoại in ở đầu mẫu báo cáo của đơn vị bạn.</div>
+      <div class="fg" style="margin-bottom:10px"><label for="info-place">Địa danh trên mẫu in <span style="font-weight:400;color:var(--muted)">(dòng "…, ngày … tháng … năm")</span></label><input type="text" id="info-place" placeholder="Để trống = tự lấy theo tên tỉnh / huyện" style="width:100%"></div>
+      <div style="font-size:12px;font-weight:700;margin:4px 0 6px">Người ký trên mẫu in <span style="font-weight:400;color:var(--muted)">(để trống = chừa chỗ ký tay)</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div class="fg"><label for="info-sign-lap" style="font-size:11px">Người lập báo cáo</label><input type="text" id="info-sign-lap" style="width:100%"></div>
+        <div class="fg"><label for="info-sign-duoc" style="font-size:11px">Trưởng khoa Dược</label><input type="text" id="info-sign-duoc" style="width:100%"></div>
+        <div class="fg"><label for="info-sign-tcl" style="font-size:11px">Bác sĩ phụ trách TCL</label><input type="text" id="info-sign-tcl" style="width:100%"></div>
+        <div class="fg"><label for="info-sign-tt" style="font-size:11px">Thủ trưởng đơn vị</label><input type="text" id="info-sign-tt" style="width:100%"></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin:-4px 0 10px">Các thông tin này in trên mẫu báo cáo của đơn vị bạn.</div>
       <button class="btn btn-primary btn-sm" id="btn-save-unit-info" onclick="saveUnitInfo()">Lưu thông tin</button>
     </div>
-    <div class="card" style="max-width:480px">
+    <div class="card admin-cd" id="card-thr" style="max-width:480px">
       <div class="card-title" style="color:var(--text)">Ngưỡng cảnh báo</div>
-      <div class="fg" style="margin-bottom:10px"><label for="threshold-low">Tồn kho thấp (viên) — hiện: <strong id="cur-low">200</strong></label><input type="number" id="threshold-low" aria-label="Ngưỡng tồn kho thấp" value="200" style="width:130px"></div>
+      <div class="fg" style="margin-bottom:6px"><label for="threshold-low-mode">Tồn kho thấp — cách tính</label>
+        <select id="threshold-low-mode" style="width:100%" onchange="_thrLowModeUI()">
+          <option value="months">Theo số tháng dùng còn lại (khuyên dùng)</option>
+          <option value="qty">Theo số viên (một số chung cho mọi thuốc)</option>
+        </select></div>
+      <div class="fg" id="thr-low-months-wrap" style="margin-bottom:10px"><label for="threshold-low-months">Tồn thấp khi đủ dùng dưới X tháng (theo AMC): <strong id="cur-low-months">2</strong></label><input type="number" id="threshold-low-months" min="0.5" max="12" step="0.5" value="2" style="width:80px"></div>
+      <div class="fg" style="margin-bottom:10px"><label for="threshold-low" id="thr-low-label">Tồn kho thấp (viên) — hiện: <strong id="cur-low">200</strong></label><input type="number" id="threshold-low" aria-label="Ngưỡng tồn kho thấp" value="200" style="width:130px"><div id="thr-low-hint" style="font-size:11px;color:var(--muted);margin-top:2px"></div></div>
       <div class="fg" style="margin-bottom:10px"><label for="threshold-dc-low">Đối chiếu SD — ngưỡng thấp (dưới X% = cảnh báo): <strong id="cur-dc-low">80</strong></label><input type="number" id="threshold-dc-low" min="1" max="99" value="80" style="width:80px"> %</div>
       <div class="fg" style="margin-bottom:10px"><label for="threshold-dc-high">Đối chiếu SD — ngưỡng cao (trên X% = cảnh báo): <strong id="cur-dc-high">120</strong></label><input type="number" id="threshold-dc-high" min="101" max="300" value="120" style="width:80px"> %</div>
       <div class="fg" style="margin-bottom:10px"><label for="threshold-warn-months">Cảnh báo AMC — dưới X tháng tồn (Gần hết): <strong id="cur-warn-months">3</strong></label><input type="number" id="threshold-warn-months" min="1" max="12" value="3" style="width:80px"> tháng</div>
       <div class="fg" style="margin-bottom:10px"><label for="threshold-danger-months">Cảnh báo AMC — dưới X tháng tồn (Nguy hiểm): <strong id="cur-danger-months">2</strong></label><input type="number" id="threshold-danger-months" min="1" max="12" value="2" style="width:80px"> tháng</div>
       <div class="fg" style="margin-bottom:10px"><label for="threshold-safety-stock">Safety stock (tháng AMC): <strong id="cur-safety-stock">1</strong></label><input type="number" id="threshold-safety-stock" min="0" max="6" value="1" step="0.5" style="width:80px"> tháng</div>
       <div class="fg" style="margin-bottom:12px"><label for="threshold-exp">Hạn dùng sắp hết (tháng) — hiện: <strong id="cur-exp">6</strong></label><input type="number" id="threshold-exp" aria-label="Ngưỡng hạn dùng sắp hết" value="6" style="width:130px"></div>
+      <div class="card-title" style="color:var(--text);margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">Tham số kế hoạch</div>
+      <div class="fg" style="margin-bottom:10px"><label for="threshold-keep-months">Đề xuất điều chuyển — nơi chuyển giữ lại đủ X tháng: <strong id="cur-keep-months">3</strong></label><input type="number" id="threshold-keep-months" min="1" max="12" step="0.5" value="3" style="width:80px"></div>
+      <div class="fg" style="margin-bottom:10px"><label for="threshold-short-months">Coi là "thiếu thuốc" khi đủ dùng dưới X tháng: <strong id="cur-short-months">1</strong></label><input type="number" id="threshold-short-months" min="0.5" max="6" step="0.5" value="1" style="width:80px"></div>
+      <div class="fg" style="margin-bottom:10px"><label for="threshold-order-months">Đề xuất đặt hàng — nhu cầu X tháng (+ safety stock): <strong id="cur-order-months">3</strong></label><input type="number" id="threshold-order-months" min="1" max="12" step="1" value="3" style="width:80px"></div>
+      <div class="fg" style="margin-bottom:12px"><label for="threshold-over-months">Bản đồ — "thừa" khi tồn trên X tháng: <strong id="cur-over-months">9</strong></label><input type="number" id="threshold-over-months" min="3" max="36" step="1" value="9" style="width:80px"></div>
       <div id="thr-note" style="display:none;font-size:12px;color:#92400e;background:#fffbeb;border-radius:8px;padding:8px 10px;margin-bottom:10px">🔒 Ngưỡng cảnh báo áp dụng chung toàn quốc — chỉ quản trị viên được thay đổi.</div>
       <button class="btn btn-primary btn-sm" id="btn-save-thr" onclick="saveSettings()">Lưu cài đặt</button>
+    </div>
+    <div class="card admin-cd" id="card-deadline" style="max-width:480px;margin-top:14px">
+      <div class="card-title" style="color:var(--text)">Hạn nộp báo cáo</div>
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13px;cursor:pointer"><input type="checkbox" id="dl-enabled"> Bật hạn nộp báo cáo</label>
+      <div class="fg" style="margin-bottom:10px"><label for="dl-month-day">Báo cáo tháng — hạn ngày (của tháng sau)</label><input type="number" id="dl-month-day" min="1" max="28" value="10" style="width:80px"></div>
+      <div class="fg" style="margin-bottom:10px"><label for="dl-quarter-day">Báo cáo quý (Hàng 1) — hạn ngày (của tháng đầu quý sau)</label><input type="number" id="dl-quarter-day" min="1" max="28" value="15" style="width:80px"></div>
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="dl-autolock" checked> Tự khoá báo cáo của đơn vị khi quá hạn</label>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Quá hạn: Tổng quan đánh dấu đơn vị chưa nộp; nếu bật tự khoá, đơn vị không sửa được kỳ đó nữa. Mở lại cho 1 đơn vị hoặc tất cả ở Báo cáo → 🔒 Khóa / Mở khóa (bỏ tích) hoặc nút "Mở để sửa".</div>
+      <button class="btn btn-primary btn-sm" onclick="saveDeadlineCfg()">Lưu hạn nộp</button>
+    </div>
+    <div class="card admin-cd" id="card-backup" style="max-width:480px;margin-top:14px">
+      <div class="card-title" style="color:var(--text)">Sao lưu dữ liệu</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Tải toàn bộ dữ liệu về 1 file Excel để lưu trữ: báo cáo thuốc, bệnh nhân, danh mục thuốc, cây đơn vị, phiếu điều chuyển, cấp phát. Không có mật khẩu tài khoản.</div>
+      <div class="fg" style="margin-bottom:10px"><label for="bk-year">Báo cáo của năm</label><select id="bk-year" style="width:140px"></select></div>
+      <button class="btn btn-primary btn-sm" id="btn-backup" onclick="downloadBackup()">⬇ Tải file sao lưu</button>
     </div>
   </div>
 </div>
@@ -4005,13 +4039,11 @@ async function _loadThresholdFromCloud(){
     if(r.ok){
       var d = await r.json();
       if(d.length && d[0].value && typeof d[0].value === 'object'){
-        if(typeof d[0].value.low === 'number') threshold.low = d[0].value.low;
-        if(typeof d[0].value.expMonths === 'number') threshold.expMonths = d[0].value.expMonths;
-        if(typeof d[0].value.warnMonths === 'number') threshold.warnMonths = d[0].value.warnMonths;
-        if(typeof d[0].value.dangerMonths === 'number') threshold.dangerMonths = d[0].value.dangerMonths;
-        if(typeof d[0].value.safetyStockMonths === 'number') threshold.safetyStockMonths = d[0].value.safetyStockMonths;
-        if(typeof d[0].value.dcLow  === 'number') threshold.dcLow  = d[0].value.dcLow;
-        if(typeof d[0].value.dcHigh === 'number') threshold.dcHigh = d[0].value.dcHigh;
+        var _tv = d[0].value;
+        Object.keys(_THRESHOLD_DEFAULT).forEach(function(k){
+          if(typeof _tv[k] === typeof _THRESHOLD_DEFAULT[k]) threshold[k] = _tv[k];
+        });
+        if(typeof _VM !== 'undefined' && _VM && !_VM._overMUser) _VM.overM = threshold.overMonths;
         _applyThresholdToUI();
       }
     }
@@ -4026,6 +4058,8 @@ function _applyThresholdToUI(){
   try{ if(typeof renderTQ==='function') renderTQ(); }catch(e){}
 }
 function _thrFillUI(){
+  var _lm=document.getElementById('threshold-low-mode'); if(_lm) _lm.value = threshold.lowMode==='qty' ? 'qty' : 'months';
+  try{ _thrLowModeUI(); }catch(e){}
   // [id ô nhập, id nhãn "hiện:", khoá trong threshold, mặc định]
   _THR_FIELDS.forEach(function(f){
     var v = (threshold[f[2]] != null) ? threshold[f[2]] : f[3];
@@ -4041,14 +4075,97 @@ var _THR_FIELDS = [
   ['threshold-warn-months',    'cur-warn-months',    'warnMonths',        3],
   ['threshold-danger-months',  'cur-danger-months',  'dangerMonths',      2],
   ['threshold-safety-stock',   'cur-safety-stock',   'safetyStockMonths', 1],
-  ['threshold-exp',            'cur-exp',            'expMonths',         6]
+  ['threshold-exp',            'cur-exp',            'expMonths',         6],
+  ['threshold-low-months',     'cur-low-months',     'lowMonths',         2],
+  ['threshold-keep-months',    'cur-keep-months',    'keepMonths',        3],
+  ['threshold-short-months',   'cur-short-months',   'shortMonths',       1],
+  ['threshold-order-months',   'cur-order-months',   'orderMonths',       3],
+  ['threshold-over-months',    'cur-over-months',    'overMonths',        9]
 ];
+// Hiện/ẩn ô theo cách tính tồn thấp
+function _thrLowModeUI(){
+  var m=(document.getElementById('threshold-low-mode')||{}).value||'months';
+  var w=document.getElementById('thr-low-months-wrap'); if(w) w.style.display = m==='months' ? '' : 'none';
+  var hn=document.getElementById('thr-low-hint'); if(hn) hn.textContent = m==='months' ? 'Dùng khi thuốc chưa có số liệu sử dụng (chưa tính được AMC).' : '';
+}
 // Ngưỡng dùng chung toàn quốc → chỉ admin sửa; tài khoản khác xem (ô bị khoá)
 function _thrLockUI(){
   var adm = !!(currentUser && currentUser.role==='admin');
   _THR_FIELDS.forEach(function(f){ var inp=document.getElementById(f[0]); if(inp) inp.disabled = !adm; });
+  var _lm=document.getElementById('threshold-low-mode'); if(_lm) _lm.disabled = !adm;
   var bt=document.getElementById('btn-save-thr'); if(bt) bt.style.display = adm ? '' : 'none';
   var nt=document.getElementById('thr-note'); if(nt) nt.style.display = adm ? 'none' : '';
+  // Cài đặt chung (ngưỡng, tham số kế hoạch, hạn nộp, sao lưu) chỉ admin thấy; đơn vị chỉ thấy Thông tin đơn vị
+  document.querySelectorAll('#page-cd .admin-cd').forEach(function(c){ c.style.display = adm ? '' : 'none'; });
+}
+
+// ── Cài đặt hạn nộp (admin) ──
+function _fillDeadlineUI(){
+  var c = DEADLINE_CFG;
+  var e=document.getElementById('dl-enabled');     if(e) e.checked = !!c.enabled;
+  var m=document.getElementById('dl-month-day');   if(m) m.value = c.monthDay;
+  var q=document.getElementById('dl-quarter-day'); if(q) q.value = c.quarterDay;
+  var a=document.getElementById('dl-autolock');    if(a) a.checked = c.autoLock !== false;
+}
+async function saveDeadlineCfg(){
+  if(!(currentUser && currentUser.role==='admin')){ toast('🔒 Chỉ quản trị viên được đặt hạn nộp','var(--warning)'); return; }
+  if(!_supaOnline){ toast('⚠ Đang offline — chưa lưu được','var(--danger)'); return; }
+  var md=parseInt(document.getElementById('dl-month-day').value,10), qd=parseInt(document.getElementById('dl-quarter-day').value,10);
+  if(!(md>=1 && md<=28) || !(qd>=1 && qd<=28)){ toast('⚠ Ngày hạn nộp phải từ 1 đến 28','var(--danger)'); return; }
+  var v={enabled:document.getElementById('dl-enabled').checked, monthDay:md, quarterDay:qd, autoLock:document.getElementById('dl-autolock').checked};
+  try{
+    await _tkSettingsPut('report_deadline', v);
+    DEADLINE_CFG = Object.assign({}, DEADLINE_DEFAULT, v); _dlLoadedAt = Date.now();
+    try{ renderTQ(); }catch(e){}
+    toast(v.enabled ? ('✓ Đã lưu hạn nộp: tháng → ngày '+md+' tháng sau; quý → ngày '+qd+(v.autoLock?' · tự khoá khi quá hạn':'')) : '✓ Đã tắt hạn nộp báo cáo','var(--success)');
+  }catch(e){ toast('❌ Chưa lưu được: '+(e.message||e),'var(--danger)'); }
+}
+
+// ── SAO LƯU DỮ LIỆU RA EXCEL (admin) ──
+function _fillBackupYears(){
+  var sel=document.getElementById('bk-year'); if(!sel || sel.options.length) return;
+  var y=new Date().getFullYear();
+  for(var i=0;i<6;i++){ var o=document.createElement('option'); o.value=String(y-i); o.textContent=String(y-i); sel.appendChild(o); }
+}
+async function _bkFetchAll(path){
+  // Đọc hết các trang (lớp fetch đã phân trang theo Range); trả mảng dòng
+  var r = await fetch(SUPA_URL+'/rest/v1/'+path, {headers:_supaHdr, cache:'no-store'});
+  if(!r.ok){ var t=await r.text().catch(function(){return '';}); throw new Error(path.split('?')[0]+': HTTP '+r.status+' '+t.slice(0,60)); }
+  return await r.json();
+}
+async function downloadBackup(){
+  if(!(currentUser && currentUser.role==='admin')){ toast('🔒 Chỉ quản trị viên được sao lưu','var(--warning)'); return; }
+  if(!_supaOnline){ toast('⚠ Đang offline','var(--danger)'); return; }
+  if(typeof XLSX==='undefined'){ toast('⚠ Chưa tải được thư viện Excel, thử lại sau','var(--warning)'); return; }
+  var y=(document.getElementById('bk-year')||{}).value || String(new Date().getFullYear());
+  var bt=document.getElementById('btn-backup'); if(bt){ bt.disabled=true; bt.textContent='⏳ Đang tải dữ liệu...'; }
+  try{
+    var unitName=function(id){ return unitNameById(id) || id || ''; };
+    var reps = await _bkFetchAll('reports?period=like.'+encodeURIComponent(y)+'-*&order=period,unit_id,drug,lot&select=period,unit_id,phan_loai,drug,lot,exp,open,tinh,ntk,dc,n4,sd,dc2,dc3,hh,locked');
+    var units = await _bkFetchAll('units?select=id,slug,name,parent_id,utype,mien,tinh,tinh_cu,path,status&order=path');
+    var cat = await _bkFetchAll('catalog?order=drug,lot');
+    var tr = await _bkFetchAll('transfers?period=like.'+encodeURIComponent(y)+'-*&order=period&select=*');
+    var pts = []; try{ pts = await _bkFetchAll('patients?select=*'); }catch(eP){ pts = (typeof BN_DATA!=='undefined') ? BN_DATA : []; }
+    var cp = []; try{ cp = await _bkFetchAll('cap_phat?select=*'); }catch(eC){}
+    var wb=XLSX.utils.book_new();
+    var add=function(name, head, rows){ var ws=XLSX.utils.aoa_to_sheet([head].concat(rows)); XLSX.utils.book_append_sheet(wb, ws, name); };
+    add('Bao cao '+y, ['Kỳ','Đơn vị','Phân loại','Tên thuốc','Số lô','Hạn dùng','Tồn đầu','Mua về/Tỉnh cấp','Nhập nguồn khác','Nhập ĐC','Thừa','Sử dụng','Xuất TCL/ĐC','Xuất tỉnh khác','Hỏng/HH','Tồn cuối','Đã khoá'],
+      reps.map(function(r){ var c=calcRow(r); return [r.period, unitName(r.unit_id), r.phan_loai==='h1'?'Hàng 1':'Hàng 2', r.drug, r.lot, r.exp, r.t0, r.n1, r.n2, r.n3, r.n4||0, r.x1, r.x2, r.x3, r.x4, c.tonCuoi, r.locked?'x':'']; }));
+    add('Don vi', ['Tên đơn vị','Mã','Cấp','Miền','Tỉnh','Tỉnh cũ','Đơn vị cha','Trạng thái','ID'],
+      units.map(function(u){ return [u.name, u.slug, u.utype, u.mien||'', u.tinh||'', u.tinh_cu||'', unitName(u.parent_id), u.status||'', u.id]; }));
+    var catKeys = cat.length ? Object.keys(cat[0]) : ['drug','lot','exp'];
+    add('Danh muc thuoc', catKeys, cat.map(function(c){ return catKeys.map(function(k){ var v=c[k]; return (v && typeof v==='object') ? JSON.stringify(v) : v; }); }));
+    var trKeys = ['period','type','status','from_unit','to_unit','drug','lot','exp','qty','transfer_date','receive_date'];
+    add('Dieu chuyen '+y, ['Kỳ','Loại','Trạng thái','Nơi gửi','Nơi nhận','Tên thuốc','Số lô','Hạn dùng','Số lượng','Ngày chuyển','Ngày nhận'],
+      tr.filter(function(t){ return t.type!=='cancel_notif'; }).map(function(t){ return trKeys.map(function(k){ return t[k]==null?'':t[k]; }); }));
+    var ptKeys = pts.length ? Object.keys(pts[0]) : ['id','unit','name'];
+    add('Benh nhan', ptKeys, pts.map(function(b){ return ptKeys.map(function(k){ var v=b[k]; return (v && typeof v==='object') ? JSON.stringify(v) : v; }); }));
+    if(cp.length){ var cpKeys=Object.keys(cp[0]); add('Cap phat', cpKeys, cp.map(function(c){ return cpKeys.map(function(k){ var v=c[k]; return (v && typeof v==='object') ? JSON.stringify(v) : v; }); })); }
+    var d=new Date(), stamp=d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2);
+    XLSX.writeFile(wb, 'SaoLuu_ThuocLaoTW_'+y+'_'+stamp+'.xlsx');
+    toast('✓ Đã tải file sao lưu: '+reps.length+' dòng báo cáo, '+units.length+' đơn vị, '+pts.length+' bệnh nhân','var(--success)');
+  }catch(e){ toast('❌ Sao lưu lỗi: '+(e.message||e),'var(--danger)'); }
+  finally{ if(bt){ bt.disabled=false; bt.textContent='⬇ Tải file sao lưu'; } }
 }
 
 // ── THÔNG TIN ĐƠN VỊ (địa chỉ, điện thoại) — settings.key='unit_info' = {unit_id: {address, phone}}
@@ -4069,19 +4186,23 @@ function _myInfoUnitId(){ return (currentUser && (currentUser.unitId || _uid(cur
 function _fillUnitInfoUI(){
   var uid=_myInfoUnitId(), inf=(uid && UNIT_INFO[uid]) || {};
   var n=document.getElementById('info-unit-name'); if(n) n.value = uid ? (_displayUnit(unitNameById(uid)) || (currentUser&&currentUser.unit) || '') : '';
-  var a=document.getElementById('info-address'); if(a) a.value = inf.address || '';
-  var p=document.getElementById('info-phone');   if(p) p.value = inf.phone || '';
+  _UNIT_INFO_FIELDS.forEach(function(f){ var e=document.getElementById(f[0]); if(e) e.value = inf[f[1]] || ''; });
 }
+// [id ô nhập, khoá lưu, độ dài tối đa]
+var _UNIT_INFO_FIELDS = [
+  ['info-address','address',200], ['info-phone','phone',40], ['info-place','place',60],
+  ['info-sign-lap','signLap',60], ['info-sign-duoc','signDuoc',60], ['info-sign-tcl','signTCL',60], ['info-sign-tt','signTT',60]
+];
 async function saveUnitInfo(){
   if(!_supaOnline){ toast('⚠ Đang offline — chưa lưu được','var(--danger)'); return; }
   var uid=_myInfoUnitId(); if(!uid){ toast('⚠ Không xác định được đơn vị của tài khoản','var(--danger)'); return; }
-  var address=(document.getElementById('info-address').value||'').trim().slice(0,200);
-  var phone=(document.getElementById('info-phone').value||'').trim().slice(0,40);
+  var rec={}, any=false;
+  _UNIT_INFO_FIELDS.forEach(function(f){ var e=document.getElementById(f[0]); var v=e?String(e.value||'').trim().slice(0,f[2]):''; if(v){ rec[f[1]]=v; any=true; } });
   var bt=document.getElementById('btn-save-unit-info'); if(bt) bt.disabled=true;
   try{
     await _loadUnitInfo();                     // lấy bản mới nhất trước khi gộp
     var next=Object.assign({}, UNIT_INFO);
-    if(address || phone) next[uid]={address:address, phone:phone}; else delete next[uid];
+    if(any) next[uid]=rec; else delete next[uid];
     await _saveSettingsDiff('unit_info', next);
     UNIT_INFO=next;
     toast('✓ Đã lưu thông tin đơn vị — sẽ in ở đầu mẫu báo cáo','var(--success)');
@@ -4096,7 +4217,7 @@ async function _saveThresholdToCloud(){
     var hd = Object.assign({}, _supaHdr, {'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'});
     var r = await fetch(SUPA_URL+'/rest/v1/settings?on_conflict=key',{
       method:'POST', headers:hd,
-      body:JSON.stringify([{key:'threshold', value:{low:threshold.low, expMonths:threshold.expMonths, warnMonths:threshold.warnMonths, dangerMonths:threshold.dangerMonths, safetyStockMonths:threshold.safetyStockMonths, dcLow:threshold.dcLow, dcHigh:threshold.dcHigh}}])
+      body:JSON.stringify([{key:'threshold', value:(function(){ var v={}; Object.keys(_THRESHOLD_DEFAULT).forEach(function(k){ v[k]=threshold[k]; }); return v; })()}])
     });
     return r.ok;
   }catch(e){ console.warn('[_saveThresholdToCloud] lỗi:', e); return false; }
@@ -4144,6 +4265,7 @@ async function _autoLoadOnLogin(){
   try{
     try{ await _loadAccountsFromCloud(); }catch(eAcc){}
     try{ await _loadUnitInfo(); }catch(eUi){}
+    try{ await _loadDeadlineCfg(true); }catch(eDl){}
     // settings: noUsagePeriods + deletedRows (song song)
     var _blobKeys = ['noUsagePeriods','deletedRows'];
     var _blobRes = await Promise.all(_blobKeys.map(function(k){
@@ -4632,6 +4754,8 @@ async function loadFromSupabase(periodKey, silent){
         _snapBlob('lockedPeriods', lockedPeriods);
       }
     }
+    // Hạn nộp: kỳ đã quá hạn → tự khoá báo cáo của đơn vị (không chặn luồng nạp)
+    try{ if(p.type !== 'year') _applyDeadlineAutoLock(periodKey).catch(function(e){ console.warn('[hạn nộp]', e); }); }catch(eDl){}
 
     // catalog — đã fetch song song ở trên (chỉ khi !silent), giờ chỉ xử lý kết quả
     if(!silent && crParallel){
@@ -5278,7 +5402,48 @@ var SUBMITTED=[];  // không cứng — trạng thái nộp tính từ dữ li�
 // Tài khoản: tải từ Supabase (RPC list_accounts) — không viết cứng trong code
 var ACCOUNTS=[];
 
-var threshold={low:200,expMonths:6,warnMonths:3,dangerMonths:2,safetyStockMonths:1,dcLow:80,dcHigh:120};
+var threshold={low:200,expMonths:6,warnMonths:3,dangerMonths:2,safetyStockMonths:1,dcLow:80,dcHigh:120,
+  // Tham số kế hoạch (trước đây viết cứng trong code: 3 / 1 / 3 / 9)
+  keepMonths:3,      // đề xuất điều chuyển: nơi chuyển giữ lại đủ X tháng nhu cầu
+  shortMonths:1,     // "thiếu" khi đủ dùng dưới X tháng
+  orderMonths:3,     // đề xuất đặt hàng: nhu cầu X tháng (+ safety stock)
+  overMonths:9,      // bản đồ: "thừa" khi tồn trên X tháng
+  // Tồn kho thấp: 'months' = đủ dùng dưới lowMonths tháng (theo AMC); 'qty' = dưới `low` viên
+  lowMode:'months', lowMonths:2};
+var _THRESHOLD_DEFAULT = JSON.parse(JSON.stringify(threshold));
+// ── TỒN KHO THẤP ──────────────────────────────────────────────────────────
+// Chế độ 'months' (mặc định): thấp khi TỔNG tồn của thuốc trong phạm vi (đơn vị / nhánh) <
+//   lowMonths × lượng dùng TB/tháng = (sử dụng trong kỳ đang xem của CHÍNH phạm vi đó) ÷ số tháng
+//   của kỳ. Không dùng _calcAMC vì bộ nhớ lịch sử của nó gộp chung kho riêng với toàn phạm vi
+//   (→ tính nhầm lượng dùng cả nước cho 1 đơn vị). Thuốc chưa có sử dụng trong kỳ → ngưỡng số viên.
+// Chế độ 'qty': thấp khi tồn < `low` viên (như bản cũ).
+function _periodMonths(pk){ pk=String(pk||''); return /-Q[1-4]$/.test(pk) ? 3 : (/^\d{4}$/.test(pk) || pk.indexOf('__year__')>=0 ? 12 : 1); }
+function _lowMonthlyUse(drug, amcUnit, periodKey, curUse){
+  return curUse > 0 ? curUse / _periodMonths(periodKey) : 0;
+}
+function _isLowQty(qty, drug, amcUnit, periodKey, curUse){
+  if(threshold.lowMode !== 'qty'){
+    var use = _lowMonthlyUse(drug, amcUnit, periodKey, curUse||0);
+    if(use > 0) return qty < (threshold.lowMonths||2) * use;
+  }
+  return qty < threshold.low;
+}
+// Gom tồn + sử dụng theo (đơn vị, thuốc, kỳ) cho các bảng liệt kê từng lô
+function _lowGroup(rows){
+  var g = {};
+  (rows||[]).forEach(function(r){
+    var k = (r.unitId||r.unit||'')+'||'+r.drug+'||'+(r.bcMonth||'');
+    var o = g[k] || (g[k] = {ton:0, use:0});
+    o.ton += calcRow(r).tonCuoi; o.use += _num(r.x1);
+  });
+  return g;
+}
+function _isLowRowIn(g, r, amcUnit){
+  var o = g[(r.unitId||r.unit||'')+'||'+r.drug+'||'+(r.bcMonth||'')] || {ton:calcRow(r).tonCuoi, use:_num(r.x1)};
+  return _isLowQty(o.ton, r.drug, amcUnit, r.bcMonth || _currentPeriodKey(), o.use);
+}
+// Nhãn ngưỡng tồn thấp để hiện trên giao diện
+function _lowLabel(){ return threshold.lowMode==='qty' ? ('dưới '+threshold.low+' viên') : ('đủ dùng dưới '+(threshold.lowMonths||2)+' tháng'); }
 
 var bvphData=[];  // Dữ liệu kho chính BVPH — tải từ cloud (Supabase)
 var bcData=[];    // Dữ liệu 22 đơn vị — tải từ cloud (Supabase)
@@ -5552,6 +5717,15 @@ function showLockManager(){
   sub.style.cssText='font-size:12px;color:#666;margin-bottom:12px';
   sub.textContent='Tích chọn đơn vị muốn khóa. Đơn vị được tích = khóa, bỏ tích = mở khóa. Bấm "Áp dụng" để lưu.';
   box.appendChild(sub);
+  var _dl = _deadlineOf(periodKey), _dlPast = _deadlinePassed(periodKey);
+  if(_dl){
+    var dlLine=document.createElement('div');
+    dlLine.style.cssText='font-size:12px;margin:-4px 0 12px;padding:7px 12px;border-radius:10px;'+(_dlPast?'background:#fff7ed;color:#9a3412':'background:#f0f9ff;color:#075985');
+    dlLine.textContent = '⏰ Hạn nộp kỳ này: '+_fmtDl(_dl)+(_dlPast
+      ? ' — ĐÃ QUÁ HẠN'+(DEADLINE_CFG.autoLock?'. Đơn vị chưa được mở lại sẽ tự khoá khi mở kỳ; bỏ tích = mở lại cho đơn vị đó.':'')
+      : '');
+    box.appendChild(dlLine);
+  }
 
   // Hàng "Chọn toàn bộ"
   var allRow=document.createElement('label');
@@ -5569,12 +5743,14 @@ function showLockManager(){
   UNITS.forEach(function(u){
     var row=document.createElement('label');
     row.style.cssText='display:flex;align-items:center;gap:9px;padding:8px 12px;border:1px solid #e2e8f0;border-radius:18px;cursor:pointer;font-size:13px';
-    var chk=document.createElement('input'); chk.type='checkbox'; chk.checked=_isLocked(u); chk.dataset.unit=u;
+    var chk=document.createElement('input'); chk.type='checkbox'; chk.checked=_isLocked(u); chk.dataset.unit=u; chk.dataset.was=chk.checked?'1':'';
     var lockedNow=_isLocked(u);
     var nameSpan=document.createElement('span'); nameSpan.style.cssText='flex:1'; nameSpan.textContent=(u===BVPH?'🏥 ':'')+_displayUnit(u);
     var badge=document.createElement('span');
     badge.style.cssText='font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;'+(lockedNow?'background:#fdecec;color:#c0392b':'background:#eafaf0;color:#1e7e44');
     badge.textContent=lockedNow?'🔒 Đang khóa':'🔓 Đang mở';
+    if(!lockedNow && _dlPast && DEADLINE_CFG.autoLock && !_dlIsOpened(periodKey, u)){ badge.textContent='⏰ Quá hạn — sẽ tự khoá'; badge.style.background='#fff7ed'; badge.style.color='#9a3412'; }
+    else if(!lockedNow && _dlPast && _dlIsOpened(periodKey, u)){ badge.textContent='🔓 Đã mở lại sau hạn'; }
     // Cập nhật nhãn trạng thái theo ô tích (KHÔNG đụng allChk)
     chk._updBadge=function(){
       badge.textContent=chk.checked?'🔒 Đang khóa':'🔓 Đang mở';
@@ -5691,6 +5867,17 @@ function showLockManager(){
     });
     if(checks.every(function(c){return c.checked;})) lockedPeriods[periodKey]=true;
     else delete lockedPeriods[periodKey];
+    // Sau hạn nộp: đơn vị bỏ tích = admin MỞ LẠI → nhớ để không tự khoá lại; tích lại = bỏ nhớ
+    // Chỉ tính đơn vị ĐANG KHOÁ bị bỏ tích (= mở lại); đơn vị chưa từng khoá giữ nguyên quy tắc tự khoá.
+    var _dlCh = false;
+    if(_deadlinePassed(periodKey)){
+      checks.forEach(function(chk){
+        if(chk.dataset.was && !chk.checked) _dlCh = _dlMarkOpen(periodKey, chk.dataset.unit, true) || _dlCh;
+        else if(chk.checked) _dlCh = _dlMarkOpen(periodKey, chk.dataset.unit, false) || _dlCh;
+      });
+      if(checks.some(function(c){ return c.checked; })) _dlCh = _dlMarkOpen(periodKey, '*', false) || _dlCh;
+    }
+    if(_dlCh) await _dlSaveOpen();
 
     saveLocalCache();
     btnO.disabled=true; btnO.textContent='Đang lưu...';
@@ -5703,11 +5890,109 @@ function showLockManager(){
       toast('✓ Đã lưu khóa lên cloud: khóa thêm '+lockedCount+', mở '+unlockedCount+' đơn vị','#1a5276');
     }
   };
+  if(_dlPast){
+    var btnDlAll=document.createElement('button');
+    var _allOpen = _dlIsOpened(periodKey, null);
+    btnDlAll.textContent = _allOpen ? '⏰ Bật lại tự khoá kỳ này' : '🔓 Mở lại tất cả sau hạn';
+    btnDlAll.title = _allOpen ? 'Đơn vị chưa nộp sẽ lại bị tự khoá khi mở kỳ' : 'Gỡ khoá mọi đơn vị và không tự khoá kỳ này nữa';
+    btnDlAll.style.cssText='padding:9px 16px;border:1px solid #f59e0b;background:#fffbeb;color:#92400e;border-radius:18px;cursor:pointer;font-size:13px;font-weight:700';
+    btnDlAll.onclick=async function(){
+      if(!_mustOnline()) return;
+      btnDlAll.disabled=true;
+      if(_allOpen){ _dlMarkOpen(periodKey, '*', false); }
+      else {
+        _dlMarkOpen(periodKey, '*', true);
+        delete lockedPeriods[periodKey];
+        // gỡ MỌI khoá của kỳ (kể cả đơn vị ngoài phạm vi đang xem)
+        Object.keys(lockedPeriods).forEach(function(k){
+          if(k.indexOf(periodKey+'_')!==0) return;
+          var un = k.slice(periodKey.length+1);
+          try{ _sendUnlockNotification(periodKey, un==='bvph' ? BVPH : un); }catch(e){}
+          delete lockedPeriods[k];
+        });
+        bvphData.concat(bcData).forEach(function(r){ if(r.bcMonth===periodKey){ r.locked=false; r.openLocked=false; } });
+        await _saveLockedPeriodsToCloud();
+      }
+      await _dlSaveOpen();
+      renderBVPH(); renderBC(); renderTQ(); updateSaveBtnUI(); updateLockedUI();
+      ov.remove();
+      toast(_allOpen ? '⏰ Đã bật lại tự khoá cho kỳ '+_keyToLabel(periodKey) : '🔓 Đã mở lại tất cả đơn vị kỳ '+_keyToLabel(periodKey)+' (không tự khoá nữa)','#1a5276');
+    };
+    btnRow.appendChild(btnDlAll);
+  }
   btnRow.appendChild(btnC); btnRow.appendChild(btnSyncLock); btnRow.appendChild(btnO);
   box.appendChild(btnRow);
 
   ov.appendChild(box); document.body.appendChild(ov);
   ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
+}
+
+// ══ HẠN NỘP BÁO CÁO + TỰ KHOÁ KỲ ═══════════════════════════════════════════
+// settings.report_deadline = {enabled, monthDay, quarterDay, autoLock}   (chỉ admin ghi — sql/09)
+// settings.deadline_open   = {kỳ: {'*':true | <tên đơn vị>:true}}          (admin mở lại sau hạn)
+// Quá hạn: khi đơn vị mở kỳ đó, app GHI KHOÁ THẬT (lockedPeriods kỳ_đơnvị) như admin khoá tay
+// → mọi chỗ kiểm tra khoá hiện có đều áp dụng. Admin mở lại (Khóa/Mở khóa hoặc "Mở để sửa")
+// → ghi vào deadline_open để không bị khoá lại.
+var DEADLINE_DEFAULT = {enabled:false, monthDay:10, quarterDay:15, autoLock:true};
+var DEADLINE_CFG = Object.assign({}, DEADLINE_DEFAULT);
+var DEADLINE_OPEN = {};
+var _dlLoadedAt = 0;
+async function _loadDeadlineCfg(force){
+  if(!_supaOnline) return;
+  if(!force && Date.now() - _dlLoadedAt < 60000) return;
+  try{
+    var r = await fetch(SUPA_URL+'/rest/v1/settings?key=in.(report_deadline,deadline_open)&select=key,value',{headers:_supaHdr,cache:'no-store'});
+    if(!r.ok) return;
+    var d = await r.json(), gotOpen = false;
+    (d||[]).forEach(function(x){
+      if(x.key==='report_deadline' && x.value && typeof x.value==='object') DEADLINE_CFG = Object.assign({}, DEADLINE_DEFAULT, x.value);
+      if(x.key==='deadline_open' && x.value && typeof x.value==='object'){ DEADLINE_OPEN = x.value; gotOpen = true; }
+    });
+    if(!gotOpen) DEADLINE_OPEN = {};
+    _snapBlob('deadline_open', DEADLINE_OPEN);
+    _dlLoadedAt = Date.now();
+  }catch(e){ console.warn('[hạn nộp] đọc cấu hình lỗi', e); }
+}
+// Hạn nộp của 1 kỳ: tháng → ngày monthDay tháng sau; quý → ngày quarterDay tháng đầu quý sau
+function _deadlineOf(pk){
+  if(!DEADLINE_CFG.enabled) return null;
+  var m = /^(\d{4})-(\d{2})$/.exec(String(pk||''));
+  if(m) return new Date(+m[1], +m[2], Math.min(28, Math.max(1, +DEADLINE_CFG.monthDay||10)), 23, 59, 59);
+  var q = /^(\d{4})-Q([1-4])$/.exec(String(pk||''));
+  if(q) return new Date(+q[1], (+q[2])*3, Math.min(28, Math.max(1, +DEADLINE_CFG.quarterDay||15)), 23, 59, 59);
+  return null;
+}
+function _deadlinePassed(pk){ var d=_deadlineOf(pk); return !!(d && Date.now() > d.getTime()); }
+function _fmtDl(d){ return d ? ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear() : ''; }
+function _dlIsOpened(pk, unitName){ var o = DEADLINE_OPEN[pk] || {}; return !!(o['*'] || (unitName && o[unitName])); }
+// Admin mở / khoá lại đơn vị sau hạn → nhớ để không tự khoá lại. unitName '*' = tất cả.
+function _dlMarkOpen(pk, unitName, open){
+  if(!_deadlinePassed(pk)) return false;           // chưa tới hạn: không cần nhớ
+  var o = Object.assign({}, DEADLINE_OPEN[pk] || {});
+  if(open) o[unitName] = true; else delete o[unitName];
+  if(Object.keys(o).length) DEADLINE_OPEN[pk] = o; else delete DEADLINE_OPEN[pk];
+  return true;
+}
+async function _dlSaveOpen(){
+  try{ await _saveSettingsDiff('deadline_open', DEADLINE_OPEN); return true; }
+  catch(e){ toast('❌ Chưa lưu được danh sách mở lại sau hạn: '+String(e&&e.message||e).slice(0,80),'var(--danger)'); return false; }
+}
+// Gọi sau khi nạp kỳ: đơn vị quá hạn mà chưa được mở lại → ghi khoá
+async function _applyDeadlineAutoLock(pk){
+  if(!currentUser || currentUser.role==='admin' || !pk) return;
+  await _loadDeadlineCfg();
+  if(!DEADLINE_CFG.enabled || !DEADLINE_CFG.autoLock || !_deadlinePassed(pk)) return;
+  var isB = currentUser.role==='bvph';
+  var key = pk + '_' + (isB ? 'bvph' : currentUser.unit);
+  if(lockedPeriods[pk] || lockedPeriods[key]) return;
+  if(_dlIsOpened(pk, currentUser.unit)) return;
+  lockedPeriods[key] = true;
+  (isB ? bvphData : bvphData.concat(bcData)).forEach(function(r){
+    if(r.bcMonth===pk && (isB || r.unit===currentUser.unit || r.unitId===currentUser.unitId)){ r.locked=true; r.editing=false; r.openLocked=true; }
+  });
+  var ok = await _saveLockedPeriodsToCloud();
+  try{ renderBVPH(); renderBC(); updateSaveBtnUI(); updateLockedUI(); }catch(e){}
+  if(ok) toast('🔒 Kỳ '+_keyToLabel(pk)+' đã quá hạn nộp ('+_fmtDl(_deadlineOf(pk))+') — báo cáo tự khoá. Cần sửa: liên hệ quản trị viên mở lại.','var(--warning)');
 }
 
 function isCurrentPeriodLocked(){
@@ -5970,6 +6255,15 @@ function _catApplyDrugMeta(drug, pl, dvt){
 function renderCatalog(){
   var tbody=document.getElementById('catalog-body');
   if(!tbody) return;
+  // Tồn thấp xét theo TỔNG thuốc (mọi lô) — nhớ tạm theo thuốc trong lần vẽ này
+  var _catMemo = {};
+  var _catIsLow = function(drug){
+    if(drug in _catMemo) return _catMemo[drug];
+    var tot = 0, use = 0, pk = _currentPeriodKey();
+    (typeof deduped!=='undefined' ? deduped : []).forEach(function(x){ if(x.drug===drug){ var q=getLotCityFinal(x.drug, x.lot, x.exp); if(q>0) tot+=q; } });
+    bvphData.concat(bcData).forEach(function(r){ if(!r._agg && r.drug===drug && r.bcMonth===pk) use += _num(r.x1); });
+    return (_catMemo[drug] = _isLowQty(tot, drug, '__all__', pk, use));
+  };
   tbody.innerHTML='';
   if(!catalogData.length){
     tbody.innerHTML='<tr><td colspan="9" style="color:var(--muted);font-style:normal;padding:12px;text-align:center">Chưa có danh mục thuốc. Admin thêm tại đây.</td></tr>';
@@ -6009,7 +6303,7 @@ function renderCatalog(){
       var cityQty=getLotCityFinal(r.drug, r.lot, r.exp);
       var qtyDisp = cityQty>=0 ? cityQty.toLocaleString()+' viên' : '—';
       var qtyStyle = cityQty===0 ? 'color:var(--danger);font-weight:700'
-                   : (cityQty>0&&cityQty<threshold.low ? 'color:var(--warning);font-weight:700'
+                   : (cityQty>0&&_catIsLow(r.drug) ? 'color:var(--warning);font-weight:700'
                    : 'color:var(--success)');
       var rowBg = (st.label==='Hết hạn'||cityQty===0) ? 'background:#fff8f8' : '';
 
@@ -7461,7 +7755,7 @@ function nav(page,el){
   if(page==='bc'){renderBVPH();renderBC();}
   if(page==='thuoc'){renderCatalog();renderDrugTable();}
   if(page==='tk')renderAccounts();
-  if(page==='cd'){ _thrFillUI(); _fillUnitInfoUI(); _loadUnitInfo().then(_fillUnitInfoUI); }
+  if(page==='cd'){ _thrFillUI(); _fillUnitInfoUI(); _loadUnitInfo().then(_fillUnitInfoUI); _fillBackupYears(); _loadDeadlineCfg(true).then(_fillDeadlineUI); }
   if(page==='bn'){ renderPatientPage(); }
 }
 
@@ -8117,6 +8411,14 @@ function renderTQ(){
   var _tEl = document.getElementById('tq-total-units'); if(_tEl) _tEl.textContent = _repUnits.length;
   document.getElementById('tq-da').textContent = submitted.length;
   document.getElementById('tq-chua').textContent = notSub.length;
+  // Hạn nộp của kỳ đang xem (Cài đặt → Hạn nộp báo cáo)
+  var _chSub = document.getElementById('tq-chua-sub');
+  if(_chSub){
+    var _dlTQ = (tqP.type !== 'year') ? _deadlineOf(tqP.val) : null;
+    if(_dlTQ && _deadlinePassed(tqP.val) && notSub.length){ _chSub.textContent = '⏰ Quá hạn từ '+_fmtDl(_dlTQ); _chSub.style.color = 'var(--danger)'; _chSub.style.fontWeight = '700'; }
+    else if(_dlTQ){ _chSub.textContent = 'Hạn nộp: '+_fmtDl(_dlTQ); _chSub.style.color = ''; _chSub.style.fontWeight = ''; }
+    else { _chSub.textContent = 'Bấm xem danh sách'; _chSub.style.color = ''; _chSub.style.fontWeight = ''; }
+  }
   document.getElementById('tq-pct').textContent = 'Đạt '+(_repUnits.length ? Math.round(submitted.length/_repUnits.length*100) : 0)+'%';
 
   // Tổng hợp TOÀN PHẠM VI node đang xem — cùng công thức với bảng "Tổng hợp theo cấp":
@@ -8905,19 +9207,21 @@ function updateAlerts(){
   var allRows=bvphData.filter(matchTQPeriod).concat(bcData.filter(matchTQPeriod));
 
   // ── Tồn kho thấp: gom tồn cuối theo tên thuốc ──
-  var lowMap={};
+  var lowMap={}, useMap={};
   allRows.forEach(function(r){
     var c=calcRow(r);
     lowMap[r.drug]=(lowMap[r.drug]||0)+c.tonCuoi;
+    useMap[r.drug]=(useMap[r.drug]||0)+_num(r.x1);
   });
   var lowList=[];
+  var _tqPk = (typeof _tqCurrentPeriodKey==='function') ? _tqCurrentPeriodKey() : _currentPeriodKey();
   Object.keys(lowMap).forEach(function(d){
-    if(lowMap[d]<threshold.low && lowMap[d]>=0) lowList.push({name:d,qty:lowMap[d]});
+    if(lowMap[d]>=0 && _isLowQty(lowMap[d], d, '__all__', _tqPk, useMap[d])) lowList.push({name:d,qty:lowMap[d]});
   });
   lowList.sort(function(a,b){return a.qty-b.qty;});
 
   document.getElementById('tq-low').textContent=lowList.length||'0';
-  document.getElementById('tq-low-sub').textContent='Mặt hàng dưới '+threshold.low+' viên';
+  document.getElementById('tq-low-sub').textContent='Mặt hàng '+_lowLabel();
   var ll=document.getElementById('tq-lowlist'); ll.innerHTML='';
   if(!lowList.length){
     ll.innerHTML='<li><span style="color:var(--success);font-weight:600">✓ Tất cả mặt hàng đủ tồn kho</span></li>';
@@ -9041,7 +9345,7 @@ function _showTQAlert(which){
     var titleHtml = '<div>'
       + '<div style="font-size:11px;font-weight:700;color:#b8860b;text-transform:uppercase;letter-spacing:.5px">Cảnh báo tồn kho</div>'
       + '<div style="font-size:14px;font-weight:700;color:#1e293b;margin-top:3px">Thuốc dưới ngưỡng tồn kho</div>'
-      + '<div style="font-size:12px;color:#64748b;margin-top:2px">Dưới '+threshold.low+' viên · '+_tqLowList.length+' mặt hàng</div>'
+      + '<div style="font-size:12px;color:#64748b;margin-top:2px">Tồn '+_lowLabel()+' · '+_tqLowList.length+' mặt hàng</div>'
       + '</div>';
     var body;
     if(!_tqLowList.length){
@@ -9165,6 +9469,7 @@ function _buildDrugTableRows(all, q){
 
   // Lọc theo tên thuốc (nếu có) — KHÔNG đụng DOM, lọc trên data gốc rồi build lại toàn bộ
   var filtered = qNorm ? all.filter(function(r){ return String(r.drug||'').toLowerCase().indexOf(qNorm) >= 0; }) : all;
+  var _lowGd = _lowGroup(all);   // tồn thấp xét TỔNG thuốc tại đơn vị (mọi lô), không theo từng lô
 
   if(!filtered.length){
     tbody.innerHTML = '<tr><td colspan="10" style="color:var(--muted);font-style:italic;padding:14px">Không tìm thấy thuốc phù hợp.</td></tr>';
@@ -9204,10 +9509,11 @@ function _buildDrugTableRows(all, q){
     totOpen+=r.t0; totIn+=c.nTong; totOut+=c.xTong; totFinal+=c.tonCuoi;
     uniqueLots[r.drug+'||'+r.lot+'||'+(r.exp||'')] = true;
     var expired=isExpiredStr(r.exp);
-    var fcls = c.tonCuoi<0 ? 'final-neg' : (c.tonCuoi<threshold.low?'final-low':'final-ok');
+    var _low = c.tonCuoi>=0 && _isLowRowIn(_lowGd, r, (bvphData.indexOf(r)>=0 ? 'bvph' : r.unit));
+    var fcls = c.tonCuoi<0 ? 'final-neg' : (_low?'final-low':'final-ok');
     var st=expired
       ?'<span class="badge badge-y">Đã HH</span>'
-      :(c.tonCuoi<threshold.low
+      :(c.tonCuoi<0 || _low
         ?'<span class="badge badge-r">Sắp hết</span>'
         :'<span class="badge badge-g">Đủ kho</span>');
     var unitCell=_displayUnit(r.unit||BVPH);
@@ -9299,6 +9605,7 @@ function buildTbl(data, bodyId, prefix){
   var htmlString = '';
 
   var isBVPH = (prefix === 'bvph');
+  var _lowG = _lowGroup(data);   // tồn thấp theo tổng thuốc tại đơn vị (Cài đặt → cách tính tồn thấp)
   // Kho riêng của ĐƠN VỊ CƠ SỞ (C5): Xuất ĐC ghi vào dc2 như bảng đơn vị (không có Xuất Tổ CL / tỉnh khác)
   var _leafKho = isBVPH && (function(){ try{ return _isLeafLevel(UNIT_BY_ID[_currentRootId()]); }catch(e){ return false; } })();
 
@@ -9349,7 +9656,7 @@ function buildTbl(data, bodyId, prefix){
 
     var expired   = isExpiredStr(row.exp);
     // Tồn ÂM = xuất nhiều hơn (tồn đầu + nhập) → dữ liệu SAI, phải nổi bật hơn 'tồn thấp'
-    var finalCls  = res.tonCuoi < 0 ? 'final-neg' : (res.tonCuoi < threshold.low ? 'final-low' : 'final-ok');
+    var finalCls  = res.tonCuoi < 0 ? 'final-neg' : (_isLowRowIn(_lowG, row, isBVPH ? 'bvph' : row.unit) ? 'final-low' : 'final-ok');
     var canEdit   = currentUser ? (isBVPH ? canEditBVPH() : canEditUnit(row.unit)) : false;
     var isLocked  = (row.locked  === true);
     var isEditing = (row.editing === true) || (_bulkEditBC && canEdit && !isLocked);
@@ -13548,6 +13855,10 @@ function openReport(){
   
   var selUnit = document.getElementById('filter-unit-bc');
   var unitVal = selUnit ? selUnit.value : '__all__';
+  // Ô lọc lưu unit_id; khoá kỳ lưu theo TÊN đơn vị (bản cũ xoá nhầm khoá "kỳ_<id>" → đơn vị vẫn bị khoá)
+  if(unitVal && unitVal !== '__all__' && unitVal !== 'bvph' && UNIT_BY_ID[unitVal]){
+    var _nmU = unitNameById(unitVal); if(_nmU) unitVal = _nmU;
+  }
 
   var title = '🔓 Mở để sửa';
   var msg = '';
@@ -13560,6 +13871,8 @@ function openReport(){
   }
 
   _confirmModal(title, msg, function() {
+      // Sau hạn nộp: nhớ đơn vị được mở lại để không tự khoá lại
+      if(_dlMarkOpen(periodKey, unitVal === '__all__' ? '*' : (unitVal === 'bvph' ? BVPH : unitVal), true)) _dlSaveOpen();
       if (unitVal !== '__all__') {
           delete lockedPeriods[periodKey + '_' + unitVal];
           if (lockedPeriods[periodKey]) {
@@ -16273,6 +16586,8 @@ function _renderPrint(unitName, rows, periodKey, month, year, printDate, hideTCL
   var diaDanh = isToanTinh ? (_plc.place || _dispU)
               : ((unitName===BVPH||unitName==='bvph'||unitName===KHO_LE_FULL||unitName==='kholen') ? _dispU
               : ((_nodeP && !_isLeafLevel(_nodeP)) ? (_plc.place || _dispU) : (_leafPlace || _plc.place || unitName)));
+  var _uInf = (typeof UNIT_INFO!=='undefined' && UNIT_INFO[_uid(unitName)]) || {};
+  if(_uInf.place) diaDanh = _uInf.place;   // đơn vị tự điền trong Cài đặt → Thông tin đơn vị
   var ngayKy=diaDanh+', ngày '+('0'+printDate.getDate()).slice(-2)+' tháng '+(printDate.getMonth()+1)+' năm '+printDate.getFullYear();
 
   // Ghi chú điều chuyển từ phiếu Supabase đã tải trước
@@ -16343,7 +16658,10 @@ function _doRenderPrint(unitName,rows,periodKey,month,year,ngayKy,isBVPH,ghiChuS
     if (!acc && isBVPH) acc = ACCOUNTS.find(function(a){ return a.role === 'bvph'; });
     if (acc && acc.name) phName = acc.name;
   }
-  var phHtml = phName ? '<div style="margin-top:60px;font-weight:bold;">' + phName + '</div>' : '<div class="sign-gap"></div>';
+  var _sInf = (typeof UNIT_INFO!=='undefined' && UNIT_INFO[_uid(unitName)]) || {};
+  if(_sInf.signLap) phName = _sInf.signLap;
+  var _signHtml = function(n){ return n ? '<div style="margin-top:60px;font-weight:bold;">' + escH(n) + '</div>' : '<div class="sign-gap"></div>'; };
+  var phHtml = phName ? '<div style="margin-top:60px;font-weight:bold;">' + escH(phName) + '</div>' : '<div class="sign-gap"></div>';
   var tableRows='';
   var stt=1;
   var groups={}, groupOrder=[];
@@ -16565,8 +16883,8 @@ function _doRenderPrint(unitName,rows,periodKey,month,year,ngayKy,isBVPH,ghiChuS
        +'</div>'
        +'<div class="sr-notcl">'
        +'<div class="sc"><b>Người lập báo cáo</b>'+phHtml+'</div>'
-       +'<div class="sc"><b>Trưởng khoa Dược</b><div class="sign-gap"></div></div>'
-       +'<div class="sc"><b>Thủ trưởng đơn vị</b><i>( Ký tên, đóng dấu)</i><div class="sign-gap"></div></div>'
+       +'<div class="sc"><b>Trưởng khoa Dược</b>'+_signHtml(_sInf.signDuoc)+'</div>'
+       +'<div class="sc"><b>Thủ trưởng đơn vị</b><i>( Ký tên, đóng dấu)</i>'+_signHtml(_sInf.signTT)+'</div>'
        +'</div>'
       :'<div class="sr" style="margin-bottom:0">'
        +'<div class="sc"></div>'
@@ -16576,9 +16894,9 @@ function _doRenderPrint(unitName,rows,periodKey,month,year,ngayKy,isBVPH,ghiChuS
        +'</div>'
        +'<div class="sr">'
        +'<div class="sc"><b>Người lập báo cáo</b>'+phHtml+'</div>'
-       +'<div class="sc"><b>Trưởng khoa Dược</b><div class="sign-gap"></div></div>'
-       +'<div class="sc"><b>Bác sĩ phụ trách TCL</b><div class="sign-gap"></div></div>'
-       +'<div class="sc"><b>Thủ trưởng đơn vị</b><i>( Ký tên, đóng dấu)</i><div class="sign-gap"></div></div>'
+       +'<div class="sc"><b>Trưởng khoa Dược</b>'+_signHtml(_sInf.signDuoc)+'</div>'
+       +'<div class="sc"><b>Bác sĩ phụ trách TCL</b>'+_signHtml(_sInf.signTCL)+'</div>'
+       +'<div class="sc"><b>Thủ trưởng đơn vị</b><i>( Ký tên, đóng dấu)</i>'+_signHtml(_sInf.signTT)+'</div>'
        +'</div>'
     )+'</div>'
     +'</div></body></html>';
@@ -17133,7 +17451,12 @@ function renderStats(){
   barsHtml+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><h2 style="font-size:14px;font-weight:700;color:var(--text)">'+title+'</h2><span style="font-size:11px;color:var(--muted)">'+metricLabel+'</span></div>';
   items.forEach(function(x){
     var pct=Math.round(x.v/max*100);
-    var col=x.v<=0?'#ddd':(x.v<threshold.low&&by.indexOf('final')>=0?'var(--danger)':'var(--accent)');
+    var _pkS=_currentPeriodKey(), _lowS=false;
+    if(x.v>0 && (by==='drug-by-unit' || by==='unit-by-drug' || by==='all-drugs-final')){
+      if(by==='drug-by-unit'){ var _sd=(document.getElementById('sel-drug')||{}).value; _lowS=_isLowQty(x.v, _sd, x.n===BVPH?'bvph':x.n, _pkS, 0); }
+      else { var _su=(by==='unit-by-drug') ? (document.getElementById('sel-unit-stat')||{}).value : '__all__'; _lowS=_isLowQty(x.v, x.n, _su===BVPH?'bvph':_su, _pkS, 0); }
+    }
+    var col=x.v<=0?'#ddd':(_lowS?'var(--danger)':'var(--accent)');
     barsHtml+='<div class="stat-bar-item"><span class="sbl" title="'+x.n+'">'+x.n+'</span><div class="sbtrack"><div class="sbfill" style="width:'+pct+'%;background:'+col+'"></div></div><span class="sbval">'+x.v.toLocaleString()+'</span></div>';
   });
   barsHtml+='</div>';
@@ -17168,8 +17491,14 @@ function saveSettings(){
     warnMonths:        num('threshold-warn-months'),
     dangerMonths:      num('threshold-danger-months'),
     safetyStockMonths: num('threshold-safety-stock'),
-    expMonths:         num('threshold-exp')
+    expMonths:         num('threshold-exp'),
+    lowMonths:         num('threshold-low-months'),
+    keepMonths:        num('threshold-keep-months'),
+    shortMonths:       num('threshold-short-months'),
+    orderMonths:       num('threshold-order-months'),
+    overMonths:        num('threshold-over-months')
   };
+  var _lmEl=document.getElementById('threshold-low-mode'); nv.lowMode = (_lmEl && _lmEl.value==='qty') ? 'qty' : 'months';
   // Kiểm tra hợp lệ (bản cũ: 3 ô Gần hết / Nguy hiểm / Safety stock không được đọc → sửa không có tác dụng)
   var err='';
   if(nv.low===null || nv.low<0) err='Tồn kho thấp phải ≥ 0';
@@ -17180,14 +17509,22 @@ function saveSettings(){
   else if(nv.dangerMonths >= nv.warnMonths) err='"Nguy hiểm" phải NHỎ HƠN "Gần hết" (vd: Nguy hiểm 2, Gần hết 3)';
   else if(nv.safetyStockMonths===null || nv.safetyStockMonths<0 || nv.safetyStockMonths>6) err='Safety stock phải từ 0 đến 6 tháng';
   else if(nv.expMonths===null || nv.expMonths<1 || nv.expMonths>36) err='Hạn dùng sắp hết phải từ 1 đến 36 tháng';
+  else if(nv.lowMonths===null || nv.lowMonths<0.5 || nv.lowMonths>12) err='Tồn thấp (số tháng) phải từ 0,5 đến 12';
+  else if(nv.keepMonths===null || nv.keepMonths<1 || nv.keepMonths>12) err='Số tháng giữ lại khi điều chuyển phải từ 1 đến 12';
+  else if(nv.shortMonths===null || nv.shortMonths<0.5 || nv.shortMonths>6) err='Ngưỡng "thiếu thuốc" phải từ 0,5 đến 6 tháng';
+  else if(nv.shortMonths >= nv.keepMonths) err='Ngưỡng "thiếu" phải NHỎ HƠN số tháng giữ lại khi điều chuyển';
+  else if(nv.orderMonths===null || nv.orderMonths<1 || nv.orderMonths>12) err='Đặt hàng phải từ 1 đến 12 tháng';
+  else if(nv.overMonths===null || nv.overMonths<3 || nv.overMonths>36) err='Ngưỡng "thừa" trên bản đồ phải từ 3 đến 36 tháng';
+  else if(nv.overMonths <= nv.warnMonths) err='Ngưỡng "thừa" phải LỚN HƠN ngưỡng "Gần hết"';
   if(err){ toast('⚠ '+err,'var(--danger)'); return; }
   var old=Object.assign({}, threshold);
-  nv.low=Math.round(nv.low); nv.dcLow=Math.round(nv.dcLow); nv.dcHigh=Math.round(nv.dcHigh); nv.expMonths=Math.round(nv.expMonths);
+  nv.low=Math.round(nv.low); nv.dcLow=Math.round(nv.dcLow); nv.dcHigh=Math.round(nv.dcHigh); nv.expMonths=Math.round(nv.expMonths); nv.orderMonths=Math.round(nv.orderMonths); nv.overMonths=Math.round(nv.overMonths);
   Object.assign(threshold, nv);
   _saveThresholdToCloud().then(function(ok){
     if(ok){
       _applyThresholdToUI();
       try{ if(typeof renderAllAMC==='function') renderAllAMC(); }catch(e){}
+      try{ if(typeof _VM!=='undefined'){ _VM.overM = threshold.overMonths; _VM._overMUser=false; } }catch(e){}
       toast('✓ Đã lưu ngưỡng cảnh báo — áp dụng cho toàn hệ thống','var(--success)');
     } else {
       Object.assign(threshold, old); _applyThresholdToUI();
@@ -17356,6 +17693,7 @@ function renderTP(){
   // GĐ1: gom TẤT CẢ trường của MỌI đơn vị trong phạm vi (kho gốc + mọi cấp dưới),
   // sau đó triệt tiêu điều chuyển NỘI BỘ (from & to cùng trong cây con) qua InternalCirc.
   var _seenTP = {};
+  var _tpLow = {};   // thuốc → {tồn, sử dụng} toàn phạm vi (xét tồn thấp theo TỔNG thuốc)
   bvphData.concat(bcData).filter(matchPeriod).filter(_inScope).forEach(function(r){
     var _dk = (r.bcMonth||'')+'##'+_stockKey(r);
     if(_seenTP[_dk]) return; _seenTP[_dk] = 1;          // mỗi dòng chỉ cộng 1 lần
@@ -17366,6 +17704,7 @@ function renderTP(){
     map[k].n2All+=(r.n2||0); map[k].n3All+=(r.n3||0); map[k].n4All+=(r.n4||0);
     var _isR=(r.unitId===rootId);
     _addContrib(k, _isR ? ('Kho '+root.name) : (r.unit||'(Không rõ đơn vị)'), r, _isR);
+    var _lg=_tpLow[r.drug]||(_tpLow[r.drug]={ton:0,use:0}); _lg.ton+=calcRow(r).tonCuoi; _lg.use+=_num(r.x1);
   });
   // InternalCirc: phiếu điều chuyển có CẢ nơi gửi và nơi nhận trong phạm vi → luân chuyển nội bộ (triệt tiêu).
   var _ek=function(dr,lo,ex){ return (dr||'')+'|'+(lo||'')+'|'+((typeof _normExp==='function')?_normExp(ex):(ex||'')); };
@@ -17417,7 +17756,8 @@ function renderTP(){
     var nTong  = n1Ngoai + n23Ngoai + n4;
     var xTong = x1 + x3 + x4;
     var tonCuoi  = m.t0 + nTong - xTong;
-    var fcls = tonCuoi < 0 ? 'final-neg' : (tonCuoi < threshold.low ? 'final-low' : 'final-ok');
+    var _tl = _tpLow[m.drug] || {ton:tonCuoi, use:x1};
+    var fcls = tonCuoi < 0 ? 'final-neg' : (_isLowQty(_tl.ton, m.drug, false, _currentPeriodKey(), _tl.use) ? 'final-low' : 'final-ok');
     var exp_ = isExpiredStr(m.exp);
     var expD = expToMMYYYY(m.exp);
 
@@ -17687,12 +18027,13 @@ function _aggTableBody(agg, opts){
     return '<tr><td colspan="'+colEmpty+'" style="text-align:center;color:var(--muted);padding:12px">Chưa có dữ liệu trong kỳ này ở phạm vi này.</td></tr>';
   }
   var rows = agg.rows;
-  var cnt={}, ttMap={}, c=0;
+  var cnt={}, ttMap={}, c=0, _al={};
+  rows.forEach(function(r){ var o=_al[r.drug]||(_al[r.drug]={ton:0,use:0}); o.ton+=r.tonCuoi||0; o.use+=r.x1||0; });
   rows.forEach(function(r){ cnt[r.drug]=(cnt[r.drug]||0)+1; if(ttMap[r.drug]===undefined){ c++; ttMap[r.drug]=c; } });
   var seen={}, h='', grp={};
   rows.forEach(function(r){
     var first=!seen[r.drug]; seen[r.drug]=true;
-    var fcls = r.tonCuoi<0 ? 'final-neg' : (r.tonCuoi<threshold.low ? 'final-low' : 'final-ok');
+    var fcls = r.tonCuoi<0 ? 'final-neg' : (_isLowQty(_al[r.drug].ton, r.drug, false, _currentPeriodKey(), _al[r.drug].use) ? 'final-low' : 'final-ok');
     var exp_ = isExpiredStr(r.exp), expD = expToMMYYYY(r.exp);
     h+='<tr>';
     if(first){
@@ -18700,7 +19041,7 @@ async function renderTQAlerts(){
   var thieu = [];
   Object.keys(need).forEach(function(k){
     var a = k.split('||'), ton = stock[k]||0, mos = need[k] > 0 ? ton/need[k] : null;
-    if(ton <= 0 || (mos !== null && mos < 1)) thieu.push({uid:a[0], drug:a[1], bn:nbn[k], need:need[k], ton:ton, mos:mos});
+    if(ton <= 0 || (mos !== null && mos < (threshold.shortMonths||1))) thieu.push({uid:a[0], drug:a[1], bn:nbn[k], need:need[k], ton:ton, mos:mos});
   });
   thieu.sort(function(x,y){ return (x.mos||0)-(y.mos||0) || y.bn-x.bn; });
 
@@ -18766,7 +19107,7 @@ function _tqaPaint(){
           var tag = x.ton <= 0 ? '<span class="tqa-tag red">Hết thuốc</span>' : '<span class="tqa-tag amber">'+(x.mos*30).toFixed(0)+' ngày</span>';
           return '<tr><td class="l">'+E(_tqaUName(x.uid))+'</td><td class="l">'+E(x.drug)+'</td><td>'+x.bn+'</td><td>'+fmtNum(x.need)+'</td><td>'+fmtNum(x.ton)+'</td><td>'+tag+'</td></tr>';
         }).join('') + '</tbody></table>';
-    h += '<div class="tqa-note">Nhu cầu = số viên BN đang điều trị tại đơn vị cần trong '+E(kyLbl)+' (theo phác đồ, cân nặng, ngày bắt đầu). Hiện khi tồn ≤ 0 hoặc đủ dùng dưới 1 tháng.</div>';
+    h += '<div class="tqa-note">Nhu cầu = số viên BN đang điều trị tại đơn vị cần trong '+E(kyLbl)+' (theo phác đồ, cân nặng, ngày bắt đầu). Hiện khi tồn ≤ 0 hoặc đủ dùng dưới '+(threshold.shortMonths||1)+' tháng.</div>';
   } else if(_TQA.tab === 'solieu'){
     var KL = {am:['red','Tồn âm'], dau:['amber','Tồn đầu lệch'], mat:['amber','Mất dòng'], sd0:['blue','Sử dụng = 0']};
     if(!D.solieu.length) h = '<div class="tqa-empty">✓ Không phát hiện lỗi số liệu ('+E(kyLbl)+').</div>';
@@ -19080,7 +19421,7 @@ async function renderAllAMC(){
     +'<th style="padding:7px 10px;text-align:center;width:32px">TT</th>'
     +'<th style="padding:7px 10px;text-align:left">Tên thuốc</th>'
     +'<th style="padding:7px 10px;text-align:right;background:#2980b9">AMC</th>'
-    +'<th style="padding:7px 10px;text-align:right;background:#e74c3c">Nhu cầu 3T</th>'
+    +'<th style="padding:7px 10px;text-align:right;background:#e74c3c">Nhu cầu '+(threshold.orderMonths||3)+'T</th>'
     +'<th style="padding:7px 10px;text-align:right;background:#e74c3c">Safety stock</th>'
     +'<th style="padding:7px 10px;text-align:right;background:#2980b9">Tồn hiện tại</th>'
     +'<th style="padding:7px 10px;text-align:right;background:#27ae60">Đề xuất đặt TW</th>'
@@ -19089,7 +19430,8 @@ async function renderAllAMC(){
     var a=_calcAMC(drug,unitFilter,nMonths,periodKey);
     var ton=_getTonCuoi(drug,unitFilter,periodKey);
     var ss=Math.round(a.amc*safetyM);
-    var order=Math.max(0,(a.amc*3)+ss-ton);
+    var _oM=threshold.orderMonths||3;
+    var order=Math.max(0,(a.amc*_oM)+ss-ton);
     var soNote=a.nStockout>0?'<span style="font-size:10px;color:#e67e22;margin-left:4px">*SO</span>':'';
     var orderStr=order<=0
       ?'<span style="color:#27ae60;font-weight:700">Không cần</span>'
@@ -19099,7 +19441,7 @@ async function renderAllAMC(){
       +'<td style="padding:7px 10px;text-align:center;color:#888;font-size:11px">'+(i+1)+'</td>'
       +'<td style="padding:7px 10px;font-weight:600;color:#1a2332">'+drug+soNote+'</td>'
       +'<td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#2980b9;font-weight:600">'+fmtNum(a.amc)+'</td>'
-      +'<td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#e74c3c;font-weight:600">'+fmtNum(a.amc*3)+'</td>'
+      +'<td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#e74c3c;font-weight:600">'+fmtNum(a.amc*_oM)+'</td>'
       +'<td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#e74c3c">'+fmtNum(ss)+'</td>'
       +'<td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700">'+fmtNum(ton)+'</td>'
       +'<td style="padding:7px 10px;text-align:right">'+orderStr+'</td></tr>';
@@ -19239,8 +19581,8 @@ function renderTransferSuggestions(){
     });
     o.bnUsing = using;
     o.amc = Math.round(need) > 0 ? Math.round(need) : _calcAMC(o.drug, o.unit, nMonths, periodKey).amc;
-    o.surplus = Math.floor(o.ton - 3*o.amc);
-    o.deficit = Math.ceil(o.amc - o.ton);
+    o.surplus = Math.floor(o.ton - (threshold.keepMonths||3)*o.amc);   // nơi chuyển giữ lại đủ X tháng (Cài đặt)
+    o.deficit = Math.ceil((threshold.shortMonths||1)*o.amc - o.ton);   // nơi nhận: bù lên đủ ngưỡng thiếu
     o.prov = _unitProv(o.uid); o.mien = _unitMien(o.uid);
   });
 
@@ -19370,7 +19712,7 @@ function _tsPaint(){
   h += '<div class="ts-detail"><div class="ts-dhead"><b>'+E(sel)+'</b><span>'+rows.length+' đề xuất</span>'
     + '<button type="button" onclick="_tsPick(window._TS.sel)">✕ Đóng</button></div>'
     + '<div class="ts-tblwrap"><table class="ts-tbl">'+head+'<tbody>'+body+'</tbody></table></div>'
-    + '<div class="ts-note">Dư = tồn vượt 3 tháng nhu cầu (nơi chuyển luôn giữ đủ 3 tháng); tổng chuyển đi không vượt phần dư. Nơi thiếu = dưới 1 tháng. '
+    + '<div class="ts-note">Dư = tồn vượt '+(threshold.keepMonths||3)+' tháng nhu cầu (nơi chuyển luôn giữ đủ '+(threshold.keepMonths||3)+' tháng); tổng chuyển đi không vượt phần dư. Nơi thiếu = dưới '+(threshold.shortMonths||1)+' tháng. '
     + 'Ưu tiên nguồn cùng tỉnh → tỉnh giáp ranh → cùng miền → miền khác. Nhu cầu theo BN đang điều trị (không có thì theo AMC).</div></div>';
   el.innerHTML = h;
 }
@@ -24845,7 +25187,7 @@ function _tkRenderOnly(){
 // ══════════════════════════════════════════════════════════════════════
 var VN_TOPO = {"type":"Topology","arcs":[[[4113,4816],[2,-66],[39,-29],[16,-32],[34,-6],[6,-36],[51,-13],[1,-19],[-31,-19],[20,-17],[62,9],[20,-11],[-17,-54],[13,-64],[29,-54],[39,-12],[24,-17],[41,2],[44,-21],[46,14],[42,-23],[38,-67],[1,-52],[-27,6],[-10,-26],[-30,-16],[6,-25],[-50,-41],[4,-23]],[[4526,4104],[-18,-16],[-74,-13],[20,-41],[-56,-20],[-86,-23],[-32,49],[-15,3],[-46,-47],[-19,0],[-29,-36]],[[4171,3960],[-35,-31],[-107,85],[-148,76],[-21,8],[-184,40],[-51,59],[-41,78],[-26,24],[1,39]],[[3559,4338],[119,2],[41,31],[51,83],[37,38],[151,77],[27,18],[-6,34],[-37,32],[-2,46],[-39,71],[-1,20],[27,48],[34,16],[3,18],[51,-15],[-23,-30],[81,1],[40,-12]],[[6107,2197],[-6,-37],[-18,2],[-15,-38],[-52,-36],[22,-35],[-45,7],[-26,40],[37,30],[5,23],[36,7],[28,27],[34,10]],[[6764,4258],[-8,-36],[-37,-9],[4,47],[41,-2]],[[7243,4645],[-3,-29],[35,-26],[19,-33],[0,-33],[33,-65],[5,-60]],[[7332,4399],[-20,-12],[-55,-65],[-67,-13],[-32,-33],[-94,-1],[-59,-22],[-57,-40],[-41,-44],[-21,-3],[-30,32],[-41,6],[-83,-43],[-28,-23],[-28,-38],[-33,37],[15,24],[41,24],[17,22],[46,14],[5,54],[-50,-7],[-4,-22],[-42,-16],[-42,24],[-31,33],[-46,-7]],[[6552,4280],[5,37],[21,27]],[[6578,4344],[17,24],[-20,10],[20,48],[-35,33],[-4,15],[59,30],[74,-4],[50,40],[8,28],[-3,46],[23,-2],[47,33],[25,-15],[33,6],[41,-11],[52,-1],[8,-50],[-9,-32],[28,-22],[43,11],[-4,36],[19,28],[62,52],[14,-2],[33,39],[11,0],[54,-43],[19,4]],[[5458,17823],[-20,-10],[-3,-97],[41,-19],[54,-8],[9,-14],[38,14],[20,-5],[-6,-45],[36,-1],[27,-16],[-4,-38],[32,-14],[39,-3],[45,14],[-10,26],[22,15],[64,-1],[18,12],[18,43],[34,18],[-18,31],[26,37],[61,58],[29,-3],[29,10],[28,-8],[46,10],[44,-19],[-4,-24],[47,-35],[27,-5],[16,39],[30,-2],[25,-15],[51,1],[21,-45],[-27,-12],[7,-23],[60,-4],[18,-24],[-14,-16],[26,-33],[26,6],[41,-11],[30,15],[27,-19],[-23,-26],[4,-53],[37,-18],[20,-23]],[[6602,17483],[-11,-28],[-46,-9],[-22,-13],[17,-32],[-22,-41],[-46,-66],[-27,18],[-54,-11],[-23,13],[-39,2],[-14,-38],[-37,-9],[-33,9],[-70,5],[-103,22],[-40,-9],[-39,26],[-52,1],[-23,38],[-32,0]],[[5886,17361],[-13,7],[-92,0],[-17,-28],[-50,-15],[-10,-25],[-74,0],[15,-32],[-32,-32]],[[5613,17236],[-34,13],[-36,48],[-33,-20],[-7,26],[-64,6],[-24,33],[-26,10],[-19,-23],[-39,8],[-6,14],[-46,14],[-22,22],[-57,21],[-4,-32],[-17,-16],[-25,3],[-30,21]],[[5124,17384],[-18,31],[-11,44],[-26,26]],[[5069,17485],[-19,10],[41,50],[32,-5],[6,35],[50,17],[66,-21],[11,14],[-4,36],[26,18],[-14,24],[1,53]],[[5265,17716],[0,1]],[[5265,17717],[16,26],[-28,39],[22,12],[9,26],[31,20],[54,-2],[58,11],[31,-26]],[[5458,18776],[31,-22],[17,-26],[-27,-45],[61,-53],[-11,-56],[-21,-16],[12,-43],[-67,-53],[6,-14],[-30,-19],[-10,-26],[-35,6],[-41,-21],[20,-92],[-3,-37],[-18,-30]],[[5342,18229],[-51,4],[-28,26],[-20,3],[-32,-39],[-38,8],[-4,-19],[-52,-35],[-30,0],[-36,-44],[-46,-18],[-47,-1],[-19,-44],[-18,-3],[-36,17],[12,48],[-6,68],[16,19],[-2,27],[-19,19],[3,22],[-28,38],[-50,8],[-14,16],[-37,12],[-8,-19],[-97,-29],[-22,-60],[-25,0]],[[4608,18253],[-30,12],[-38,31],[-21,62],[-35,36],[15,28],[-15,23],[17,28],[23,16],[-43,26],[-38,47],[11,24],[-7,34],[49,17],[-15,13],[47,44],[2,27],[20,5],[9,67],[44,16],[12,58],[50,32],[-9,67],[-34,21],[-24,30],[1,17],[-25,23],[2,18]],[[4576,19075],[13,20],[37,20],[45,3],[-1,23],[20,13],[42,2],[26,30],[47,-5],[13,14],[43,9],[22,-23],[-3,-23],[27,-13],[-35,-31],[-14,-47],[52,-64],[34,-61],[41,-9],[41,5],[66,-26],[28,35],[24,-5],[130,65],[34,-27],[29,-10],[10,-37],[23,-6],[0,-49],[-34,-36],[8,-35],[54,-22],[22,17],[38,-26]],[[4363,3214],[11,-12],[46,20],[44,-18],[83,-4],[35,16],[14,-13]],[[4596,3203],[13,-32],[-15,-133],[48,-48],[10,17],[93,-49],[23,6],[43,-13],[56,33],[34,6],[18,-35],[42,-15],[6,28],[29,12],[24,-47],[-64,-31],[18,-75],[2,-40]],[[4976,2787],[-116,-45],[-17,-13],[-116,-47],[-137,-48],[-84,-46],[-29,-23],[-46,-51],[-10,3]],[[4421,2517],[3,16],[-34,37],[-21,-9],[-49,16],[-32,0],[-31,22],[-29,-6],[-39,19],[9,41],[21,30],[5,29],[-52,37],[35,47],[48,34],[-43,36],[-19,32],[66,62],[-47,15]],[[4212,2975],[22,41],[23,1],[-4,46],[8,38],[24,1],[14,35],[-3,30],[-51,52],[28,11],[52,-20],[38,4]],[[5613,17236],[-4,-20],[20,-58],[-24,-26],[1,-20],[-28,-35],[-52,5],[-82,-25],[-49,32],[-15,-21]],[[5380,17068],[-15,15],[-40,13],[-41,0],[-38,-16],[-36,9]],[[5210,17089],[7,28],[19,21],[-23,38],[-46,0],[-13,20],[-25,-5],[-12,30],[-26,19],[18,19],[-26,63],[7,38],[34,24]],[[6255,3938],[-1,-24],[24,-27],[-9,-25],[7,-25],[-53,-61],[-47,-36],[-35,-13],[-55,-50],[16,-57],[34,-49],[2,-17],[-35,-48],[-25,-8],[-28,-31],[-33,-5]],[[6017,3462],[-36,40],[-58,47],[-50,50],[-43,27],[-32,11],[-82,46],[-25,22],[-62,29],[-29,33]],[[5600,3767],[-33,48],[-51,61],[-52,44],[-18,-1],[-34,27],[-37,41],[-28,12],[-73,5],[-19,14],[-7,35],[7,17]],[[5255,4070],[56,-25],[91,7],[83,36],[110,17],[25,-11],[74,22],[46,1],[72,-37],[33,0],[67,-32],[22,-16],[79,-23],[106,-14],[101,-56],[35,-1]],[[9371,9276],[-20,-9],[13,-46],[28,-56],[35,-52],[-11,-24],[14,-35],[-5,-31],[19,-30],[67,-82],[-7,-12],[25,-44],[-22,-24],[18,-42],[34,-48],[-24,-9],[-37,53],[-19,-7],[18,-54],[41,1],[16,-57],[42,-66],[13,-43],[-21,-52],[39,-63],[34,-12],[-4,-41],[7,-31],[-17,-29],[10,-32],[-34,-22],[-19,24],[9,19],[-11,90],[-12,40],[-24,-18],[3,-40],[-9,-21],[10,-46],[15,-26],[-31,-31],[2,-40],[20,-55]],[[9576,8173],[-42,27],[-52,-15],[-14,-55],[-48,-29],[0,-32],[-37,-19],[-55,-12],[-32,-39],[-45,-15],[-45,2],[-39,22],[-31,7],[-47,-8],[-29,41]],[[9060,8048],[-41,110],[-5,48],[24,66],[-9,47],[-43,27],[-4,41],[-30,24],[-13,33],[-22,19],[2,41],[23,59],[-14,32],[-3,32],[-41,29],[-12,36],[-24,20],[-37,63],[19,30],[-7,40],[-27,47],[5,23],[-34,81],[-29,109],[29,12],[12,33],[-15,29],[4,32],[-9,23]],[[8759,9234],[16,26],[44,19],[41,38],[42,-28],[34,8],[11,40],[-8,47],[10,12],[40,-10],[36,9],[14,19],[69,-9],[52,16],[17,-2],[55,-30],[53,-8],[37,-41],[0,-26],[49,-38]],[[6476,5293],[-13,-55],[-21,-20],[7,-25],[-23,-15],[6,-20],[38,-7],[44,-48],[-15,-8],[13,-33],[-24,-32],[5,-26],[-25,-3],[-51,-45],[-29,-9],[-45,25],[-20,30],[-30,-6],[11,-40],[-26,-7],[-22,-29],[27,-28],[-44,-27],[65,-41],[9,-18],[29,-2]],[[6342,4804],[-42,-35],[-27,-8],[-25,33],[-33,-17],[-36,20],[-8,-38],[-31,19],[7,25],[-13,24],[-23,-1],[-24,17],[0,49],[-46,19],[6,21],[-26,8],[-11,36],[-20,7],[-42,-2],[-31,29],[-5,24],[8,36],[-35,24],[-30,1],[-22,22],[-20,-29]],[[5813,5088],[-21,13],[-3,27],[-55,20],[-16,61],[-34,17],[6,44],[-28,14],[12,29],[-22,31],[41,66],[17,63],[49,20],[24,31]],[[5783,5524],[12,8],[86,-7],[65,-33],[16,20],[23,-35],[-40,-29],[1,-44],[26,-30],[66,21],[4,-30],[79,-11],[14,49],[25,3],[30,42],[20,3],[21,24],[-6,25],[61,21],[14,-38],[-25,-35],[-25,-7],[-2,-22],[21,-33],[38,-6],[18,11],[37,-10],[6,-76],[38,34],[41,17],[44,-16],[2,-28],[-17,-19]],[[7087,5855],[-30,1],[-29,-21],[-58,-12],[-23,-17],[-2,-47],[-26,-33],[7,-29],[44,-22],[-8,-42],[21,-37],[31,-8]],[[7014,5588],[-276,-56],[-25,-24],[-58,-38],[5,-45],[-20,-16],[0,-28],[-84,-52],[-19,-26],[-22,6],[-39,-16]],[[5783,5524],[12,55],[45,5],[31,32],[-9,46],[-18,8],[-24,71]],[[5820,5741],[2,20],[-36,47],[-17,46],[44,70],[-11,20],[11,33],[23,5],[-72,123],[30,1],[31,19],[26,-18],[50,8],[28,-14],[160,10],[9,13],[34,-23],[39,-2],[44,43],[20,43],[45,53],[41,2],[26,-18],[43,7],[61,-15],[36,8],[64,33],[25,29],[46,17],[22,31],[18,4],[27,31],[6,22],[51,41],[20,39],[70,32]],[[6836,6501],[31,-171],[5,-151],[19,-11],[72,-18],[25,-2],[26,-18],[20,-29],[5,-34],[42,-31],[27,-57],[29,-9],[-42,-74],[-8,-41]],[[9208,4319],[-39,11],[-10,44],[37,4],[12,-59]],[[9081,5327],[-106,-24],[-15,-30],[-33,-17],[-11,-54],[-21,-56],[-34,-22],[-10,21],[-36,11],[-101,-9],[-40,-24],[-57,-16],[-37,-46],[-23,-51],[-4,-30],[-20,-8],[-33,9],[-35,-18],[-41,3],[-34,-25],[-21,-73],[-38,4],[-40,-25],[-44,17],[-34,4],[-46,-22],[-43,-8],[-30,5],[-58,-19],[-45,-50],[-29,-55],[-16,-49],[-15,-66],[-31,-47],[-69,18],[-58,9],[-114,-32],[-58,-54],[-53,-22],[-42,-1],[-66,-33],[-51,-16],[-57,-27]],[[7243,4645],[32,8],[54,39],[6,44],[-19,26],[0,85],[-24,48],[-46,42],[-49,-5],[-45,31],[-33,7],[12,47],[30,12],[12,30],[-24,32],[29,16],[34,61],[20,50],[36,17],[-8,67],[30,37],[4,29]],[[7294,5368],[36,21],[50,-45],[90,-25],[26,0],[30,15],[11,26],[24,8],[84,6],[117,-7],[44,-6],[25,-17],[27,6],[90,-30],[4,-33],[18,-31],[-2,-17],[20,-25],[26,21],[41,17],[59,35],[42,6],[70,54],[37,23],[64,58],[-19,29],[-28,2],[-19,33],[15,44],[55,28],[47,-4],[12,-22],[36,21],[46,6],[21,-16],[40,3],[28,12],[34,-2],[26,-18],[45,11],[17,34],[16,10]],[[8699,5599],[82,-7],[23,-57],[21,-32],[31,-16],[50,10],[32,-2],[-5,-72],[53,-30],[62,-11],[33,-55]],[[4421,2517],[-25,-31],[-26,-78],[-28,-58],[-38,-62],[-80,-79],[-103,-28],[-62,-55],[-28,-37],[1,-16],[-27,-26],[-61,-14],[-85,-34],[-208,-40],[-112,29],[-58,19],[-10,37],[20,17],[42,-8],[70,17],[-28,28],[-10,24],[18,29],[100,34],[24,40],[-3,17],[-82,-27],[-30,3],[-30,41],[3,30],[17,60],[8,48],[3,71],[-2,51],[9,120],[-1,73],[17,96],[12,193],[7,134]],[[3635,3135],[63,-44],[48,84],[39,-37],[23,27],[43,-20],[11,24],[252,-138],[98,-56]],[[4780,3869],[142,-85],[51,-69],[26,-30]],[[4999,3685],[-35,-22],[-55,-8],[-43,8]],[[4866,3663],[-6,3]],[[4860,3666],[-26,5],[-70,-39],[-34,32],[-36,-24],[-60,59],[-16,-9],[-40,-82]],[[4578,3608],[-238,198],[-5,22],[-49,50],[-25,-4],[-28,26],[-70,51],[8,9]],[[4526,4104],[26,-24],[39,-20],[77,-64],[31,-56],[53,-54],[28,-17]],[[5974,18821],[-42,-7],[-23,-25],[-37,5],[-5,-40],[-48,-15],[-75,20],[-46,-20],[-27,20],[3,21],[-79,46],[-10,20],[-50,18],[-29,-7],[-26,-27],[-22,-54]],[[4576,19075],[-45,1]],[[4531,19076],[-14,49],[16,35],[-32,22],[2,24],[-43,36],[-64,30],[-18,19],[-35,7],[-40,19],[-40,29],[-24,0],[-18,30],[47,-5],[6,43],[34,26],[39,12],[0,44],[18,13],[156,21],[8,38],[31,44],[16,45],[43,9]],[[4619,19666],[1,-38],[19,-23],[48,1],[31,15],[54,-22],[63,0],[12,-28],[66,-24],[30,-33],[18,6],[52,-23],[10,-48],[22,-24],[14,26],[51,13],[102,-15],[1,63],[81,0],[30,10],[21,-15],[46,10],[63,-15],[20,9],[52,-45],[24,-54],[49,-48],[31,-8],[16,17],[28,-25],[24,10],[16,23],[39,-4],[62,27],[36,8],[31,-6],[20,50],[39,-6],[33,-27],[35,17],[23,-28],[60,-52],[52,32],[28,-9],[4,-38],[70,-34],[-4,-18],[71,9],[24,-17],[-18,-36],[-76,-41],[17,-45],[-34,-12],[6,-26],[-22,-6],[-13,-26],[2,-64],[-36,-23],[-42,9],[-36,-9],[-26,35],[-27,-3],[-8,-46],[-18,-18],[-14,-57],[7,-34],[-22,-7],[-12,-23],[9,-32]],[[8829,7351],[56,-54],[45,-16],[54,-86],[25,10],[44,-22],[15,-37],[18,-13],[92,-9],[39,8],[26,-41],[6,-26],[-8,-28],[10,-39]],[[9251,6998],[-19,-29],[-48,15],[-55,-27],[17,-14],[-23,-42],[-30,0],[-16,-38],[37,-18],[7,-23],[-30,-39],[2,-21],[-22,-22],[27,-20],[-12,-29],[-45,12],[-63,44],[-47,-1],[-28,-28],[-25,10],[-63,-74],[9,-34],[17,-25],[-14,-27],[2,-43]],[[8829,6525],[-27,-26],[-38,-5],[-47,-17],[-71,24],[-19,-22],[-30,-1],[-22,32],[-45,-37],[-21,1],[-46,-38],[-30,-2],[-38,15],[-32,-9],[-7,-23],[-39,-24],[-30,6],[-25,-15],[-17,-40],[-29,18],[-36,-14],[-20,4],[-25,27],[-53,-25],[-19,9]],[[8063,6363],[-5,20],[-31,28],[-2,23],[-27,27],[-18,1],[-14,26],[-37,20],[-55,7],[-27,12],[-29,36],[4,23],[-29,38],[18,15],[-6,19],[36,17],[46,8],[23,31],[-33,42],[-45,25],[-43,-2],[-31,19],[15,34],[45,15],[3,19],[-17,56],[-21,37],[9,23],[-21,22],[12,40],[-61,16],[-10,25],[12,20],[-16,22],[-36,-12],[-36,-28],[-44,-1],[-185,29],[-90,-7]],[[7317,7108],[-19,32],[-61,63],[-8,20],[0,52],[-14,27],[29,23],[-29,56],[70,148],[95,197]],[[7380,7726],[57,45],[65,39],[23,1],[42,-14],[29,3],[46,32],[47,9],[18,-9],[37,2],[50,-8],[39,-16],[52,12],[37,-2],[50,25],[9,13],[40,-11],[37,11],[47,-6],[47,-30],[61,-15],[55,1],[31,-22],[79,-18],[31,-41],[5,-41],[20,-17],[30,-5],[17,-31],[4,-39],[48,-40],[-3,-47],[36,-15],[41,-50],[-4,-44],[28,-2],[45,-16],[34,12],[36,-24],[83,-17]],[[8063,6363],[-1,-46],[-60,-16],[-41,13],[-29,-21],[-35,-6],[-11,-43],[-26,-24],[17,-12],[49,-9],[-4,-26],[21,-18],[10,-30],[19,-17],[2,-29],[30,-5],[20,-42],[35,-19],[-59,-76],[-12,5],[-71,-37],[-41,-16],[-36,35],[-40,-31],[-40,29],[12,56],[-19,8],[-58,-6],[-72,-13],[-18,-12],[-49,30],[-36,59],[-51,-11],[-2,-21],[-20,-22],[-38,-15],[-27,-31],[-44,-24],[-33,-35],[-32,10],[-60,-7],[-23,-37],[-46,3],[-22,-20],[-35,21]],[[6836,6501],[35,-1],[52,34],[52,10],[13,-13],[38,8],[43,-31],[17,-39],[38,-29],[26,8],[9,41],[38,29],[47,18],[50,30],[14,37],[-9,41],[25,44],[0,26],[19,24],[-19,42],[32,38],[-12,20],[3,44],[-18,42],[9,44],[-22,38],[10,18],[-10,39],[1,45]],[[1827,18268],[12,-18],[-29,-22],[-6,-29],[16,-39],[41,-23],[8,-33],[26,-43],[-8,-28],[22,-16],[55,-98],[-34,-2],[-21,-32],[2,-31],[-17,-33],[-36,-47],[-5,-37],[-34,-6],[-42,-21],[-13,-21],[7,-46],[-18,-30],[-41,-6],[-25,12],[-76,-19],[3,-24],[38,-34],[27,-14],[-20,-39],[35,-15],[40,-6],[17,-42],[-12,-28],[7,-71],[-6,-37],[-31,-3],[-16,-16],[11,-47],[22,-42],[-6,-15],[-49,-4],[-48,28],[-43,14],[-35,-3],[20,-40],[-35,4],[-1,-24],[22,-32],[-10,-19],[14,-25],[3,-39],[-31,-20],[18,-32],[-49,-15],[-48,0]],[[1448,16960],[-66,24],[-11,-10],[-65,10],[-37,40],[0,26],[-35,44],[-31,60],[-82,15],[-18,16],[10,21],[-36,34],[-5,37],[-39,10],[-6,35],[8,45],[-24,21],[-38,12],[-53,-11],[-21,24],[61,39],[54,6],[-5,30],[7,66],[26,25],[18,48],[-57,-20],[-12,23],[39,40],[12,31],[26,16],[32,43],[46,46],[-11,26],[-6,52],[14,37],[-15,13],[12,33],[-27,29],[-21,-22],[-37,-4],[-65,-25],[-27,21],[4,42],[-4,77],[-7,23],[-42,-2],[-14,-23],[12,-20],[7,-82],[-35,-33],[-15,0],[-55,-54],[-73,0],[-22,-7],[-39,94],[18,73],[-19,20],[-2,59],[-41,16],[4,39],[-16,22],[-57,21],[-70,35],[-31,31],[5,25],[22,27],[-34,8],[-15,22],[-28,14],[-19,23],[-6,31],[-66,15],[-1,23],[-33,23],[-32,-2],[-2,25],[-18,21],[-51,5],[-28,32],[-27,4],[-20,59],[-68,23],[5,22],[-23,49],[9,11],[-36,36],[20,35],[37,6],[28,-10],[82,3],[-26,34],[37,26],[32,63],[29,22]],[[239,18972],[24,-26],[13,-43],[19,-19],[30,-9],[17,-54],[-13,-19],[51,-47],[23,-7],[92,-109],[6,-17],[38,-22],[41,21],[60,-30],[1,-46],[35,-26],[43,-10],[29,47],[-8,48],[51,-10],[32,-37],[-8,-37],[-13,-9],[7,-43],[52,-43],[8,-17],[51,-25],[38,2],[17,15],[33,-5],[49,23],[3,-19],[47,-42],[31,-20],[18,31],[52,-5],[35,17],[34,-6],[16,55],[29,-13],[13,-21],[105,-6],[44,-25],[49,-12],[16,14],[-23,22],[15,45],[32,14],[15,32],[19,13],[66,3],[29,-34],[14,-50],[26,-39],[28,-3],[19,-28],[-21,-22],[34,-42],[25,-9]],[[6578,4344],[-33,6],[-7,60],[-30,17],[-69,20],[-11,20],[-38,28],[-66,-25],[-22,33],[-48,27],[-24,22],[-6,27],[20,28],[44,22],[24,26],[50,-7],[34,33],[1,19],[-33,33],[-6,40],[-16,31]],[[7014,5588],[26,17],[28,-15],[1,-26],[45,1],[57,-32],[25,-27],[-31,-35],[12,-25],[40,-2],[3,-37],[33,-21],[30,-31],[11,13]],[[4533,4865],[22,-31],[91,-43],[39,-73],[-22,-1],[250,-209],[34,-6],[38,-19],[102,-122],[45,-3]],[[5132,4358],[-2,-50],[-111,-105],[-20,-52],[-39,6],[8,-73],[22,-15],[37,-4],[39,-23]],[[5066,4042],[-23,-14],[57,-65],[-8,-23],[-50,-4],[-8,-42],[-71,-6],[-23,7],[-35,42],[-64,18],[-59,-77],[-2,-9]],[[4113,4816],[64,-20],[36,3],[99,-47],[68,71],[26,14],[26,52],[36,-21],[29,11],[36,-14]],[[8650,9288],[17,-3],[51,-31],[22,-32],[19,12]],[[9060,8048],[-40,-2],[-45,13],[-29,-21],[-22,6],[-24,-46],[-25,-13],[-14,-37],[15,-28],[41,-6],[66,16],[-5,-19],[19,-23],[2,-60],[8,-40],[36,-36],[25,-41],[21,-19],[-11,-59],[-17,-13],[2,-25],[-18,-42],[-13,4],[-52,-29],[-39,-8],[-17,-50],[8,-74],[-54,-18],[-30,-2],[-19,-25]],[[7380,7726],[33,68],[-19,204],[-61,114],[-5,55],[-24,28],[-23,64],[-63,39],[-50,23],[8,37],[21,32],[-24,24],[20,23],[5,34],[-17,8]],[[7181,8479],[18,42],[72,36],[-8,27],[31,4],[10,15],[36,-8],[28,9],[3,20],[24,25],[22,-11],[22,19],[18,85],[-8,30],[26,30],[14,39],[49,-7],[44,-15],[45,26],[23,-13],[42,28],[-3,32],[19,15],[63,4],[86,-61],[44,20],[30,-3],[34,42],[26,-14],[38,65],[33,31],[2,22],[44,-16],[32,22],[45,10],[9,14],[50,11],[36,-10],[31,4],[-6,20],[42,44],[3,15],[64,61],[13,26],[-34,63],[24,25],[36,-2],[23,-35],[24,-14],[70,-17],[53,14],[5,26],[22,14]],[[4531,19076],[-74,-35],[-44,9],[-23,20],[-45,12],[-43,-1],[-25,-31],[-27,3],[-9,29],[-107,46],[-75,23],[-14,-38],[28,-50],[-42,-21],[8,-19],[-25,-20],[15,-52],[-25,-49],[11,-45],[-38,-18],[16,-32],[-37,-37],[7,-37],[-40,6],[17,-32],[-20,-23],[1,-29],[-46,-26],[-7,36],[-37,35],[-42,-3],[-14,13],[-33,1],[-5,-25],[15,-26],[-22,-21],[11,-73],[-23,-35],[-29,18],[-35,-19]],[[3654,18530],[-49,-15],[-76,1],[-44,32],[8,42],[-10,28],[-59,10],[-70,27],[-31,-1],[-23,-44]],[[3300,18610],[-45,-11],[-14,41],[47,31],[-44,98],[-75,47],[-31,5],[-24,46],[29,32],[-23,9],[-26,30],[-23,6],[10,58],[55,1],[-9,47],[-39,12],[-24,19],[-19,51],[-45,-9],[-40,19],[8,27]],[[2968,19169],[18,-23],[61,13],[32,42],[58,22],[71,53],[40,52],[58,14],[29,-44],[9,31],[50,-11],[23,-18],[84,15],[-15,24],[45,11],[22,51],[50,23],[37,7],[37,31],[-7,33],[-30,9],[-25,64],[-7,52],[-15,21],[-3,31],[51,-1],[50,7],[7,45],[18,15],[30,-5],[52,-21],[4,53],[52,5],[38,18],[46,42],[38,18],[32,-27],[58,24],[25,27],[74,-31],[12,32],[21,13],[7,52],[35,-1],[22,39],[32,23],[38,-35],[1,-24],[26,-31],[27,-10],[35,-33],[16,22],[86,-81],[11,-40],[56,-10],[40,-41],[-11,-50]],[[5371,16622],[15,-15],[4,-38],[30,-9],[22,-26],[17,-75]],[[5459,16459],[-52,-17],[-22,37],[-41,-15],[7,-21],[-18,-16],[-66,14],[-31,-61],[11,-19],[-51,0],[5,30],[-24,14],[-38,-43],[-31,-7],[13,-37]],[[5121,16318],[-47,10],[-52,56]],[[5022,16384],[-9,10],[-4,56],[-36,16],[-41,28],[-34,64]],[[4898,16558],[34,4],[23,47],[2,34],[43,28],[41,-17],[39,27],[50,20],[3,-31],[45,11],[35,47]],[[5213,16728],[41,-24],[1,-55],[28,-35],[33,-8],[55,16]],[[5210,17089],[-54,-17],[5,-25],[-72,7],[-10,-32],[12,-34],[-23,-23],[41,-26],[10,-29],[-30,-25],[19,-53],[57,-21],[-2,-61],[14,-28],[36,6]],[[4898,16558],[-36,42],[-48,1],[-7,23],[-42,-2],[18,26],[-9,39],[7,32],[-50,53],[-6,42],[-17,56],[-39,24],[-55,48],[9,57],[-86,3],[-26,24],[-50,8],[-38,50],[-33,7],[-10,26],[-41,-19],[-53,4]],[[4286,17102],[-31,45],[33,61],[2,18],[-44,57],[16,32],[56,26],[12,30],[6,53],[12,19],[55,6],[29,-10],[21,-29]],[[4453,17410],[3,-22],[21,-27],[17,-54],[17,-18],[45,-11],[61,-4],[16,11],[61,16],[-3,35],[57,22],[4,16],[50,-26],[34,14],[-1,47],[51,48],[32,68]],[[4918,17525],[21,31],[42,-13],[33,3],[-6,-24],[23,-35],[38,-2]],[[4883,14362],[26,-3],[24,-93],[17,-50],[39,-76],[68,-95],[53,-60],[19,11],[66,-89],[79,-80],[67,-52],[-2,-28],[37,13],[48,3],[36,-18],[67,-44],[19,-1],[87,-82],[50,-63],[21,15],[28,-10],[45,33],[20,-6],[-18,-38],[34,-71],[64,-84],[21,-4]],[[5898,13390],[-81,-12],[-9,21],[-47,7],[-67,20],[-26,-1],[-21,-30],[-25,-4],[-62,-55],[-48,17],[-69,-18],[-130,24],[-42,14],[4,24],[38,30],[-35,33],[-25,4],[-63,52],[-23,-9],[-25,11],[-26,29],[-19,-9],[-32,9],[-32,-28],[-54,-2],[-14,-8],[-13,-39],[-42,-10],[-53,23],[-27,-20],[-21,-34],[-82,-3]],[[4727,13426],[-38,26],[-43,0],[3,34],[-19,54],[-43,0],[-3,37],[-46,29],[12,13],[-14,48],[-56,21],[-29,-29],[-25,2],[-14,-35],[-64,13],[-14,23],[-44,19],[15,65],[-28,16],[-71,-8],[-18,43],[-72,31],[-15,85],[-38,-2],[-15,35],[-19,-1],[-22,22],[-4,25],[12,102],[16,11],[8,52],[36,28],[38,-14]],[[4113,14171],[57,-16],[12,17],[54,26],[33,-20],[36,-8],[45,-25],[41,1],[109,32],[39,3],[35,-58],[18,-11],[56,8],[6,15],[36,6],[28,-13],[31,20],[39,9],[1,41],[23,18],[25,40],[48,-3],[9,22],[-32,62],[21,25]],[[5886,17361],[0,-27],[-25,-53],[4,-35],[-62,-30],[2,-34],[19,-15],[43,3],[63,-24],[56,12],[49,-44]],[[6035,17114],[-30,-8],[-34,5],[-13,-27],[42,-29],[8,-22],[-65,-13],[-5,-54],[11,-39],[-72,-2],[-11,-81],[15,-48],[-40,-16],[-4,-22],[-37,-10],[-42,14]],[[5758,16762],[-64,-37],[-36,10],[-38,-24],[-47,-7]],[[5573,16704],[-27,2],[-33,28],[-14,50],[-81,37],[-32,32],[-8,32],[21,29],[8,30],[-13,28],[16,28],[-1,37],[-17,2],[-12,29]],[[6348,16868],[33,15]],[[6381,16883],[39,-34],[-18,-12],[-43,-3],[-11,34]],[[6498,16927],[0,-15],[55,7],[54,1],[14,-16],[-1,-31],[44,1],[37,-23],[-4,-30],[-38,-1],[-38,-26],[16,-12],[1,-37],[-63,34],[-32,-10],[-18,34],[-54,59],[18,27],[9,38]],[[6239,16858],[-19,-34],[45,-49],[15,-44],[-38,8],[-65,-32],[-28,-37],[-39,-26],[-57,-10]],[[6053,16634],[-31,15],[-43,-22],[-38,3],[-4,-19],[-27,-6],[-36,16],[-12,-19],[-45,26],[6,20],[-21,28],[-50,39],[19,25],[-13,22]],[[6035,17114],[15,-10],[39,8],[94,-27],[24,2],[38,-27],[4,-70],[-22,-47],[-27,-14],[27,-22],[12,-49]],[[4860,3666],[6,-3]],[[4999,3685],[71,-54]],[[5070,3631],[-30,-27],[-16,-77],[-19,-56],[5,-7],[-13,-64],[-190,-104],[-45,-36],[-83,-16],[-20,-20],[-25,11],[-38,-32]],[[4363,3214],[2,18],[32,14],[9,37],[-47,8],[-43,21],[-14,28],[33,14],[24,22],[60,32],[-14,18],[40,28],[-5,28],[62,20],[53,38],[32,60],[-9,8]],[[5022,16384],[-51,-4],[-41,35],[-57,-9],[11,-75],[-40,10],[2,16],[-35,15],[-17,-25],[33,-48],[7,-27],[-48,-29],[-23,6],[-57,45],[-61,26],[-19,-11],[-35,3]],[[4591,16312],[-52,-2],[-36,17],[-71,15],[-27,-16],[-79,21],[-60,36],[-59,17],[11,25],[-33,24],[3,14],[-59,39],[-54,7],[-10,23],[-30,16],[-66,24],[-39,-17],[-42,-4],[-82,60],[-2,25],[-84,50],[-60,-9],[-9,-14]],[[3651,16663],[-13,10],[-2,50],[12,38],[-9,19],[59,25],[42,-22],[115,-32],[22,22],[-30,14],[18,35],[25,23],[-34,17],[10,36],[-39,76],[-49,31],[-21,35],[-33,24],[-14,34],[-31,24],[-20,59],[21,-1],[15,30],[46,15]],[[3741,17225],[12,-46],[24,-25],[29,7],[65,-27],[15,-19],[46,-15],[50,-60],[55,-27],[101,16],[-18,-27],[75,20],[34,-24],[51,-2],[44,21],[-13,44],[-25,41]],[[5573,16704],[-35,-16],[-27,-36],[-60,19],[-16,-15],[-31,18],[-46,-20],[13,-32]],[[1780,2885],[26,-10],[-30,-26],[-18,-3],[-9,33],[31,6]],[[3388,3462],[-53,-1],[28,30],[29,-4],[-4,-25]],[[2550,4208],[12,3],[44,-48],[10,-26],[-9,-30],[9,-25],[-7,-26],[8,-50],[-30,-48],[-19,-55],[-19,-30],[6,-15],[-23,-48],[33,-20],[-17,-47],[-29,-24],[-8,33],[-16,13],[-5,43],[-26,113],[-20,62],[-49,73],[-34,4],[-22,19],[-26,1],[-16,54],[2,32],[100,-22],[25,18],[11,32],[27,9],[8,35],[43,14],[37,-44]],[[3635,3135],[6,58],[25,172],[19,52],[22,83],[16,24],[46,-4],[30,9],[83,77],[35,25],[38,14],[22,-27],[20,2],[-2,31],[-37,71],[-87,81],[-30,21],[-27,3],[-84,-16],[-40,12],[-72,97],[-33,31],[-46,24],[-58,2],[-61,-43],[-49,-61],[-53,12],[13,19],[-32,58],[2,43],[-27,38],[-55,30],[7,11],[-24,38],[-50,50],[-43,-23],[9,43],[-18,27],[55,7],[43,-8],[19,37],[32,9],[8,42],[37,13],[1,28],[31,16],[30,-12],[28,12],[60,-2],[80,-23],[35,0]],[[8233,9827],[40,-57],[62,-48],[13,-41],[20,-5],[37,-34],[16,-40],[26,-26],[46,-11],[39,-32],[45,13],[14,-27],[33,-30],[-17,-41],[-25,-24],[21,-19],[-37,-50],[9,-27],[42,4],[33,-44]],[[7181,8479],[-8,9],[-2,61],[-7,19],[-84,-9],[-39,40],[8,39],[27,29],[-62,27],[-2,20],[33,66],[27,17],[34,58],[7,40],[-5,33],[-20,42],[41,55],[3,53],[30,12],[19,-22],[39,-1],[0,24],[17,31],[11,71],[17,15],[13,40],[-19,37],[33,24],[-4,18],[28,83],[-6,39],[-42,5],[22,25],[-22,37],[-21,11],[21,34],[21,10],[67,55],[-8,33],[-46,12],[-29,32],[-30,2],[-35,28],[-5,40],[-12,26],[10,16],[49,8],[45,26],[48,-24],[26,24],[30,5],[-29,43],[31,26],[-16,25],[7,31],[-23,37],[3,22],[30,37],[-11,64],[26,39],[-34,20],[-14,59],[33,37]],[[7402,10294],[20,-1],[31,-35],[3,-37],[60,-63],[28,6],[-2,-51],[13,-39],[27,2],[27,-21],[80,-14],[39,4],[26,-17],[43,17],[17,-2],[31,-41],[65,-28],[-1,-39],[-32,-64],[-31,-21],[26,-44],[21,-16],[41,0],[36,-9],[28,-30],[34,-22],[81,15],[14,24],[-15,47],[-1,34],[18,13],[28,-4],[49,-33],[27,2]],[[1868,19029],[61,-21],[-8,-13],[24,-45],[15,-7],[-25,-42],[-29,-23],[65,-73],[28,-17],[28,6],[89,7],[26,10],[46,-30],[4,-46],[20,-20],[-21,-26],[71,-47],[29,-37],[4,-28],[40,-33],[-9,-20],[31,-9],[36,-36],[28,-3],[11,-42],[-6,-26],[18,-28],[4,-77],[38,-39]],[[2486,18264],[-55,-59],[-34,16],[-36,-13],[-7,-18],[4,-50],[41,-34],[43,-45],[20,-38],[-17,-27],[-48,-12],[-8,-25],[13,-19]],[[2402,17940],[-44,2],[-23,-19],[-46,25],[-7,28],[-40,13],[-34,47],[-34,2],[7,34],[-47,-3],[-37,22],[35,67],[-53,50],[5,28],[-28,9],[-19,50],[-24,-4],[-44,29],[-65,12],[-38,1],[-17,-15],[1,-24],[-23,-26]],[[239,18972],[46,22],[-10,28],[34,6],[42,57],[-29,47],[33,5],[39,22],[26,36],[-4,29],[16,16],[41,14],[20,-4],[74,-64],[5,-23],[52,34],[67,-52],[46,15],[61,-44],[19,2],[20,-25],[25,-2],[5,-23],[52,-2],[43,-19],[27,-21],[2,-42],[25,-18],[20,-41],[24,-32],[76,-4],[10,-22],[50,-23],[68,10],[-12,33],[12,35],[57,16],[26,26],[20,-3],[36,25],[-34,42],[36,60],[57,4],[8,14],[69,33],[3,63],[30,28],[16,36],[19,19],[53,-9],[23,-20],[33,-4],[3,-16],[32,-15],[-15,-22],[5,-42],[37,-26],[-6,-22],[43,-50],[53,-30]],[[8895,6337],[-47,-20],[0,-19],[-28,-11],[35,-32],[15,-52],[-18,-13],[-22,-37],[-1,-33],[-20,-20],[-2,-68],[-18,-49],[3,-33],[-43,-43],[28,-19],[39,-9],[0,-48],[27,-16],[15,-39],[-33,-41],[-28,-1],[-44,-20],[-82,-10],[-13,-14],[-1,-36],[42,-55]],[[8829,6525],[33,-15],[-5,-79],[25,-23],[-11,-34],[9,-12],[8,-17],[7,-8]],[[5974,18821],[-3,-15],[31,-36],[-5,-19],[-32,-22],[27,-10],[75,-1],[33,-7],[14,-59],[21,-21],[22,-51],[-11,-26],[-31,-24],[26,-27],[10,-67],[17,-8],[1,-44],[-17,-16],[13,-34],[-29,-22],[-2,-27],[48,-10],[22,38],[27,6],[36,-9],[31,-35],[45,10],[56,-3],[53,-10],[13,-51],[66,-5],[14,28],[38,-5],[39,-20],[20,2],[5,-45],[-63,-38],[-19,-22],[40,-34],[72,-10],[36,-19],[36,-37],[59,-19],[33,-30],[55,-20],[18,28],[53,16],[28,-20],[3,-24],[47,-50],[6,-30],[-13,-12],[11,-37]],[[7049,17818],[-38,-13],[-54,4],[-18,-32],[-86,-17],[-17,-13],[40,-28],[16,-43],[-10,-29],[11,-41],[24,-32],[-16,-40],[-16,-3],[-29,26],[-65,-27],[-96,14],[-30,-35],[-25,0],[-14,-21],[-24,-5]],[[5458,17823],[17,18],[-8,32],[46,41],[17,50],[-34,9],[-87,42],[-19,29],[-29,-5],[-24,46],[31,30],[-11,18],[8,44],[18,6],[-1,30],[-40,16]],[[3300,18610],[0,-33],[34,1],[12,-50],[-51,-8],[-6,-69],[-19,-39],[-19,5],[-42,38],[-44,24],[-37,29],[-9,22],[-51,17],[-27,-27],[-5,-21],[20,-52],[-37,-36],[1,-23],[49,-53],[18,-61],[-3,-48],[-54,-29],[-2,-14],[-40,-29],[-22,11],[-20,40],[-151,38],[24,-54],[-53,-20],[-66,9],[-27,14],[-45,9],[-22,-12],[-32,11],[-52,6],[-27,24],[-9,34]],[[1868,19029],[36,51],[25,5],[10,34],[-23,41],[40,39],[63,75],[26,-8],[10,-21],[27,-16],[107,-84],[66,-64],[17,-28],[49,-37],[16,-22],[25,1],[52,-46],[45,-28],[64,20],[3,32],[-10,30],[26,53],[16,68],[-11,18],[22,52],[57,48],[21,34],[29,18],[31,-3],[89,30],[67,8],[13,-10],[-20,-59],[-1,-22],[30,-31],[29,-14],[31,0],[23,-24]],[[5426,4900],[10,-22],[45,7],[51,21],[46,-6],[18,16],[-19,20],[18,14],[32,-2],[63,-35]],[[5690,4913],[23,-28],[51,6],[57,-39],[112,-49],[-35,-116],[-13,-25],[-47,-34],[32,-36],[41,-6],[21,-46],[24,-12],[6,-32],[65,12],[47,-42],[60,38],[37,-7],[25,-23],[-14,-40],[30,-39],[8,-51],[-18,-34]],[[6202,4310],[-46,-35],[-25,-34],[-30,9],[-2,33],[-27,6],[-18,-34],[-38,-18],[-13,-19],[-39,-10],[-14,20],[-26,5],[-44,-22],[-23,-22],[-38,20],[-33,-2],[-18,23],[42,22],[-10,23],[-47,32],[-16,-23],[-29,17],[0,35],[-29,13],[0,19],[-38,32],[-13,-6],[-32,26],[-110,-9],[-140,-5],[1,-64],[-215,16]],[[4533,4865],[53,0],[175,43],[65,40],[78,14],[14,-4],[46,-85],[61,-70],[-15,-49],[42,-15],[64,-11],[-2,34],[26,15],[-8,44],[89,-71],[72,-46],[39,-12],[95,5],[39,-30],[-4,62],[-35,55],[-35,35],[19,32],[-9,43],[24,6]],[[5459,16459],[51,-15],[-17,-50],[14,-23],[77,-11],[6,-26],[-41,-43],[24,-22],[35,17],[56,44],[23,-26],[49,-15],[49,-46],[38,-18],[29,1],[27,19],[41,11],[52,-45]],[[5972,16211],[16,-20],[-14,-39],[-68,5],[-46,-22],[-59,-5],[-47,-13],[-63,-34],[-167,-162],[-99,-107],[-29,18],[-43,-13],[-9,-16]],[[5344,15803],[-4,41],[19,53],[4,30],[27,16],[31,73],[14,14],[-8,67],[-13,46],[-60,-7],[-19,46],[-48,-45],[-36,16],[11,29],[-49,-4],[-28,14],[3,34],[-34,31],[-30,12],[22,31],[-25,18]],[[4944,15010],[-7,-21],[-25,-4],[-14,-43],[-42,-18],[-13,-53],[0,-64],[11,-25],[-61,-24],[-30,14],[-37,-31],[-25,-46],[-7,-71],[22,-92],[62,-30],[46,-41],[18,-48],[40,-40],[1,-11]],[[4113,14171],[13,47],[-37,19],[-50,39],[-3,33],[-34,-13],[-74,1],[-20,20],[-61,27],[-68,-6],[-5,42],[-25,12],[-62,3],[-22,-15],[-21,14],[-62,-2],[-15,22],[-35,-8],[-50,26],[-11,29],[-49,-4],[-27,32],[-26,7],[-13,22],[-68,28],[-44,54],[-5,25],[-42,9],[-17,25],[-33,-17],[-35,-4],[-59,65],[-4,21],[-45,21],[-22,-4],[-61,28],[-9,24],[-27,8],[-63,-10],[-30,18],[22,27],[-33,15],[-31,45],[-66,6],[-17,20],[-22,-6],[-40,38],[-84,-15],[-65,21],[-50,42],[-12,21],[-55,20],[43,13],[61,35],[7,31],[47,26],[30,-3],[11,16],[39,11],[25,-10],[8,38],[25,52],[39,15],[-27,25],[6,54],[-29,16],[-34,44],[13,61],[55,-9],[34,2],[29,14],[9,28],[49,-4],[46,18],[46,-14],[48,1],[20,-12],[105,12],[23,12],[8,-32],[59,-39],[41,2],[17,-35],[43,-11],[44,2],[20,18],[34,6],[32,-14],[23,20],[24,53],[-9,21],[44,32],[38,35],[43,-6],[28,32],[31,17],[37,-4],[16,20],[-2,57],[18,26],[-12,19],[10,53],[29,21],[34,12],[28,46]],[[3745,15866],[83,-23],[30,-19],[79,-35],[46,9],[57,-22],[30,1],[23,-13],[4,-68],[-37,0],[-24,-35],[-6,-29],[10,-75],[27,-21],[13,-48],[24,-5],[71,-43],[35,-8],[16,-39],[11,-52],[-17,-41],[34,-67],[54,69],[28,7],[6,-37],[60,-70],[38,7],[20,-16],[28,15],[18,-11],[28,20],[27,3],[97,-115],[51,9],[19,-30],[32,-19],[22,-40],[41,-1],[30,19],[49,-33],[42,0]],[[5344,15803],[-25,-27],[-34,6],[-5,24],[-37,29]],[[5243,15835],[11,36],[25,5],[30,63],[-6,13],[-47,-7],[-67,10],[-33,-3],[-51,44],[-71,27],[-104,55],[-70,18],[-6,11],[-59,35],[-20,29],[-38,32],[-38,11],[-36,39],[-20,-3],[-38,24],[-14,38]],[[8895,6337],[12,-7],[38,-4],[32,4],[-8,-40],[34,-78],[-13,-18],[75,-37],[-10,-38],[63,-44],[27,6],[43,-17],[18,-16],[37,-11],[24,9],[58,-31],[15,-44],[47,-56],[59,-14],[70,11],[2,-31],[28,-17],[27,-32],[-1,-31],[-27,-7],[-45,-48],[-12,-59],[-18,-7],[-19,-40],[-29,-18],[-40,16],[-27,-8],[-23,9],[-19,29],[0,30],[-37,-9],[36,-35],[-25,-65],[-10,-56],[3,-97],[-9,-38],[18,-36],[-79,-55],[-39,-11],[-53,32],[-37,-1]],[[4297,17704],[36,-107],[30,19],[33,-31],[-8,-50],[16,-23],[45,-21],[26,-27],[-11,-54],[-11,0]],[[3741,17225],[-23,20],[-58,26],[14,71],[-18,58],[-13,9],[3,55],[-40,30]],[[3606,17494],[39,4],[30,32],[24,-25],[24,9],[-22,28],[33,51],[4,40],[-18,24],[-21,50],[3,17],[-21,22],[6,18],[33,10],[-5,55],[13,21],[46,31],[40,1],[89,58],[29,-17],[59,-5],[-16,44]],[[3975,17962],[24,-12],[54,-10],[16,-16],[29,0],[43,-32],[33,-3],[-12,-35],[27,-16],[5,-41],[31,-24],[-3,-24],[36,-13],[0,-21],[39,-11]],[[9576,8173],[-10,-37],[24,-41],[62,-57],[-22,-10],[-33,23],[-22,35],[-13,45],[-29,-11],[48,-47],[10,-38],[15,-12],[-11,-28],[58,-23],[-1,-18],[22,-31],[5,-63],[-56,-2],[-12,15],[41,25],[4,13],[-61,42],[-37,-53],[0,-37],[11,-23],[22,-11],[15,-46],[20,16],[28,-14],[-15,-42],[-27,-14],[8,-17],[-12,-24],[8,-24],[39,36],[23,-9],[11,-22],[-20,-16],[-11,-32],[6,-24],[-6,-59],[9,-24],[34,-44],[56,-88],[103,-124],[21,-43],[-76,-20],[-19,-30],[-30,29],[-50,-25],[-59,-18],[-40,8],[-38,-31],[-51,21],[-37,-8],[-19,-47],[-46,12],[-32,-32],[-7,-31],[-59,4],[-67,-49]],[[5898,13390],[6,-24],[-23,-23],[-19,-1],[-53,-83],[-1,-28],[28,-89],[42,-68],[7,-22],[60,-76],[23,-41],[41,-58],[92,-114],[125,-120],[82,-61],[111,-74],[82,-58],[47,-29]],[[6548,12421],[-75,-66],[-93,-37],[9,-33],[-34,-24],[-43,9],[-18,-24],[1,-34],[-27,-7],[-16,-33],[0,-35],[-38,-10],[-57,23],[-21,19],[-34,-23],[-73,2],[-28,40],[2,21],[-34,-2],[-18,12]],[[5951,12219],[-45,-32],[-60,15],[-17,19],[-24,-5],[-18,14],[-6,27],[-29,28],[20,32],[-93,86],[-36,53],[18,50],[-40,29],[2,41],[-40,6],[-3,-42],[-52,-14],[-73,50],[-51,29],[0,13],[-74,45],[-309,311],[-34,14],[-59,49],[-56,-1],[-9,63],[-19,29],[-36,18],[-37,48],[12,29],[-15,28],[-46,14],[-33,28],[-9,19],[19,29],[8,39],[20,14],[0,32]],[[8621,10957],[17,-7],[3,-36],[-44,21],[-10,44],[34,-22]],[[7665,11075],[58,5],[55,-33],[56,30],[54,-59],[-5,-28],[-31,-24],[-4,-28],[40,-30],[76,17],[63,-8],[25,21],[61,-13],[5,24],[34,-16],[8,30],[25,-1],[27,-20],[32,33],[35,-18],[22,9],[54,-55],[82,-47],[21,-17],[10,-60],[25,-52],[104,-150],[87,-108],[50,-51],[30,-22],[-13,-62],[30,-11],[7,33],[29,-10],[20,11],[22,-19],[-7,-17],[56,-54]],[[8908,10275],[-26,-32],[-65,-11],[-26,5],[-77,-30],[-118,-22],[-29,-20],[-107,1],[-18,-14],[-37,-3],[-57,5],[-32,-26],[2,-26],[-26,-16],[6,-20],[29,-9],[-22,-25],[13,-32],[-35,-50],[-25,-20],[-2,-33],[-20,-25],[-3,-45]],[[7402,10294],[-29,6],[-57,-30],[-55,24],[10,27],[-17,43],[-30,8],[-49,29],[-35,-16],[-64,5],[-24,92],[-30,54],[-20,12],[-51,0],[-34,40],[17,48],[-14,29],[-23,7],[-7,23],[-41,-7],[-3,23],[24,32],[-6,25],[-20,26],[35,21],[18,-5],[89,55],[30,1],[45,15],[39,-2],[36,40],[8,28],[47,89]],[[7191,11036],[28,19],[26,-25],[48,-12],[24,14],[-10,27],[21,11],[69,13],[0,-32],[67,-30],[12,-16],[33,-6],[28,15],[4,28],[85,44],[39,-11]],[[9453,10247],[-31,-10],[-29,6],[3,21],[38,0],[19,-17]],[[8908,10275],[44,-17],[37,10],[28,29],[12,-43],[32,-41],[45,-29],[-20,-33],[55,-61],[34,-2],[-1,-37],[-48,-20],[-7,-21],[4,-69],[8,-59],[25,-86],[28,-71],[50,-104],[30,-54],[45,-67],[56,-70],[8,-34],[-24,-24],[11,-76],[11,-20]],[[7024,16953],[56,2],[4,-26],[-24,-13],[-55,22],[19,15]],[[7576,17104],[23,-15],[-16,-24],[-35,28],[28,11]],[[7296,17099],[-7,-35],[-23,-58],[-19,-18],[-63,-14],[-38,18],[57,33],[16,17],[-3,28],[29,38],[24,11],[27,-20]],[[7723,17137],[-37,-50],[-20,26],[27,28],[30,-4]],[[7344,17225],[-14,-36],[-42,-22],[-18,16],[28,39],[46,3]],[[7370,17144],[-19,25],[35,41],[12,0],[-28,-66]],[[7148,17390],[-18,-27],[-64,-22],[29,50],[53,-1]],[[7188,17417],[82,-55],[21,-37],[54,13],[34,0],[-49,-49],[-37,-25],[-10,17],[-44,-33],[2,-14],[-58,-39],[-58,-31],[-9,-13],[-41,-5],[0,41],[22,15],[3,27],[41,12],[16,32],[-30,21],[35,18],[39,6],[-31,53],[18,46]],[[7916,17572],[-55,-27],[-15,-19],[-33,3],[-70,-6],[15,31],[41,1],[74,17],[43,0]],[[6348,16868],[-16,38],[-48,-1],[-29,-18],[36,-31],[-52,2]],[[7049,17818],[28,-5],[64,65],[48,18],[19,-6],[23,-30],[-4,-47],[67,-7],[23,28],[28,5],[14,-14],[115,3],[52,16],[39,23],[88,21],[33,-17],[30,14],[42,-35],[19,-48],[27,3],[29,-24],[13,-37],[43,8],[26,-6],[1,-36],[22,-35],[-43,-36],[3,38],[-75,25],[-25,26],[-49,-17],[-36,16],[-35,-10],[-42,-25],[6,-24],[-40,-25],[-32,-60],[-53,-4],[-46,14],[-18,-14],[10,-26],[-46,-8],[8,-18],[-21,-32],[-61,-38],[-17,20],[-58,3],[-48,-23],[-29,14],[-87,-17],[-36,19],[-16,-69],[6,-41],[-8,-76],[28,-7],[9,-29],[-11,-33],[-21,-11],[-16,-31],[16,-8],[-5,-31],[13,-20],[-12,-18],[-41,-19],[-53,9],[-74,-5],[-18,-23],[-35,-19],[-21,-29],[-30,-13],[-15,13],[-41,-2],[-34,17],[-28,-6],[-15,18],[-39,-16],[-41,8],[-46,-3],[-62,9],[-14,-14],[19,-20],[0,-23],[-74,16],[-1,-21],[-42,-6],[0,-20],[32,-39],[3,-28]],[[7084,11909],[-24,-11],[-17,-38],[-29,-23],[-18,-35],[-23,-17],[30,-39],[-25,-23],[-51,-28],[-37,24],[-24,-9],[-79,-2],[-55,-15],[-89,-33],[8,-33],[38,-9],[31,-19],[23,-38],[-11,-15],[-91,-16],[-26,-33],[-7,-36],[-30,-19],[-30,-5],[-4,-18],[26,-20],[15,-25]],[[6585,11374],[-15,12],[-59,-7],[0,60],[-58,18],[-29,23],[-19,38],[-19,17],[22,17],[-13,24],[15,55],[-19,21],[-60,21],[-4,-32],[-34,-71],[-16,13],[-27,-11],[3,-36],[-15,-14],[-50,1],[-53,21],[-14,12],[-14,60],[-16,13],[-8,33],[33,29],[-31,35],[-21,-2],[-30,20],[-32,-8],[2,30],[-31,21],[-1,28],[-18,35],[1,71],[-4,140],[-41,26],[2,42],[37,6],[2,84]],[[6548,12421],[46,-29],[114,-62],[5,-96],[14,-24],[59,-70],[106,-95],[133,-101],[59,-35]],[[5183,3564],[44,-56],[52,-44],[25,-29],[58,-34],[91,-88],[89,-71],[77,-43]],[[5619,3199],[-15,-11],[-19,-42],[-31,-36],[-67,-19],[-13,-42],[-46,-55],[37,-14],[-2,-31],[-31,-28],[-47,-20],[-31,4],[-79,-22],[-211,-64],[-88,-32]],[[5070,3631],[32,-10],[81,-57]],[[2402,17940],[21,-11],[0,-26],[43,-7],[18,16],[31,-14],[37,5],[22,-15],[59,-19],[40,12],[52,4],[44,-10],[31,31],[49,-1],[7,-10],[110,-14],[-29,-40],[-39,-21],[11,-36],[-28,-27],[23,-31],[-15,-66],[27,-20],[-6,-18],[29,-14],[14,-22],[23,12],[31,-25],[22,4],[45,-31],[2,-20],[74,-9],[36,28],[37,46],[69,-4],[11,15],[77,-48],[53,-6],[6,27],[62,1],[0,-27],[18,-33],[27,-9],[11,-23],[49,10]],[[3651,16663],[-46,-17],[-19,-22],[5,-41],[-84,-14],[-24,37],[-37,-1],[-45,26],[-33,35]],[[3368,16666],[-11,25],[-36,-1],[-49,53],[-42,1],[-15,-19],[-38,15],[-12,21],[-5,45],[-41,16],[-6,21],[-39,-4],[-32,31],[-47,20],[-47,27],[12,16],[-31,37],[-44,29],[-43,-31],[-17,21],[9,16],[-63,17],[-10,13],[-79,-8],[-12,25],[-23,10],[-18,-18],[-53,-16],[-4,-44],[-25,-15],[-70,9],[-46,-19],[-18,12],[-45,4],[-53,-42],[-64,-8],[-8,-41],[-40,-33],[17,-32],[6,-34],[-27,-18],[-51,-2],[-6,-18],[9,-62],[-71,-9],[-22,47],[-28,1],[-14,25],[-54,29],[-121,12],[-39,52],[-19,37],[-24,-8],[-7,-27],[-46,-16],[-34,0],[-23,24],[-22,-3],[-87,39],[-35,-15],[-43,24],[11,35],[-25,28]],[[5813,5088],[-29,-54],[-5,-64],[-13,-37],[-76,-20]],[[5426,4900],[35,-12],[12,24],[-9,69],[-45,64],[-37,-12],[-29,-26],[-27,38],[-14,-5],[-33,34],[-42,22],[-12,56],[-77,13],[-27,13],[-33,38],[-2,46],[-24,8],[-32,-6],[-2,44],[22,48],[-17,30],[45,76],[-38,21],[13,28],[-7,31],[8,28],[-32,40],[-17,-6],[-44,11],[-9,33],[24,28],[7,35],[34,23],[34,12],[55,-32],[41,-13],[33,32],[0,34],[26,16],[18,27],[-4,32],[19,24],[66,1],[55,-38],[59,-9],[46,18],[34,-26],[54,-7],[61,-60],[50,7],[59,23],[72,-36],[25,2]],[[6053,16634],[7,-19],[-65,-70],[-8,-36],[17,-53],[-2,-24],[16,-24],[-26,-85],[13,-87],[-33,-25]],[[5265,17717],[0,-1]],[[4918,17525],[-22,19],[-8,32],[-18,18],[-85,33],[-11,15],[-35,2],[-28,27],[4,17],[-31,15],[-11,29],[-22,6],[-41,44],[-20,4]],[[4590,17786],[-22,12],[-39,42],[-23,67],[20,53],[28,23],[-7,19],[21,19],[-41,14],[-1,62],[45,8],[-12,49],[32,18],[14,21],[3,60]],[[5243,15835],[-89,-52],[-16,-44],[5,-24],[-26,-51],[1,-64],[-30,-32],[-18,-34],[-26,9],[-39,-43],[-33,-88],[-29,-3],[-17,-27],[33,-35],[-13,-89],[9,-77],[-35,-18],[1,-53],[17,-39],[24,-29],[-18,-32]],[[3745,15866],[3,25],[28,30],[45,26],[5,20],[-20,40],[-54,36],[-30,8],[-44,-7],[-35,9],[-26,24],[-67,37],[-70,2],[-26,14],[-38,5],[-17,21],[-39,-6],[-25,18],[-1,44],[13,75],[0,29],[66,30],[17,16],[37,8],[-33,39],[-29,12],[-22,25],[-30,-13],[-11,-34],[-28,-21],[-43,0],[-55,-29],[-39,-12],[-29,-18],[-30,13],[-44,-2],[-19,20],[12,40],[-44,26],[-10,25],[17,20],[38,6],[31,24],[41,7],[39,36],[34,6],[26,59],[23,11],[56,-2],[33,24],[17,34]],[[7191,11036],[-28,18],[16,48],[-23,3],[-85,-11],[-16,-14],[-52,8],[-28,16],[-33,46],[-59,35],[-19,-8],[-42,5],[-47,28],[-20,57],[14,21],[-6,42],[-92,57],[-20,-12],[-66,-1]],[[7084,11909],[163,-115],[143,-90],[72,-26],[133,-87],[162,-127],[94,-51],[27,-21],[53,-2],[32,-10],[29,-44],[-32,-14],[5,-37],[22,-16],[55,9],[30,-15],[39,11],[28,-14],[20,8],[10,-8],[-30,-8],[-14,4],[-19,-9],[-21,-16],[-98,-8],[-58,19],[-35,23],[-43,-30],[-35,11],[-25,21],[-8,-1],[-25,-17],[-15,-5],[-10,-14],[9,-30],[-21,-8],[-5,-47],[-46,-43],[-5,-27]],[[6202,4310],[41,-61],[47,-45],[37,-98]],[[6327,4106],[-61,-27],[-18,-36],[2,-43],[14,-17],[-9,-45]],[[5255,4070],[-50,35],[-23,2],[-76,-57],[-40,-8]],[[6552,4280],[-30,10],[-33,-62],[32,-27],[-90,-34],[-35,-2],[-17,-42],[-52,-17]],[[6017,3462],[-48,-67],[11,-17],[-1,-42],[11,-37],[-23,-53],[-44,-54],[-38,-26],[-114,-34],[-48,15],[-51,47],[-37,17],[-16,-12]],[[5183,3564],[6,23],[72,32],[20,23],[28,-5],[15,22],[37,-28],[26,28],[4,77],[21,-9],[52,10],[34,-26],[24,24],[-12,25],[10,35],[15,11],[65,-39]],[[4590,17786],[-30,-48],[-62,-14],[-61,-22],[-52,8],[-29,16],[-59,-22]],[[3975,17962],[-24,40],[5,32],[21,36],[-40,61],[-18,9],[-14,33],[-28,18],[5,35],[-38,-5],[13,70],[-13,16],[11,49],[-66,-9],[-11,22],[-74,22],[-29,32],[-1,54],[-20,53]],[[12697,678],[-16,5],[14,60],[10,12],[32,-16],[-30,-34],[-10,-27]],[[12916,846],[-62,-40],[3,29],[37,14],[22,-3]],[[15725,832],[69,5],[0,11],[-69,-16]],[[16227,972],[-27,-9],[-23,-26],[-52,-12],[-22,-30],[-57,-33],[-9,-17],[-92,-24],[-6,34],[38,-15],[31,0],[16,24],[41,13],[16,21],[114,78],[32,-4]],[[9439,1046],[-24,25],[17,17],[31,-16],[-24,-26]],[[11227,1032],[45,56],[34,-6],[-20,-28],[-59,-22]],[[16358,1065],[10,-29],[-37,3],[27,26]],[[16677,1153],[-17,8],[19,27],[20,-16],[-22,-19]],[[16652,1228],[-39,-2],[-15,-33],[-27,14],[6,26],[31,13],[44,-18]],[[15909,1294],[17,-5],[6,-30],[39,-39],[-29,-8],[-8,28],[-58,38],[8,20],[25,-4]],[[11473,1346],[4,-22],[-28,-47],[-35,27],[-6,22],[10,30],[36,7],[19,-17]],[[17005,1477],[51,-2],[10,-23],[37,-16],[6,-38],[-26,7],[-32,27],[-86,7],[-24,-9],[-50,3],[-27,-31],[45,-38],[-15,-6],[-32,40],[-91,0],[-54,-11],[12,28],[45,4],[105,35],[38,4],[59,26],[29,-7]],[[15142,1540],[-39,-62],[-110,-101],[40,58],[29,62],[59,45],[16,22],[5,45],[17,3],[-17,-72]],[[15040,1435],[18,9],[50,48],[16,44],[-52,-41],[-32,-60]],[[17639,1738],[18,-19],[43,-8],[1,-14],[-65,-1],[-36,32],[39,10]],[[16276,2169],[9,-10],[-2,-34],[15,-19],[-42,-22],[-11,28],[4,28],[-19,32],[11,11],[35,-14]],[[16258,2097],[29,12],[-11,29],[4,15],[-30,4],[8,-60]],[[15941,2288],[57,0],[66,-17],[9,-23],[26,-21],[2,-24],[-40,9],[-39,-3],[-142,67],[18,21],[43,-9]],[[16028,2216],[32,2],[-8,34],[-32,20],[-95,9],[5,-25],[98,-40]],[[14099,2297],[49,-2],[53,-30],[-59,-1],[-64,-10],[-24,34],[45,9]],[[16910,2301],[3,2]],[[16913,2303],[-3,-2]],[[16913,2303],[-3,-2]],[[16910,2301],[-29,-23],[-7,32],[43,21],[-4,-28]],[[19135,2383],[-19,-43],[-39,-9],[21,50],[37,2]],[[19093,2336],[33,33],[-27,5],[-6,-38]],[[15618,2449],[-32,-24],[-24,22],[56,2]],[[19642,2516],[-32,8],[10,31],[24,-19],[-2,-20]],[[17972,2995],[11,-55],[9,-12],[-20,-16],[-24,5],[-12,33],[36,45]],[[17960,2918],[23,8],[-12,55],[-27,-31],[16,-32]],[[14743,3320],[-49,-30],[-29,-28],[-68,-38],[-64,-8],[48,74],[34,12],[-53,-64],[26,-9],[30,14],[88,62],[37,15]],[[19448,3391],[52,3],[44,-29],[-13,-16],[-42,7],[-33,19],[-41,4],[6,30],[27,-18]],[[18574,3459],[-20,-77],[-41,-82],[11,78],[-9,57],[30,35],[29,-11]],[[18524,3347],[23,32],[19,63],[-20,15],[-26,-31],[11,-52],[-7,-27]],[[18108,3620],[40,-12],[5,-20],[-44,-36],[-50,7],[-16,17],[-1,29],[16,15],[50,0]],[[18061,3565],[50,-8],[34,33],[-15,19],[-59,9],[-20,-11],[10,-42]],[[16918,3703],[-13,-49],[-33,37],[46,12]],[[15812,3713],[2,35],[-8,120],[28,-16],[-15,-135],[-7,-4]],[[17791,3946],[-2,-23],[-21,-8],[-18,30],[41,1]],[[19396,4054],[-17,-1],[-25,32],[35,37],[37,-43],[-30,-25]],[[16965,4110],[-14,-34],[-26,-15],[-7,29],[41,54],[6,-34]],[[16761,4097],[-3,49],[18,-2],[-15,-47]],[[18453,4354],[-15,-66],[-41,-24],[-45,17],[-12,14],[22,45],[20,15],[71,-1]],[[19941,4374],[41,12],[17,-14],[-15,-24],[-50,-9],[-34,38],[41,-3]],[[18954,4440],[-19,1],[1,66],[22,33],[40,-57],[-44,-43]],[[19612,4644],[-23,0],[-34,24],[31,16],[42,-30],[-16,-10]],[[18544,4665],[21,-77],[-28,2],[-19,46],[-1,23],[-30,5],[-14,-46],[1,-34],[16,-3],[10,-89],[10,-35],[-27,-28],[-7,90],[-17,47],[-4,36],[9,34],[-7,24],[13,31],[27,23],[20,-31],[27,-18]],[[19140,4716],[2,-15],[-31,-15],[-12,19],[16,16],[25,-5]],[[19581,4716],[4,70],[21,2],[-8,-48],[-17,-24]],[[19250,4753],[-27,8],[-4,30],[30,4],[1,-42]],[[19310,4805],[29,-14],[-29,-20],[-16,4],[-27,35],[43,-5]],[[16144,4815],[2,2]],[[16146,4817],[-2,-2]],[[16146,4817],[1,1]],[[16147,4818],[-1,-1]],[[16147,4818],[1,0]],[[16148,4818],[-1,0]],[[16148,4818],[-11,23],[-19,-6],[-17,-20],[23,-12],[20,12]],[[16144,4815],[-18,-12],[-9,-2],[-19,2],[-6,8],[23,26],[18,9],[18,-16],[-3,-12]],[[18910,5393],[-12,14],[38,43],[5,-23],[-31,-34]],[[19166,5397],[-10,9],[31,73],[10,-26],[-15,-42],[-16,-14]],[[16919,5518],[-44,-8],[-3,18],[36,6],[11,-16]],[[18978,5471],[-13,8],[24,36],[31,1],[-42,-45]],[[19238,5522],[-20,8],[23,29],[15,-17],[-18,-20]],[[19088,5551],[14,31],[67,60],[20,-12],[-36,-34],[-65,-45]],[[19270,5704],[-19,18],[48,38],[4,-17],[-33,-39]],[[19370,5729],[-11,29],[-24,29],[21,50],[26,2],[-4,-43],[7,-31],[-15,-36]],[[9639,6416],[51,0],[18,-10],[-8,-41],[-40,14],[-15,-20],[-33,39],[27,18]],[[9731,6902],[21,7],[29,-11],[24,-65],[-23,-5],[-64,31],[1,14],[-40,9],[-6,24],[38,6],[20,-10]],[[9773,7159],[-29,-21],[11,-57],[38,-70],[45,-58],[36,0],[10,-21],[-32,-6],[-1,-65],[-50,17],[-13,26],[26,10],[-3,42],[-49,4],[-10,-38],[-26,29],[7,21],[27,8],[13,19],[-31,73],[0,39],[-40,-5],[-10,-35],[-31,-5],[-54,-67],[-37,-14],[-23,-31],[-4,-21],[-35,-37],[26,-15],[-15,-41],[59,-8],[-6,-35],[13,-40],[16,-2],[57,-35],[-12,-44],[10,-21],[37,-7],[30,-20],[-21,-19],[-32,-6],[-4,-34],[-22,-6],[-27,14],[1,21],[-39,43],[-78,53],[-48,-57],[57,-7],[19,-10],[-3,-40],[9,-32],[42,-31],[2,-17],[-40,-9],[-12,-43],[15,-44],[-1,-53],[21,-39],[-36,-31],[-2,-29],[12,-40],[59,-96],[33,-12],[6,-33],[-22,-18],[4,-33],[24,-31],[-11,-20],[-41,7],[-14,19],[-39,1],[17,67],[0,46],[-21,3],[-42,-75],[-29,-24],[-20,14],[-16,-25],[-13,-47],[22,-32],[23,-5],[36,56],[18,-60],[-64,-13],[-59,14],[-47,56],[-15,44],[-58,31],[-24,-9],[-37,11],[-18,16],[-43,17],[-27,-6],[-63,44],[10,38],[-75,37],[13,18],[-34,78],[8,40],[-70,0],[-19,15],[-17,29],[11,34],[-25,23],[5,79],[-26,24],[-9,34],[14,27],[-17,25],[-9,34],[63,74],[25,-10],[28,28],[47,1],[63,-44],[45,-12],[12,29],[-27,20],[22,22],[-2,21],[30,39],[-7,23],[-37,18],[16,38],[30,0],[23,42],[-17,14],[55,27],[48,-15],[19,29],[67,49],[59,-4],[7,31],[32,32],[46,-12],[19,47],[37,8],[51,-21],[38,31],[40,-8],[59,18],[50,25],[17,-35]],[[14098,11076],[-73,-46],[-81,-14],[-31,17],[9,23],[172,44],[4,-24]],[[13995,11062],[-37,-2],[-29,-12],[0,-23],[24,-4],[80,17],[32,22],[-6,13],[-64,-11]],[[13024,11050],[-47,13],[8,23],[25,14],[47,1],[19,-20],[-52,-31]],[[13034,11354],[22,-34],[-8,-23],[-54,-31],[-50,6],[8,17],[40,1],[20,16],[-11,25],[-33,9],[-102,0],[-22,-7],[-63,-57],[2,-24],[58,35],[27,-13],[-60,-35],[-62,-13],[-25,16],[2,24],[65,47],[41,36],[23,8],[154,10],[28,-13]],[[13422,11419],[-26,-11],[-54,11],[-64,-25],[-26,-1],[-5,28],[40,20],[73,8],[44,-11],[18,-19]],[[12792,11537],[-25,7],[-19,37],[26,14],[26,-36],[-8,-22]],[[12972,11545],[-14,12],[26,46],[4,49],[29,-28],[-45,-79]],[[12872,11668],[-32,6],[-3,16],[37,8],[-2,-30]],[[12962,11659],[-38,16],[-6,40],[31,-11],[13,-45]],[[12490,11867],[-37,13],[8,27],[40,3],[9,-32],[-20,-11]],[[13700,12195],[-52,-3],[-48,-12],[-23,20],[25,16],[44,7],[54,-28]],[[12722,12344],[-2,-9],[-90,-34],[-44,0],[-19,11],[8,22],[79,25],[35,1],[33,-16]],[[7802,11257],[14,-11],[35,-11],[43,30],[35,-23],[58,-19],[98,8],[40,25],[14,-4],[5,-11],[-23,-5],[-2,-33],[-41,-28],[1,-20],[26,-31],[51,-27],[58,8],[24,32],[-34,9],[20,37],[23,11],[29,-23],[66,-26],[-21,-23],[-54,7],[-21,-19],[-2,-31],[11,-31],[46,-82],[-22,-9],[-35,18],[-32,-33],[-27,20],[-25,1],[-8,-30],[-34,16],[-5,-24],[-61,13],[-25,-21],[-63,8],[-76,-17],[-40,30],[4,28],[31,24],[5,28],[-54,59],[-56,-30],[-55,33],[-58,-5],[5,27],[46,43],[5,47],[21,8],[-9,30],[10,14],[40,22],[19,-9]]],"transform":{"scale":[0.0007402692234611779,0.0008220020503025167],"translate":[102.14228628400008,6.954622397000038]},"objects":{"vn63":{"type":"GeometryCollection","geometries":[{"arcs":[[0,1,2,3]],"type":"Polygon","properties":{"p34":"Tỉnh An Giang","p63":"Tỉnh An Giang","isl":""}},{"arcs":[[[4]],[[5]],[[6,7,8,9]]],"type":"MultiPolygon","properties":{"p34":"TP. Hồ Chí Minh","p63":"Tỉnh Bà Rịa-Vũng Tàu","isl":""}},{"arcs":[[10,11,12,13,14,15,16,17]],"type":"Polygon","properties":{"p34":"Tỉnh Bắc Ninh","p63":"Tỉnh Bắc Giang","isl":""}},{"arcs":[[18,19,20,21]],"type":"Polygon","properties":{"p34":"Tỉnh Thái Nguyên","p63":"Tỉnh Bắc Kạn","isl":""}},{"arcs":[[22,23,24,25,26]],"type":"Polygon","properties":{"p34":"Tỉnh Cà Mau","p63":"Tỉnh Bạc Liêu","isl":""}},{"arcs":[[27,28,29,-14]],"type":"Polygon","properties":{"p34":"Tỉnh Bắc Ninh","p63":"Tỉnh Bắc Ninh","isl":""}},{"arcs":[[30,31,32,33]],"type":"Polygon","properties":{"p34":"Tỉnh Vĩnh Long","p63":"Tỉnh Bến Tre","isl":""}},{"arcs":[[34,35,36,37]],"type":"Polygon","properties":{"p34":"Tỉnh Gia Lai","p63":"Tỉnh Bình Định","isl":""}},{"arcs":[[38,39,40,41]],"type":"Polygon","properties":{"p34":"TP. Hồ Chí Minh","p63":"Tỉnh Bình Dương","isl":""}},{"arcs":[[42,43,-42,44,45,46]],"type":"Polygon","properties":{"p34":"Tỉnh Đồng Nai","p63":"Tỉnh Bình Phước","isl":""}},{"arcs":[[[47]],[[48,-7,49,50,51]]],"type":"MultiPolygon","properties":{"p34":"Tỉnh Lâm Đồng","p63":"Tỉnh Bình Thuận","isl":""}},{"arcs":[[-26,52,53]],"type":"Polygon","properties":{"p34":"Tỉnh Cà Mau","p63":"Tỉnh Cà Mau","isl":""}},{"arcs":[[54,55,56,57,58,-2,59]],"type":"Polygon","properties":{"p34":"TP. Cần Thơ","p63":"TP. Cần Thơ","isl":""}},{"arcs":[[60,-22,61,62,63]],"type":"Polygon","properties":{"p34":"Tỉnh Cao Bằng","p63":"Tỉnh Cao Bằng","isl":""}},{"arcs":[[64,65,66,67,68,69]],"type":"Polygon","properties":{"p34":"Tỉnh Đắk Lắk","p63":"Tỉnh Đắk Lắk","isl":""}},{"arcs":[[70,-47,71,-68]],"type":"Polygon","properties":{"p34":"Tỉnh Lâm Đồng","p63":"Tỉnh Đắk Nông","isl":""}},{"arcs":[[72,73,74]],"type":"Polygon","properties":{"p34":"Tỉnh Điện Biên","p63":"Tỉnh Điện Biên","isl":""}},{"arcs":[[-50,-10,75,-39,-44,76]],"type":"Polygon","properties":{"p34":"Tỉnh Đồng Nai","p63":"Tỉnh Đồng Nai","isl":""}},{"arcs":[[77,78,79,-60,-1,80]],"type":"Polygon","properties":{"p34":"Tỉnh Đồng Tháp","p63":"Tỉnh Đồng Tháp","isl":""}},{"arcs":[[81,-37,82,-70,83,84]],"type":"Polygon","properties":{"p34":"Tỉnh Gia Lai","p63":"Tỉnh Gia Lai","isl":""}},{"arcs":[[-63,85,86,87,88]],"type":"Polygon","properties":{"p34":"Tỉnh Tuyên Quang","p63":"Tỉnh Hà Giang","isl":""}},{"arcs":[[89,90,91,92,93,94]],"type":"Polygon","properties":{"p34":"Tỉnh Ninh Bình","p63":"Tỉnh Hà Nam","isl":""}},{"arcs":[[-15,-30,95,-94,96,97,98,99]],"type":"Polygon","properties":{"p34":"TP. Hà Nội","p63":"TP. Hà Nội","isl":""}},{"arcs":[[100,101,102,103]],"type":"Polygon","properties":{"p34":"Tỉnh Hà Tĩnh","p63":"Tỉnh Hà Tĩnh","isl":""}},{"arcs":[[104,105,106,107,-28,-13]],"type":"Polygon","properties":{"p34":"TP. Hải Phòng","p63":"Tỉnh Hải Dương","isl":""}},{"arcs":[[[108,109]],[[110]],[[111,112,-106,113]]],"type":"MultiPolygon","properties":{"p34":"TP. Hải Phòng","p63":"TP. Hải Phòng","isl":""}},{"arcs":[[114,-56,115,116,-23,117,-58]],"type":"Polygon","properties":{"p34":"TP. Cần Thơ","p63":"Tỉnh Hậu Giang","isl":""}},{"arcs":[[-97,-93,118,119,120,121]],"type":"Polygon","properties":{"p34":"Tỉnh Phú Thọ","p63":"Tỉnh Hòa Bình","isl":""}},{"arcs":[[-108,122,-95,-96,-29]],"type":"Polygon","properties":{"p34":"Tỉnh Hưng Yên","p63":"Tỉnh Hưng Yên","isl":""}},{"arcs":[[[123]],[[124]],[[125]],[[-3,-59,-118,-27,-54,126]]],"type":"MultiPolygon","properties":{"p34":"Tỉnh An Giang","p63":"Tỉnh Kiên Giang","isl":""}},{"arcs":[[127,-85,128,129]],"type":"Polygon","properties":{"p34":"Tỉnh Quảng Ngãi","p63":"Tỉnh Kon Tum","isl":""}},{"arcs":[[130,131,132,-75,133]],"type":"Polygon","properties":{"p34":"Tỉnh Lai Châu","p63":"Tỉnh Lai Châu","isl":""}},{"arcs":[[134,-51,-77,-43,-71,-67,135]],"type":"Polygon","properties":{"p34":"Tỉnh Lâm Đồng","p63":"Tỉnh Lâm Đồng","isl":""}},{"arcs":[[136,137,-11,138,-19,-61]],"type":"Polygon","properties":{"p34":"Tỉnh Lạng Sơn","p63":"Tỉnh Lạng Sơn","isl":""}},{"arcs":[[-88,139,-131,140]],"type":"Polygon","properties":{"p34":"Tỉnh Lào Cai","p63":"Tỉnh Lào Cai","isl":""}},{"arcs":[[141,142,143,-78,144]],"type":"Polygon","properties":{"p34":"Tỉnh Tây Ninh","p63":"Tỉnh Long An","isl":""}},{"arcs":[[145,146,147,-91]],"type":"Polygon","properties":{"p34":"Tỉnh Ninh Bình","p63":"Tỉnh Nam Định","isl":""}},{"arcs":[[148,-104,149,150]],"type":"Polygon","properties":{"p34":"Tỉnh Nghệ An","p63":"Tỉnh Nghệ An","isl":""}},{"arcs":[[-92,-148,151,152,-119]],"type":"Polygon","properties":{"p34":"Tỉnh Ninh Bình","p63":"Tỉnh Ninh Bình","isl":""}},{"arcs":[[-52,-135,153]],"type":"Polygon","properties":{"p34":"Tỉnh Khánh Hòa","p63":"Tỉnh Ninh Thuận","isl":""}},{"arcs":[[154,-98,-122,155,156,157]],"type":"Polygon","properties":{"p34":"Tỉnh Phú Thọ","p63":"Tỉnh Phú Thọ","isl":""}},{"arcs":[[-65,-83,-36,158]],"type":"Polygon","properties":{"p34":"Tỉnh Đắk Lắk","p63":"Tỉnh Phú Yên","isl":""}},{"arcs":[[159,160,161,-102]],"type":"Polygon","properties":{"p34":"Tỉnh Quảng Trị","p63":"Tỉnh Quảng Bình","isl":""}},{"arcs":[[[162]],[[163,164,-130,165,166]]],"type":"MultiPolygon","properties":{"p34":"TP. Đà Nẵng","p63":"Tỉnh Quảng Nam","isl":""}},{"arcs":[[[167]],[[-38,-82,-128,-165,168]]],"type":"MultiPolygon","properties":{"p34":"Tỉnh Quảng Ngãi","p63":"Tỉnh Quảng Ngãi","isl":""}},{"arcs":[[[169]],[[170]],[[171]],[[172]],[[173]],[[174]],[[175]],[[176]],[[177]],[[-109,178,-114,-105,-12,-138,179]]],"type":"MultiPolygon","properties":{"p34":"Tỉnh Quảng Ninh","p63":"Tỉnh Quảng Ninh","isl":""}},{"arcs":[[180,181,-161,182]],"type":"Polygon","properties":{"p34":"Tỉnh Quảng Trị","p63":"Tỉnh Quảng Trị","isl":""}},{"arcs":[[183,184,-24,-117,185]],"type":"Polygon","properties":{"p34":"TP. Cần Thơ","p63":"Tỉnh Sóc Trăng","isl":""}},{"arcs":[[186,-156,-121,187,188,-73,-133]],"type":"Polygon","properties":{"p34":"Tỉnh Sơn La","p63":"Tỉnh Sơn La","isl":""}},{"arcs":[[-45,-41,189,-142,190]],"type":"Polygon","properties":{"p34":"Tỉnh Tây Ninh","p63":"Tỉnh Tây Ninh","isl":""}},{"arcs":[[191,-146,-90,-123,-107,-113]],"type":"Polygon","properties":{"p34":"Tỉnh Hưng Yên","p63":"Tỉnh Thái Bình","isl":""}},{"arcs":[[-139,-18,192,-16,-100,193,194,-20]],"type":"Polygon","properties":{"p34":"Tỉnh Thái Nguyên","p63":"Tỉnh Thái Nguyên","isl":""}},{"arcs":[[-153,195,-151,196,-188,-120]],"type":"Polygon","properties":{"p34":"Tỉnh Thanh Hóa","p63":"Tỉnh Thanh Hóa","isl":""}},{"arcs":[[-167,197,-181,198]],"type":"Polygon","properties":{"p34":"TP. Huế","p63":"Tỉnh Thừa Thiên Huế","isl":""}},{"arcs":[[199,200,-34,201,-79,-144]],"type":"Polygon","properties":{"p34":"Tỉnh Đồng Tháp","p63":"Tỉnh Tiền Giang","isl":""}},{"arcs":[[-76,-9,202,-200,-143,-190,-40]],"type":"Polygon","properties":{"p34":"TP. Hồ Chí Minh","p63":"TP. Hồ Chí Minh","isl":""}},{"arcs":[[203,-184,204,-32]],"type":"Polygon","properties":{"p34":"Tỉnh Vĩnh Long","p63":"Tỉnh Trà Vinh","isl":""}},{"arcs":[[-62,-21,-195,205,-158,206,-86]],"type":"Polygon","properties":{"p34":"Tỉnh Tuyên Quang","p63":"Tỉnh Tuyên Quang","isl":""}},{"arcs":[[-205,-186,-116,-55,-80,-202,-33]],"type":"Polygon","properties":{"p34":"Tỉnh Vĩnh Long","p63":"Tỉnh Vĩnh Long","isl":""}},{"arcs":[[-99,-155,-206,-194]],"type":"Polygon","properties":{"p34":"Tỉnh Phú Thọ","p63":"Tỉnh Vĩnh Phúc","isl":""}},{"arcs":[[-207,-157,-187,-132,-140,-87]],"type":"Polygon","properties":{"p34":"Tỉnh Lào Cai","p63":"Tỉnh Yên Bái","isl":""}},{"arcs":[[[207]],[[208]],[[210]],[[211]],[[212]],[[213]],[[214]],[[215]],[[216]],[[217]],[[218]],[[219],[220]],[[221]],[[222],[223]],[[224],[225]],[[226]],[[229,230]],[[231],[232]],[[233]],[[234]],[[235],[236]],[[237]],[[238]],[[239],[240]],[[241],[242]],[[243]],[[244]],[[245]],[[246]],[[247]],[[248]],[[249]],[[250]],[[251]],[[252]],[[253]],[[254]],[[255]],[[256]],[[257]],[[264,265]],[[266]],[[267]],[[268]],[[269]],[[270]],[[271]],[[272]],[[273]]],"type":"MultiPolygon","properties":{"p34":"Tỉnh Khánh Hòa","p63":"Tỉnh Khánh Hòa","isl":"TS"}},{"arcs":[[[274]],[[275]],[[276]]],"type":"MultiPolygon","properties":{"p34":"Tỉnh Khánh Hòa","p63":"Tỉnh Khánh Hòa","isl":""}},{"arcs":[[[277],[278]],[[279]],[[280]],[[281]],[[282]],[[283]],[[284]],[[285]],[[286]],[[287]],[[288]]],"type":"MultiPolygon","properties":{"p34":"TP. Đà Nẵng","p63":"TP. Đà Nẵng","isl":"HS"}},{"arcs":[[289]],"type":"Polygon","properties":{"p34":"TP. Đà Nẵng","p63":"TP. Đà Nẵng","isl":""}}]},"vn34":{"type":"GeometryCollection","geometries":[{"arcs":[[[0,1,-59,-118,-27,-54,126,3]],[[123]],[[124]],[[125]]],"type":"MultiPolygon","properties":{"p34":"Tỉnh An Giang","isl":""}},{"arcs":[[[4]],[[5]],[[6,7,202,-200,-143,-190,40,41,38,-76,9]]],"type":"MultiPolygon","properties":{"p34":"TP. Hồ Chí Minh","isl":""}},{"arcs":[[10,11,12,27,28,29,14,15,16,17]],"type":"Polygon","properties":{"p34":"Tỉnh Bắc Ninh","isl":""}},{"arcs":[[18,-139,-18,192,-16,-100,193,194,20,21]],"type":"Polygon","properties":{"p34":"Tỉnh Thái Nguyên","isl":""}},{"arcs":[[22,23,24,52,53,26]],"type":"Polygon","properties":{"p34":"Tỉnh Cà Mau","isl":""}},{"arcs":[[30,203,-184,-186,-116,-55,-80,-202,33]],"type":"Polygon","properties":{"p34":"Tỉnh Vĩnh Long","isl":""}},{"arcs":[[34,35,82,-70,83,84,81,37]],"type":"Polygon","properties":{"p34":"Tỉnh Gia Lai","isl":""}},{"arcs":[[42,76,-50,-10,75,-39,-42,44,45,46]],"type":"Polygon","properties":{"p34":"Tỉnh Đồng Nai","isl":""}},{"arcs":[[[47]],[[48,-7,49,-77,-43,-47,71,-68,-67,135,134,51]]],"type":"MultiPolygon","properties":{"p34":"Tỉnh Lâm Đồng","isl":""}},{"arcs":[[54,115,185,183,184,-24,-23,117,58,-2,59]],"type":"Polygon","properties":{"p34":"TP. Cần Thơ","isl":""}},{"arcs":[[60,-22,61,62,63]],"type":"Polygon","properties":{"p34":"Tỉnh Cao Bằng","isl":""}},{"arcs":[[65,66,67,68,69,-83,-36,158]],"type":"Polygon","properties":{"p34":"Tỉnh Đắk Lắk","isl":""}},{"arcs":[[72,73,74]],"type":"Polygon","properties":{"p34":"Tỉnh Điện Biên","isl":""}},{"arcs":[[77,-144,199,200,-34,201,79,-60,-1,80]],"type":"Polygon","properties":{"p34":"Tỉnh Đồng Tháp","isl":""}},{"arcs":[[-63,-62,-21,-195,205,-158,206,86,87,88]],"type":"Polygon","properties":{"p34":"Tỉnh Tuyên Quang","isl":""}},{"arcs":[[89,145,146,151,152,-119,92,93,94]],"type":"Polygon","properties":{"p34":"Tỉnh Ninh Bình","isl":""}},{"arcs":[[-15,-30,95,-94,96,97,98,99]],"type":"Polygon","properties":{"p34":"TP. Hà Nội","isl":""}},{"arcs":[[100,101,102,103]],"type":"Polygon","properties":{"p34":"Tỉnh Hà Tĩnh","isl":""}},{"arcs":[[[104,113,111,112,106,107,-28,-13]],[[108,109]],[[110]]],"type":"MultiPolygon","properties":{"p34":"TP. Hải Phòng","isl":""}},{"arcs":[[-97,-93,118,119,120,155,156,157,-206,-194,-99,-98]],"type":"Polygon","properties":{"p34":"Tỉnh Phú Thọ","isl":""}},{"arcs":[[-108,-107,-113,191,-146,-90,-95,-96,-29]],"type":"Polygon","properties":{"p34":"Tỉnh Hưng Yên","isl":""}},{"arcs":[[[-85,128,129,-165,168,-38,-82]],[[167]]],"type":"MultiPolygon","properties":{"p34":"Tỉnh Quảng Ngãi","isl":""}},{"arcs":[[130,131,132,-75,133]],"type":"Polygon","properties":{"p34":"Tỉnh Lai Châu","isl":""}},{"arcs":[[136,137,-11,138,-19,-61]],"type":"Polygon","properties":{"p34":"Tỉnh Lạng Sơn","isl":""}},{"arcs":[[-88,-87,-207,-157,-187,-132,-131,140]],"type":"Polygon","properties":{"p34":"Tỉnh Lào Cai","isl":""}},{"arcs":[[142,143,-78,144,190,-45,-41,189]],"type":"Polygon","properties":{"p34":"Tỉnh Tây Ninh","isl":""}},{"arcs":[[148,-104,149,150]],"type":"Polygon","properties":{"p34":"Tỉnh Nghệ An","isl":""}},{"arcs":[[[-52,-135,153]],[[274]],[[275]],[[276]]],"type":"MultiPolygon","properties":{"p34":"Tỉnh Khánh Hòa","isl":""}},{"arcs":[[159,182,180,181,161,-102]],"type":"Polygon","properties":{"p34":"Tỉnh Quảng Trị","isl":""}},{"arcs":[[[162]],[[163,164,-130,165,166]],[[289]]],"type":"MultiPolygon","properties":{"p34":"TP. Đà Nẵng","isl":""}},{"arcs":[[[169]],[[170]],[[171]],[[172]],[[173]],[[174]],[[175]],[[176]],[[177]],[[-109,178,-114,-105,-12,-138,179]]],"type":"MultiPolygon","properties":{"p34":"Tỉnh Quảng Ninh","isl":""}},{"arcs":[[186,-156,-121,187,188,-73,-133]],"type":"Polygon","properties":{"p34":"Tỉnh Sơn La","isl":""}},{"arcs":[[-153,195,-151,196,-188,-120]],"type":"Polygon","properties":{"p34":"Tỉnh Thanh Hóa","isl":""}},{"arcs":[[-167,197,-181,198]],"type":"Polygon","properties":{"p34":"TP. Huế","isl":""}},{"arcs":[[[207]],[[208]],[[210]],[[211]],[[212]],[[213]],[[214]],[[215]],[[216]],[[217]],[[218]],[[219],[220]],[[221]],[[222],[223]],[[224],[225]],[[226]],[[229,230]],[[231],[232]],[[233]],[[234]],[[235],[236]],[[237]],[[238]],[[239],[240]],[[241],[242]],[[243]],[[244]],[[245]],[[246]],[[247]],[[248]],[[249]],[[250]],[[251]],[[252]],[[253]],[[254]],[[255]],[[256]],[[257]],[[264,265]],[[266]],[[267]],[[268]],[[269]],[[270]],[[271]],[[272]],[[273]]],"type":"MultiPolygon","properties":{"p34":"Tỉnh Khánh Hòa","isl":"TS"}},{"arcs":[[[277],[278]],[[279]],[[280]],[[281]],[[282]],[[283]],[[284]],[[285]],[[286]],[[287]],[[288]]],"type":"MultiPolygon","properties":{"p34":"TP. Đà Nẵng","isl":"HS"}}]}}};
 
-var _VM = { bound:'34', layer:'mos', drug:'', horizon:6, nAmc:3, overM:9, expBy:'qty', pd:'', bnSt:'act', names:true,
+var _VM = { bound:'34', layer:'mos', drug:'', horizon:6, nAmc:3, overM:(typeof threshold!=='undefined' && threshold.overMonths) || 9, expBy:'qty', pd:'', bnSt:'act', names:true,
             sel:null, hist:{}, histKey:'', histLoading:false, model:null, feats:{}, provCache:null, provVer:-1 };
 
 function _vmEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -25455,6 +25797,7 @@ function _vmDetail(M){
 
 function vmSet(k,v){
   if(k==='nAmc'||k==='horizon'||k==='overM') v=+v;
+  if(k==='overM') _VM._overMUser = true;   // người dùng tự chọn trên bản đồ → không lấy theo Cài đặt nữa
   _VM[k]=v;
   if(k==='bound') _VM.sel=null;
   renderVNMap();

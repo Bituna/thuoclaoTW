@@ -5,7 +5,8 @@
 --
 -- Các cài đặt DÙNG CHUNG TOÀN QUỐC trong bảng settings chỉ admin được ghi:
 --   threshold (ngưỡng cảnh báo), regions (cấu hình miền), province_names (tên tỉnh hiển thị),
---   region_merges (gộp miền), unit_groups (gom đơn vị).
+--   region_merges (gộp miền), unit_groups (gom đơn vị), report_deadline (hạn nộp báo cáo),
+--   deadline_open (đơn vị được admin mở lại sau hạn).
 -- Trước đây mọi tài khoản đã đăng nhập đều ghi được (vd. 1 tỉnh đổi ngưỡng cảnh báo của cả nước),
 -- và settings_merge chạy quyền chủ sở hữu nên còn lọt qua trigger kiểm tra.
 -- Các khoá khác (khoá kỳ, dòng đã xoá, thông tin đơn vị unit_info...) giữ nguyên như cũ.
@@ -15,7 +16,8 @@
 
 create or replace function app_private._admin_setting_keys()
 returns text[] language sql immutable as $$
-  select array['threshold', 'regions', 'province_names', 'region_merges', 'unit_groups']::text[];
+  select array['threshold', 'regions', 'province_names', 'region_merges', 'unit_groups',
+               'report_deadline', 'deadline_open']::text[];
 $$;
 grant execute on function app_private._admin_setting_keys() to anon, authenticated;
 
