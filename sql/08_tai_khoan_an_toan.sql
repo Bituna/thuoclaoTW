@@ -1,7 +1,7 @@
 -- ═══════════════════════════════════════════════════════════════════════
--- 07_tai_khoan_an_toan.sql — thuoclaoTW
+-- 08_tai_khoan_an_toan.sql — thuoclaoTW
 -- Chạy 1 lần trong Supabase → SQL Editor (chạy lại nhiều lần vẫn an toàn).
--- Yêu cầu: đã chạy 01 (bảng private.accounts, các hàm tài khoản) và 02.
+-- Yêu cầu: đã chạy 01 (bảng private.accounts, các hàm tài khoản), 02 và 07.
 --
 -- Sửa các lỗ hổng ở hàm tài khoản (giữ nguyên tên + tham số, app cũ vẫn chạy):
 --  1. verify_login : tài khoản đã KHOÁ (status = 'locked') không đăng nhập được nữa

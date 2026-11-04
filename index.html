@@ -6942,7 +6942,9 @@ function doLogin(){
 
     // Giữ thông tin xác thực trong RAM (chỉ phiên này) để tái xác thực thao tác quản trị
     _authUser = acc.user; _authPass = pass;
-    _secStartSession(acc.user, pass);   // xin phiên máy chủ (không chặn giao diện)
+    // xin phiên máy chủ (không chặn giao diện). SQL 07: list_accounts cần phiên → có phiên rồi mới
+    // tải lại danh sách tài khoản (lần tải lúc mở trang, chưa đăng nhập, sẽ bị máy chủ từ chối).
+    _secStartSession(acc.user, pass).then(function(ok){ if(ok){ try{ _loadAccountsFromCloud(); }catch(e){} } });
 
     // Đồng bộ vào ACCOUNTS (không có mật khẩu) để phần còn lại của app dùng
     var _ix = ACCOUNTS.findIndex(function(a){ return a.user === acc.user; });
@@ -22621,7 +22623,7 @@ function _acctIsOwn(a){
 function _acctIsSelf(a){
   var cu = window.currentUser; return !!(cu && a && a.username && a.username===cu.user);
 }
-var TK_PASS_MIN = 8;   // độ dài mật khẩu tối thiểu (máy chủ cũng kiểm tra — sql/07)
+var TK_PASS_MIN = 8;   // độ dài mật khẩu tối thiểu (máy chủ cũng kiểm tra — sql/08)
 // Vai trò gửi lên máy chủ: GIỮ NGUYÊN vai trò hiện có của tài khoản (bản cũ luôn gửi
 // 'don_vi' → admin sửa/khoá dòng của chính mình là tự mất quyền quản trị).
 function _tkDbRole(a){
@@ -24476,7 +24478,7 @@ function _tkRenderOnly(){
         try{
           rp = await window._rpc('update_my_profile', { p_actor:window._authUser, p_actor_pass:window._authPass, p_email:email, p_phone:phone });
         }catch(eP){
-          // Máy chủ chưa chạy sql/07 → dùng upsert_account (giữ nguyên vai trò, tên, trạng thái)
+          // Máy chủ chưa chạy sql/08 → dùng upsert_account (giữ nguyên vai trò, tên, trạng thái)
           if(eP && (eP.status===404 || String(eP.message||'').indexOf('PGRST202')>=0)){
             rp = await window._rpc('upsert_account', _tkUpsertArgs(a, {email:email, phone:phone}));
           } else throw eP;
