@@ -2832,7 +2832,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
                 <div class="pm-btn act" id="pm-auto" onclick="setPassMode('auto')">📧 Tự động</div>
                 <div class="pm-btn" id="pm-manual" onclick="setPassMode('manual')">✏️ Tự nhập</div>
               </div>
-              <div id="pass-auto"><div class="auto-info">✅ Tự tạo &amp; gửi qua Email khi tạo tài khoản</div></div>
+              <div id="pass-auto"><div class="auto-info">✅ Tự tạo ngẫu nhiên — hiện ra sau khi tạo để bạn sao chép</div></div>
               <div id="pass-manual" style="display:none">
                 <div class="pass-row">
                   <input class="fi" id="inp-pass" type="text" placeholder="Tối thiểu 8 ký tự" oninput="checkReady()">
@@ -2947,25 +2947,19 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 <!-- MODAL RESET MK -->
 <div class="overlay" id="rm-overlay" style="display:none" onclick="if(event.target===this)closeRM()">
   <div class="modal rm-modal">
-    <div class="modal-head"><div><h2>🔑 Reset mật khẩu</h2><div class="mh-sub">Đặt lại mật khẩu tạm</div></div><button class="modal-close" onclick="closeRM()">✕</button></div>
+    <div class="modal-head"><div><h2 id="rm-title">🔑 Đặt lại mật khẩu</h2><div class="mh-sub" id="rm-sub">Mật khẩu mới có hiệu lực ngay</div></div><button class="modal-close" onclick="closeRM()">✕</button></div>
     <div class="modal-body">
       <div class="rm-acct"><div class="rm-acct-av">👤</div><div><div class="rm-acct-name" id="rm-name"></div><div class="rm-acct-meta" id="rm-meta"></div></div></div>
-      <div><div style="font-size:12px;font-weight:700;margin-bottom:8px">Mật khẩu tạm mới</div>
-        <div class="pass-display"><div class="pass-val" id="rm-pass"></div>
-          <div class="pass-acts"><button class="btn-cp" id="rm-copy" onclick="copyPass()">📋 Copy</button><button class="btn-rg" onclick="regenPass()">🔀</button></div>
+      <div><div style="font-size:12px;font-weight:700;margin-bottom:8px">Mật khẩu mới <span style="font-weight:400;color:var(--muted)">(tự tạo sẵn — có thể sửa, tối thiểu 8 ký tự)</span></div>
+        <div class="pass-display"><input class="pass-val" id="rm-pass" type="text" autocomplete="new-password" spellcheck="false" style="border:none;background:transparent;outline:none;width:100%;font:inherit">
+          <div class="pass-acts"><button class="btn-cp" id="rm-copy" onclick="copyPass()">📋 Copy</button><button class="btn-rg" title="Tạo mật khẩu khác" onclick="regenPass()">🔀</button></div>
         </div>
       </div>
-      <div class="rm-warn"><span>⚠️</span><span>Thông báo mật khẩu này trực tiếp cho người phụ trách.</span></div>
-      <div id="rm-email-row" class="rm-email-row" style="display:none">
-        <input class="fi" id="rm-email-inp" type="email" style="flex:1">
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer"><input type="checkbox" id="rm-send" checked style="accent-color:var(--t2)"> Gửi qua email</label>
-      </div>
-      <div id="rm-no-email" style="display:none;font-size:12px;color:var(--muted);background:var(--bg);border-radius:7px;padding:8px 12px">💡 Chưa có email — thông báo trực tiếp</div>
-      <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" checked style="accent-color:var(--t2);width:16px;height:16px"> Bắt buộc đổi mật khẩu ở lần đăng nhập tiếp theo</label>
+      <div class="rm-warn" id="rm-warn"><span>⚠️</span><span>Sao chép và thông báo mật khẩu này trực tiếp cho người phụ trách (hệ thống không gửi email).</span></div>
     </div>
     <div class="modal-foot">
       <div class="mf-hint">Mật khẩu có hiệu lực ngay</div>
-      <div class="mf-right"><button class="btn btn-ghost" onclick="closeRM()">Hủy</button><button class="btn btn-pri" onclick="confirmReset()">✓ Xác nhận Reset</button></div>
+      <div class="mf-right"><button class="btn btn-ghost" onclick="closeRM()">Hủy</button><button class="btn btn-pri" id="rm-ok" onclick="confirmReset()">✓ Lưu mật khẩu mới</button></div>
     </div>
   </div>
 </div>
@@ -2985,7 +2979,7 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
       <button class="pe-tab" id="pe-tab-34" onclick="setPeMode('34')">Tên tỉnh · 34</button>
       <button class="pe-tab" id="pe-tab-merge" onclick="setPeMode('merge')">🗺️ Gộp miền</button>
       <button class="pe-tab" id="pe-tab-ugroup" onclick="setPeMode('ugroup')">🔗 Gom đơn vị</button>
-      <button class="pe-tab" id="pe-tab-umerge" onclick="setPeMode('umerge')">⛙ Hợp nhất đơn vị</button>
+      <button class="pe-tab" id="pe-tab-umerge" style="display:none" title="Tạm tắt — chưa lưu được lên hệ thống" onclick="setPeMode('umerge')">⛙ Hợp nhất đơn vị</button>
     </div>
     <div class="modal-body" id="pe-body" style="gap:0"></div>
     <div class="modal-foot">
@@ -22388,19 +22382,23 @@ let PROVINCE_OVERRIDES = {};   // vd: { 'Tỉnh Quảng Ninh': 'TP. Quảng Ninh
 function tinhDisplay(orig){ return PROVINCE_OVERRIDES[orig] || orig; }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
-// ── Điểm nối Supabase (hiện để trống, chạy bằng RAM) ──
+// ── Lưu trên Supabase: settings.key = 'province_names' → {tên gốc: tên hiển thị} ──
 async function loadProvinceNames(){
-  // TODO Supabase:
-  //   const { data } = await sb.from('province_names').select('original_name,display_name');
-  //   PROVINCE_OVERRIDES = {}; (data||[]).forEach(r=>{ if(r.display_name) PROVINCE_OVERRIDES[r.original_name]=r.display_name; });
-  //   refreshTinhEverywhere();
-  return;
+  const v = await _tkSettingsGet('province_names');
+  if(v && typeof v==='object' && !Array.isArray(v)){
+    PROVINCE_OVERRIDES = {};
+    Object.keys(v).forEach(k=>{ if(v[k] && v[k]!==k) PROVINCE_OVERRIDES[k]=String(v[k]); });
+    try{ refreshTinhEverywhere(); }catch(e){}
+  }
 }
+let _pnSaveTimer=null;
 async function persistProvinceName(orig, disp){
-  // TODO Supabase:
-  //   if(disp===orig) await sb.from('province_names').delete().eq('original_name',orig);
-  //   else            await sb.from('province_names').upsert({ original_name:orig, display_name:disp });
-  return;
+  // Gom các thay đổi trong cùng 1 lần bấm Lưu → ghi 1 lần cả bảng
+  clearTimeout(_pnSaveTimer);
+  _pnSaveTimer=setTimeout(function(){
+    _tkSettingsPut('province_names', PROVINCE_OVERRIDES)
+      .catch(e=>showToast('❌ Chưa lưu được tên tỉnh lên hệ thống: '+(e.message||e)));
+  }, 200);
 }
 
 // ── Editor UI ──
@@ -22619,6 +22617,61 @@ function _acctIsOwn(a){
   if(cu.role==='admin') return true;
   return (cu.unitId && a.node_id===cu.unitId) || (cu.user && a.username===cu.user);
 }
+// Dòng tài khoản của CHÍNH người đang đăng nhập (kể cả admin)
+function _acctIsSelf(a){
+  var cu = window.currentUser; return !!(cu && a && a.username && a.username===cu.user);
+}
+var TK_PASS_MIN = 8;   // độ dài mật khẩu tối thiểu (máy chủ cũng kiểm tra — sql/07)
+// Vai trò gửi lên máy chủ: GIỮ NGUYÊN vai trò hiện có của tài khoản (bản cũ luôn gửi
+// 'don_vi' → admin sửa/khoá dòng của chính mình là tự mất quyền quản trị).
+function _tkDbRole(a){
+  var r = (a && a.role) || 'don_vi';
+  return r === 'donvi' ? 'don_vi' : r;
+}
+function _tkErr(code){
+  var M = { ERR_AUTH:'Sai phiên đăng nhập hoặc mật khẩu — hãy đăng nhập lại', ERR_FORBIDDEN:'Không đủ quyền',
+    ERR_DUP:'Trùng tên đăng nhập / mã đơn vị', ERR_EMPTY_PASS:'Mật khẩu không được để trống',
+    ERR_WEAK_PASS:'Mật khẩu phải có ít nhất '+TK_PASS_MIN+' ký tự', ERR_NOT_FOUND:'Không tìm thấy tài khoản',
+    ERR_SELF:'Không thể xoá tài khoản đang đăng nhập', ERR_IS_ADMIN:'Không thể xoá tài khoản quản trị',
+    ERR_HAS_CHILD:'Còn đơn vị cấp dưới — xoá chúng trước', ERR_HAS_DATA:'Đơn vị đã có dữ liệu báo cáo' };
+  return M[code] || String(code||'lỗi không rõ');
+}
+// Tham số upsert_account giữ nguyên mọi trường hiện có, chỉ đổi những gì truyền trong o
+function _tkUpsertArgs(a, o){
+  o = o || {};
+  return {
+    p_actor: window._authUser, p_actor_pass: window._authPass,
+    p_user: a.username, p_name: ('name' in o) ? o.name : (a.accName || a.ten),
+    p_unit_id: a.node_id, p_role: _tkDbRole(a),
+    p_new_pass: o.pass || '', p_email: ('email' in o) ? o.email : (a.email||''),
+    p_phone: ('phone' in o) ? o.phone : (a.phone||''),
+    p_status: ('status' in o) ? o.status : (a.status==='no_account' ? 'active' : (a.status||'active'))
+  };
+}
+// Lưu / đọc cấu hình nhỏ dạng JSON trong bảng settings (giống cấu hình miền 'regions')
+// Hiện mật khẩu vừa tạo để admin sao chép và báo cho người phụ trách (không có máy chủ gửi email)
+function _tkShowNewPass(ten, user, pass){
+  var html = 'Tài khoản <b>@'+_escH(user)+'</b> ('+_escH(ten)+')<br><br>Mật khẩu:'
+    + '<div style="font:700 18px monospace;background:#f1f5f9;border-radius:8px;padding:10px 14px;margin:8px 0;user-select:all;letter-spacing:1px">'+_escH(pass)+'</div>'
+    + '<span style="font-size:12px;color:#b45309">⚠ Hãy sao chép và báo trực tiếp cho người phụ trách. Mật khẩu chỉ hiện 1 lần này.</span>';
+  try{ navigator.clipboard && navigator.clipboard.writeText(pass).catch(function(){}); }catch(e){}
+  _confirmModal('🔑 Mật khẩu tài khoản mới', html, function(){}, null, 'Đã sao chép');
+}
+async function _tkSettingsGet(key){
+  if(!window._supaOnline) return null;
+  try{
+    var r = await fetch(SUPA_URL+'/rest/v1/settings?key=eq.'+encodeURIComponent(key)+'&select=value&limit=1',{headers:_supaHdr,cache:'no-store'});
+    if(!r.ok) return null;
+    var j = await r.json();
+    return (j && j[0]) ? j[0].value : null;
+  }catch(e){ console.warn('[settings] đọc '+key+' lỗi', e); return null; }
+}
+async function _tkSettingsPut(key, value){
+  var hd = Object.assign({}, _supaHdr, {'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'});
+  var r = await fetch(SUPA_URL+'/rest/v1/settings?on_conflict=key',{method:'POST',headers:hd,
+    body:JSON.stringify([{key:key, value:value}])});
+  if(!r.ok){ var t = await r.text().catch(function(){return '';}); throw new Error('HTTP '+r.status+' '+t.slice(0,80)); }
+}
 function _tkGateButtons(){
   var isAdmin = !!(window.currentUser && window.currentUser.role==='admin');
   document.querySelectorAll('.tk-admin-btn').forEach(function(b){ b.style.display = isAdmin ? '' : 'none'; });
@@ -22705,8 +22758,14 @@ function fillRegions(){
   if([...sel.options].some(o=>o.value===cur)) sel.value=cur; else sel.value='';
 }
 // ── Điểm nối Supabase cho gộp miền (RAM hôm nay) ──
-async function loadRegionMerges(){ /* TODO Supabase: SELECT region_merges → REGION_MERGES; rồi fillRegions()+renderTree() */ return; }
-async function persistRegionMerges(){ /* TODO Supabase: thay toàn bộ bảng region_merges bằng REGION_MERGES */ return; }
+async function loadRegionMerges(){
+  const v = await _tkSettingsGet('region_merges');
+  if(Array.isArray(v)) REGION_MERGES = v.filter(g=>g && g.id && Array.isArray(g.members));
+}
+async function persistRegionMerges(){
+  try{ await _tkSettingsPut('region_merges', REGION_MERGES); }
+  catch(e){ showToast('❌ Chưa lưu được nhóm gộp miền: '+(e.message||e)); }
+}
 
 // ── Thao tác gộp / bỏ gộp ──
 function addRegionMerge(){
@@ -22965,9 +23024,23 @@ function isAbsorbed(id){ return UNIT_MERGES.some(m=>m.absorbed.some(x=>x.id===id
 function absorbedCountOf(survId){ let n=0; UNIT_MERGES.forEach(m=>{ if(m.survivorId===survId) n+=m.absorbed.length; }); return n; }
 function acc(id){ return accounts.find(a=>a.id===id); }   // (gọi theo thao tác người dùng, không nằm trong vòng lặp vẽ)
 // ── Stub Supabase ──
-async function persistUnitGroups(){ /* TODO Supabase: thay bảng unit_groups */ return; }
-async function persistUnitMerges(){ /* TODO Supabase: thay bảng unit_merges */ return; }
-async function loadUnitStructure(){ /* TODO Supabase: nạp UNIT_GROUPS + UNIT_MERGES → renderTree/renderTable */ return; }
+// Gom đơn vị lưu ở settings.key = 'unit_groups' theo unit_id thật (id số trong bảng đổi mỗi lần tải)
+async function persistUnitGroups(){
+  const nodeOf=id=>{ const a=acc(id); return a? a.node_id : null; };
+  const v=UNIT_GROUPS.map(g=>({id:g.id, name:g.name, members:g.members.map(nodeOf).filter(Boolean)}));
+  try{ await _tkSettingsPut('unit_groups', v); }
+  catch(e){ showToast('❌ Chưa lưu được nhóm đơn vị: '+(e.message||e)); }
+}
+// "Hợp nhất đơn vị" cần chuyển đơn vị con sang cha mới trên máy chủ — chưa có hàm máy chủ nên
+// tạm tắt (bản cũ chỉ đổi trong RAM, tải lại là mất, số liệu không đi theo).
+async function persistUnitMerges(){ return; }
+async function loadUnitStructure(){
+  const v = await _tkSettingsGet('unit_groups');
+  if(!Array.isArray(v)) return;
+  const idOf={}; (window.accounts||[]).forEach(a=>{ if(a.node_id) idOf[a.node_id]=a.id; });
+  UNIT_GROUPS = v.map(g=>({id:g.id, name:g.name, members:(g.members||[]).map(n=>idOf[n]).filter(Boolean)}))
+                 .filter(g=>g.members.length>=2);
+}
 
 // ── Gom hiển thị (overlay, không đụng dữ liệu) ──
 function addUnitGroup(){
@@ -22988,6 +23061,7 @@ function removeUnitGroup(id){
 
 // ── Hợp nhất vận hành (survivor + trỏ lại cấp dưới + nhật ký) ──
 function doUnitMerge(){
+  showToast('⚠ Hợp nhất đơn vị tạm chưa hỗ trợ (chưa lưu được lên hệ thống)'); return;
   const survId=+(document.getElementById('um-survivor')?.value||0);
   const absIds=[...document.querySelectorAll('.um-abs:checked')].map(c=>+c.value);
   if(!survId){ showToast('⚠ Chọn đơn vị giữ lại'); return; }
@@ -23240,10 +23314,11 @@ function renderTable(){
       const _ownRow = _acctIsOwn(a);
       let _acts;
       if(_isAdminRow){
+        const _self = _acctIsSelf(a);   // dòng của chính mình: không tự khoá / tự xoá
         _acts = `<button class="ib ib-edit" title="Sửa thông tin" onclick="openEdit(${+a.id})">${IC.edit}</button>
-          <button class="ib ib-reset" title="Reset mật khẩu" onclick="openRM(${+a.id})">${IC.key}</button>
-          ${actToggle}
-          <button class="ib ib-del" title="Xóa tài khoản" onclick="confirmDelete(${+a.id})">${IC.trash}</button>`;
+          ${a.username?`<button class="ib ib-reset" title="${_self?'Đổi mật khẩu':'Đặt lại mật khẩu'}" onclick="openRM(${+a.id})">${IC.key}</button>`:''}
+          ${_self?'':actToggle}
+          ${_self?'':`<button class="ib ib-del" title="Xóa đơn vị / tài khoản" onclick="confirmDelete(${+a.id})">${IC.trash}</button>`}`;
       } else if(_ownRow){
         _acts = `<button class="ib ib-edit" title="Sửa thông tin" onclick="openEdit(${+a.id})">${IC.edit}</button>
           <button class="ib ib-reset" title="Đổi mật khẩu" onclick="openRM(${+a.id})">${IC.key}</button>`;
@@ -23277,11 +23352,11 @@ function toggleLock(id){
   if(!a.username){ if(window.showToast) showToast('Đơn vị chưa có tài khoản — nhập tên đăng nhập + mật khẩu để tạo'); openEdit(id); return; }
   const prev=a.status;
   const next=prev==='active'?'locked':'active';
+  if(next==='locked' && _acctIsSelf(a)){ showToast('❌ Không thể tự khoá tài khoản đang đăng nhập'); return; }
   if(a._busy) return; a._busy=true;
-  // Lưu THẬT lên Supabase (upsert_account giữ nguyên mật khẩu khi p_new_pass rỗng), rồi mới đổi giao diện
-  window._rpc('upsert_account',{ p_actor:window._authUser, p_actor_pass:window._authPass,
-    p_user:a.username, p_name:a.ten||a.username, p_unit_id:a.node_id, p_role:'don_vi',
-    p_new_pass:'', p_email:a.email||'', p_phone:a.phone||'', p_status:next })
+  // Lưu THẬT lên Supabase (upsert_account giữ nguyên mật khẩu khi p_new_pass rỗng), rồi mới đổi giao diện.
+  // GIỮ vai trò hiện có (bản cũ ép 'don_vi' → khoá/mở khoá tài khoản admin là làm mất quyền admin).
+  window._rpc('upsert_account', _tkUpsertArgs(a, { status:next }))
   .then(function(r){
     if(typeof r==='string' && r!=='OK') throw new Error(r);
     a.status=next; updateStats();renderTree();renderTable();
@@ -23561,7 +23636,8 @@ function setPassMode(m){
   document.getElementById('pm-manual').classList.toggle('act',m==='manual');
   document.getElementById('pass-auto').style.display=m==='auto'?'flex':'none';
   document.getElementById('pass-manual').style.display=m==='manual'?'flex':'none';
-  if(m==='manual'){const inp=document.getElementById('inp-pass');if(!inp.value)inp.value='Ctclqg@2026';}
+  // (bản cũ điền sẵn mật khẩu chung 'Ctclqg@2026' → mọi tài khoản dễ dùng chung 1 mật khẩu ai cũng biết)
+  if(m==='manual'){const inp=document.getElementById('inp-pass');if(inp){inp.placeholder='Tối thiểu '+TK_PASS_MIN+' ký tự';}}
   checkReady();
 }
 function genPass(){document.getElementById('inp-pass').value=genRandPass();checkReady();}
@@ -23712,15 +23788,21 @@ function openEdit(id){
     document.getElementById('edit-cap-note').style.color='#534AB7';
   } else {
     document.getElementById('edit-role-display').style.display='flex';
-    document.getElementById('edit-cap').style.display='none';
+    const sel = document.getElementById('edit-cap');
+    sel.style.display='none'; sel.value=a.cap;   // ô ẩn vẫn mang đúng cấp hiện tại (bản cũ để mặc định 'kho_tq')
     document.getElementById('edit-cap-note').textContent='🔒 Chỉ admin mới có thể thay đổi';
     document.getElementById('edit-cap-note').style.color='var(--muted)';
   }
+  // Cấp dưới chỉ sửa email / số điện thoại của mình; tên đơn vị + trạng thái do admin quản lý
+  const tenEl = document.getElementById('edit-ten');
+  if(IS_ADMIN){ tenEl.removeAttribute('readonly'); tenEl.classList.remove('readonly'); }
+  else { tenEl.setAttribute('readonly',''); tenEl.classList.add('readonly'); }
 
   // Trạng thái
   const isActive = a.status==='active' || a.status==='no_account';
   const tog = document.getElementById('edit-sts-tog');
   tog.checked = isActive;
+  tog.disabled = !IS_ADMIN || _acctIsSelf(a);   // không tự khoá mình; cấp dưới không đổi trạng thái
   document.getElementById('edit-sts-badge').textContent = isActive?'Hoạt động':a.status==='locked'?'Đã khóa':'Chờ kích hoạt';
   document.getElementById('edit-sts-badge').className = 'sts-badge ' + (isActive?'sts-on':'sts-off');
   document.getElementById('edit-sts-sub').textContent = isActive?'Tài khoản đang hoạt động':'Tài khoản bị tạm khóa';
@@ -23815,32 +23897,53 @@ function openRM(id){
     if(typeof toast==='function') toast('Bạn chỉ đổi mật khẩu tài khoản của chính mình.','var(--warning)'); return;
   }
   rmId=id;const a=accounts.find(x=>x.id===id);if(!a)return;
-  document.getElementById('rm-name').textContent=a.ten;
+  if(!a.username){ showToast('⚠ Đơn vị chưa có tài khoản — bấm "Sửa thông tin", nhập tên đăng nhập để tạo'); return; }
+  const self=_acctIsSelf(a);
+  document.getElementById('rm-title').textContent = self ? '🔑 Đổi mật khẩu của bạn' : '🔑 Đặt lại mật khẩu';
+  document.getElementById('rm-warn').style.display = self ? 'none' : '';
+  document.getElementById('rm-name').textContent=a.ten+' (@'+a.username+')';
   document.getElementById('rm-meta').textContent=`${a.cap} · ${REGIONS[a.mien]||a.mien}${a.parent?' › '+a.parent:''}`;
   rmPass=genRandPass();
-  document.getElementById('rm-pass').textContent=rmPass;
+  document.getElementById('rm-pass').value=rmPass;
   document.getElementById('rm-copy').textContent='📋 Copy';
   document.getElementById('rm-copy').style.cssText='';
-  document.getElementById('rm-email-inp').value=a.email||'';
-  document.getElementById('rm-email-row').style.display=a.email?'flex':'none';
-  document.getElementById('rm-no-email').style.display=a.email?'none':'block';
+  const ok=document.getElementById('rm-ok'); if(ok){ ok.disabled=false; ok.textContent='✓ Lưu mật khẩu mới'; }
   document.getElementById('rm-overlay').style.display='flex';
 }
 function closeRM(){document.getElementById('rm-overlay').style.display='none';rmId=null;}
-function regenPass(){rmPass=genRandPass();document.getElementById('rm-pass').textContent=rmPass;document.getElementById('rm-copy').textContent='📋 Copy';}
+function regenPass(){rmPass=genRandPass();document.getElementById('rm-pass').value=rmPass;document.getElementById('rm-copy').textContent='📋 Copy';}
 function copyPass(){
-  navigator.clipboard.writeText(rmPass).catch(()=>{
-    const el=document.createElement('textarea');el.value=rmPass;document.body.appendChild(el);el.select();document.execCommand('copy');document.body.removeChild(el);
+  const v=document.getElementById('rm-pass').value;
+  navigator.clipboard.writeText(v).catch(()=>{
+    const el=document.createElement('textarea');el.value=v;document.body.appendChild(el);el.select();document.execCommand('copy');document.body.removeChild(el);
   });
   const btn=document.getElementById('rm-copy');
   btn.textContent='✓ Đã copy';btn.style.borderColor='var(--ok)';btn.style.color='var(--ok)';
 }
-function confirmReset(){
+// Lưu mật khẩu mới LÊN MÁY CHỦ (bản cũ chỉ đổi trong RAM rồi báo "đã reset" — mật khẩu cũ vẫn dùng được)
+//  • Tài khoản của chính mình → change_password (máy chủ kiểm tra mật khẩu hiện tại của phiên)
+//  • Admin đặt lại cho người khác → upsert_account (giữ nguyên tên, vai trò, liên hệ, trạng thái)
+async function confirmReset(){
   const a=accounts.find(x=>x.id===rmId);if(!a)return;
-  a.tempPass=rmPass;a.status='active';
-  const send=document.getElementById('rm-send')?.checked;
-  showToast(send&&a.email?`📧 Đã gửi MK mới tới ${a.email}`:`🔑 Đã reset MK: ${a.ten}`);
-  closeRM();updateStats();renderTree();renderTable();
+  const np=(document.getElementById('rm-pass').value||'').trim();
+  if(np.length<TK_PASS_MIN){ showToast('⚠ Mật khẩu tối thiểu '+TK_PASS_MIN+' ký tự'); return; }
+  if(!window._supaOnline){ showToast('⚠ Đang offline — chưa lưu được'); return; }
+  const self=_acctIsSelf(a);
+  if(!self && !(window.currentUser && window.currentUser.role==='admin')){ showToast('❌ Chỉ admin đặt lại mật khẩu cho tài khoản khác'); return; }
+  const ok=document.getElementById('rm-ok'); if(ok){ ok.disabled=true; ok.textContent='Đang lưu...'; }
+  try{
+    const res = self
+      ? await window._rpc('change_password', { p_actor:window._authUser, p_actor_pass:window._authPass, p_new_pass:np })
+      : await window._rpc('upsert_account', _tkUpsertArgs(a, { pass:np }));
+    if(res!=='OK') throw new Error(_tkErr(res));
+    if(self){ window._authPass = np; try{ _authPass = np; }catch(e){} try{ window._secRenew && window._secRenew(); }catch(e){} }
+    closeRM();
+    showToast(self ? '✅ Đã đổi mật khẩu — lần đăng nhập sau dùng mật khẩu mới'
+                   : '✅ Đã đặt lại mật khẩu cho @'+a.username+' — có hiệu lực ngay');
+  }catch(e){
+    showToast('❌ Chưa đổi được mật khẩu: '+(e.message||e));
+    if(ok){ ok.disabled=false; ok.textContent='✓ Lưu mật khẩu mới'; }
+  }
 }
 
 
@@ -24118,13 +24221,13 @@ function renderImport(){
       + '<td>'+(good
           ? '<span class="imp-badge imp-b-ok">✓ Hợp lệ</span>'
           : '<span class="imp-badge imp-b-err">✕ Lỗi</span>')+'</td>'
-      + '<td><div style="font-weight:600">'+(r.ten||'<em style="color:#B8C2CF">(trống)</em>')+'</div>'
-        + (good?'':'<div class="imp-reason">• '+r.errs.join('<br>• ')+'</div>')+'</td>'
-      + '<td><span class="g-code" style="font-size:11px">'+(r.user||'—')+'</span></td>'
+      + '<td><div style="font-weight:600">'+(r.ten?esc(r.ten):'<em style="color:#B8C2CF">(trống)</em>')+'</div>'
+        + (good?'':'<div class="imp-reason">• '+r.errs.map(esc).join('<br>• ')+'</div>')+'</td>'
+      + '<td><span class="g-code" style="font-size:11px">'+esc(r.user||'—')+'</span></td>'
       + '<td>'+(r.cap&&rc.color
           ? '<span class="imp-badge" style="background:'+rc.bg+';color:'+rc.color+'">'+(capLbl[r.cap]||'')+' '+r.cap+'</span>'
           : '<span style="color:var(--err);font-size:11px">'+(r.cap||'—')+'</span>')+'</td>'
-      + '<td style="font-size:11.5px;color:var(--muted)">'+(r.tinh||'—')+'</td>'
+      + '<td style="font-size:11.5px;color:var(--muted)">'+esc(r.tinh||'—')+'</td>'
       + '</tr>';
   }).join('');
 }
@@ -24134,29 +24237,69 @@ function closeImport(){
   impRows=[];
 }
 
-function confirmImport(){
+// Nhập Excel → tạo THẬT trên máy chủ (bản cũ chỉ thêm vào RAM, tải lại trang là mất).
+// Mỗi dòng: tạo đơn vị (create_unit) dưới "Đơn vị quản lý" (= tên đăng nhập của cấp trên,
+// có sẵn trong hệ thống hoặc ở dòng phía trên trong cùng file) rồi tạo tài khoản với mật khẩu
+// ngẫu nhiên. Xong tải về file Excel danh sách tên đăng nhập + mật khẩu để phát cho các đơn vị.
+async function confirmImport(){
+  if(!(window.currentUser && window.currentUser.role==='admin')){ showToast('❌ Chỉ quản trị viên được nhập tài khoản'); return; }
+  if(!window._supaOnline){ showToast('⚠ Đang offline — chưa nhập được'); return; }
   const ok = impRows.filter(r=>r.errs.length===0);
   if(!ok.length) return;
-  const now=new Date();
-  const dt=now.getDate().toString().padStart(2,'0')+'/'+(now.getMonth()+1).toString().padStart(2,'0')+'/'+now.getFullYear();
-
-  ok.forEach(r=>{
-    usedNames.add(r.user);
-    accounts.push({
-      id:nextId++, ten:r.ten, username:r.user, email:r.email, phone:r.phone,
-      cap:r.cap, mien:r.mien, parent:r.parent||r.tinh||'', status:'pending', createdAt:dt
-    });
-  });
-
-  showToast('✅ Đã nhập '+ok.length+' tài khoản từ Excel');
+  const btn=document.getElementById('imp-btn'); if(btn){ btn.disabled=true; }
+  // username → node_id của các tài khoản đã có
+  const nodeOf={}; (window.accounts||[]).forEach(x=>{ if(x.username) nodeOf[x.username]=x.node_id; });
+  const byName={}; (window.UNITS_TREE||[]).forEach(u=>{ const k=_normName(u.name); (byName[k]=byName[k]||[]).push(u.id); });
+  const hasRoot=(window.UNITS_TREE||[]).some(u=>!u.parent_id);
+  const out=[]; let nOk=0;
+  for(let i=0;i<ok.length;i++){
+    const r=ok[i];
+    if(btn) btn.textContent='Đang tạo '+(i+1)+'/'+ok.length+'...';
+    let parentId=null, err='';
+    if(r.cap==='kho_tq'){ if(hasRoot) err='Đã có Kho toàn quốc'; }
+    else if(!r.parent) err='Thiếu cột "Đơn vị quản lý"';
+    else if(nodeOf[r.parent]) parentId=nodeOf[r.parent];
+    else { const ids=byName[_normName(r.parent)]||[]; if(ids.length===1) parentId=ids[0]; else err=ids.length>1?'Tên đơn vị quản lý bị trùng — dùng tên đăng nhập':'Không tìm thấy đơn vị quản lý "'+r.parent+'"'; }
+    let pass='';
+    if(!err){
+      try{
+        const slug=String(r.user).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||('u'+Date.now());
+        const nid=await window._rpc('create_unit',{ p_actor:window._authUser, p_actor_pass:window._authPass,
+          p_slug:slug, p_name:r.ten, p_parent_id:parentId, p_utype:r.cap, p_mien:r.mien, p_tinh:r.tinh||'', p_tinh_cu:'' });
+        if(typeof nid==='string' && nid.indexOf('ERR')===0) throw new Error('Tạo đơn vị: '+_tkErr(nid));
+        const unitId=String(nid).replace(/"/g,'');
+        pass=genRandPass();
+        let rc, rcErr=null;
+        try{ rc=await window._rpc('upsert_account',{ p_actor:window._authUser, p_actor_pass:window._authPass,
+          p_user:r.user, p_name:r.ten, p_unit_id:unitId, p_role:'don_vi', p_new_pass:pass, p_email:r.email||'', p_phone:r.phone||'', p_status:'active' }); }
+        catch(eU){ rcErr=eU; }
+        if(rcErr || rc!=='OK'){
+          try{ await window._rpc('delete_unit',{ p_actor:window._authUser, p_actor_pass:window._authPass, p_id:unitId }); }catch(eD){}
+          throw new Error('Tạo tài khoản: '+(rcErr?(rcErr.message||rcErr):_tkErr(rc)));
+        }
+        nodeOf[r.user]=unitId; nOk++;
+      }catch(e){ err=String(e.message||e); pass=''; }
+    }
+    out.push([i+1, r.ten, r.user, err?'':pass, err?('✕ '+err):'✓ Đã tạo']);
+  }
   closeImport();
-  updateStats(); renderTree(); renderTable();
+  await window._loadUnitsTree(); await window.tkLoadFromCloud();
+  // File mật khẩu (chỉ tải về máy admin, không lưu ở đâu khác)
+  try{
+    const wb=XLSX.utils.book_new();
+    const ws=XLSX.utils.aoa_to_sheet([['STT','Tên đơn vị','Tên đăng nhập','Mật khẩu','Kết quả']].concat(out));
+    ws['!cols']=[{wch:5},{wch:40},{wch:18},{wch:16},{wch:40}];
+    XLSX.utils.book_append_sheet(wb, ws, 'Tai khoan moi');
+    XLSX.writeFile(wb, 'tai_khoan_moi_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  }catch(e){ console.warn('[import] xuất file mật khẩu lỗi', e); }
+  const nErr=out.length-nOk;
+  showToast('✅ Đã tạo '+nOk+' tài khoản'+(nErr?' · ✕ '+nErr+' dòng lỗi (xem cột Kết quả)':'')+' — đã tải file mật khẩu');
 }
 
 // ══ INIT ══
-loadProvinceNames();            // stub: RAM hôm nay, Supabase sau này (tự refreshTinhEverywhere khi có dữ liệu)
+loadProvinceNames();            // chưa online thì bỏ qua — tkLoadFromCloud nạp lại sau khi đăng nhập
 loadRegionMerges(); fillRegions();   // nạp cấu hình gộp miền + đổ dropdown Miền
-loadUnitStructure();                 // nạp gom/hợp nhất đơn vị (RAM; Supabase sau)
+loadUnitStructure();                 // nạp nhóm gom đơn vị (cần danh sách tài khoản → nạp lại trong tkLoadFromCloud)
 updateStats();renderTree();renderTable();
 
 
@@ -24221,6 +24364,8 @@ function _tkRenderOnly(){
           puid: u.parent_id ? String(idmap[u.parent_id]||'') : '',
           ten: u.name,
           username: a ? a.user : '',           // node chưa có tài khoản → rỗng
+          role: a ? a.role : '',               // giữ vai trò thật để ghi lại đúng (không ép 'don_vi')
+          accName: a ? (a.name||'') : '',      // tên trên tài khoản (khác tên đơn vị)
           email: (a&&a.email)||'', phone:(a&&a.phone)||'',
           cap: u.utype,
           mien: u.mien||'', tinh: u.tinh||'', tinhCu: u.tinh_cu||'',
@@ -24237,6 +24382,10 @@ function _tkRenderOnly(){
       try{ if(typeof _rmLoadCfg==='function') await _rmLoadCfg(); }catch(e){ console.warn('[regions]',e); }
       window.nextId = idseq;
       window.usedNames = usedNames;
+      // Cấu hình hiển thị lưu trên cloud: tên tỉnh, gộp miền, gom đơn vị
+      try{ await loadProvinceNames(); }catch(e){}
+      try{ await loadRegionMerges(); if(typeof fillRegions==='function') fillRegions(); }catch(e){}
+      try{ await loadUnitStructure(); }catch(e){}
       if(window.updateStats) updateStats();
       if(window.renderTree) renderTree();
       if(window.renderTable) renderTable();
@@ -24307,32 +24456,54 @@ function _tkRenderOnly(){
   };
   window.saveAndContinue = function(){ window.saveAccount(true); };
 
-  // Sửa: đổi tên/email/phone/status + (admin) cấp
+  // Sửa thông tin tài khoản / đơn vị
+  //  • Cấp dưới (không phải admin) chỉ sửa email / số điện thoại của CHÍNH MÌNH (RPC update_my_profile).
+  //    Bản cũ gửi kèm cấp = giá trị mặc định của ô ẩn ('kho_tq') → đổi nhầm cấp đơn vị.
+  //  • Admin: sửa tên/cấp/trạng thái đơn vị + tài khoản; GIỮ vai trò hiện có; không tự khoá mình.
   window.saveEdit = async function(){
-    var a = window.accounts.find(function(x){return x.id===editId;}); if(!a) return;  // FIX: đọc editId lexical (openEdit set biến này), không phải window.editId (luôn undefined)
+    var a = window.accounts.find(function(x){return x.id===editId;}); if(!a) return;
+    var isAdm = !!(window.currentUser && window.currentUser.role==='admin');
     var ten=document.getElementById('edit-ten').value.trim();
     if(!ten){ document.getElementById('edit-hint').textContent='⚠ Nhập tên'; return; }
     var email=document.getElementById('edit-email').value.trim();
     var phone=document.getElementById('edit-phone').value.trim();
     var status=document.getElementById('edit-sts-tog').checked?'active':'locked';
     var newU=(document.getElementById('edit-uname').value||'').trim();
-    var doRename = (a.username && newU && newU !== a.username);
-    var doCreate = (!a.username && newU);   // đơn vị CHƯA có tài khoản + admin nhập username → TẠO mới
     try{
+      if(!isAdm){
+        if(!_acctIsSelf(a)){ showToast('❌ Bạn chỉ sửa được thông tin tài khoản của chính mình'); return; }
+        var rp;
+        try{
+          rp = await window._rpc('update_my_profile', { p_actor:window._authUser, p_actor_pass:window._authPass, p_email:email, p_phone:phone });
+        }catch(eP){
+          // Máy chủ chưa chạy sql/07 → dùng upsert_account (giữ nguyên vai trò, tên, trạng thái)
+          if(eP && (eP.status===404 || String(eP.message||'').indexOf('PGRST202')>=0)){
+            rp = await window._rpc('upsert_account', _tkUpsertArgs(a, {email:email, phone:phone}));
+          } else throw eP;
+        }
+        if(rp !== 'OK') throw new Error(_tkErr(rp));
+        if(window.closeEdit) closeEdit();
+        await window.tkLoadFromCloud();
+        showToast('✅ Đã cập nhật thông tin liên hệ');
+        return;
+      }
+      if(_acctIsSelf(a) && status==='locked'){ showToast('❌ Không thể tự khoá tài khoản đang đăng nhập'); return; }
+      var doRename = (a.username && newU && newU !== a.username);
+      var doCreate = (!a.username && newU);   // đơn vị CHƯA có tài khoản + admin nhập username → TẠO mới
       // 0a) Tạo tài khoản mới cho đơn vị chưa có (bắt buộc đặt mật khẩu)
       if(doCreate){
-        if(!/^[a-z0-9_]+$/.test(newU)){ if(window.showToast)showToast('❌ Username chỉ gồm chữ thường, số, gạch dưới'); return; }
-        var _pw = window.prompt('Đơn vị này chưa có tài khoản.\nĐặt mật khẩu cho tài khoản mới "'+newU+'" (tối thiểu 4 ký tự):', '');
-        if(_pw === null) return;   // người dùng bấm Hủy
+        if(!/^[a-z0-9_]+$/.test(newU)){ showToast('❌ Username chỉ gồm chữ thường, số, gạch dưới'); return; }
+        var _pw = window.prompt('Đơn vị này chưa có tài khoản.\nĐặt mật khẩu cho tài khoản mới "'+newU+'" (tối thiểu '+TK_PASS_MIN+' ký tự):', '');
+        if(_pw === null) return;
         _pw = (''+_pw).trim();
-        if(_pw.length < 4){ if(window.showToast)showToast('❌ Mật khẩu tối thiểu 4 ký tự'); return; }
+        if(_pw.length < TK_PASS_MIN){ showToast('❌ Mật khẩu tối thiểu '+TK_PASS_MIN+' ký tự'); return; }
         var rc = await window._rpc('upsert_account', { p_actor:window._authUser, p_actor_pass:window._authPass,
           p_user:newU, p_name:ten, p_unit_id:a.node_id, p_role:'don_vi',
           p_new_pass:_pw, p_email:email, p_phone:phone, p_status:status });
-        if(rc !== 'OK'){ throw new Error('Tạo tài khoản: '+rc); }
-        a.username = newU;   // đã có tài khoản → các bước sau cập nhật đúng
+        if(rc !== 'OK'){ throw new Error('Tạo tài khoản: '+_tkErr(rc)); }
+        a.username = newU; a.role = 'don_vi'; a.accName = ten;
       }
-      // 0b) Đổi tên đăng nhập (nếu có) — qua RPC rename_account: đổi user_id tại chỗ, GIỮ mật khẩu & dữ liệu
+      // 0b) Đổi tên đăng nhập — RPC rename_account: đổi user_id tại chỗ, GIỮ mật khẩu & dữ liệu
       if(doRename){
         var rr = await window._rpc('rename_account', { p_actor:window._authUser, p_actor_pass:window._authPass,
           p_old_user:a.username, p_new_user:newU });
@@ -24342,39 +24513,59 @@ function _tkRenderOnly(){
             ERR_NOT_FOUND:'Không tìm thấy tài khoản' }[rr] || rr;
           throw new Error('Đổi tên đăng nhập: '+_m);
         }
-        a.username = newU;   // dùng username mới cho các bước sau
+        if(_acctIsSelf(a)){ window._authUser = newU; if(window.currentUser) window.currentUser.user = newU; }
+        a.username = newU;
       }
-      // 1) cập nhật node (tên/cấp)
-      var cap = document.getElementById('edit-cap') ? document.getElementById('edit-cap').value : a.cap;
+      // 1) cập nhật node (tên/cấp/trạng thái) — ô cấp đã được openEdit đặt đúng cấp hiện tại
+      var capEl = document.getElementById('edit-cap');
+      var cap = (capEl && capEl.value) ? capEl.value : a.cap;
       var r1 = await window._rpc('update_unit', { p_actor:window._authUser, p_actor_pass:window._authPass,
         p_id:a.node_id, p_name:ten, p_utype:cap, p_mien:null, p_tinh:null, p_tinh_cu:null, p_status:status });
-      if(typeof r1==='string' && r1.indexOf('ERR')===0) throw new Error('update_unit: '+r1);
-      // 2) cập nhật tài khoản (nếu node có tài khoản)
+      if(typeof r1==='string' && r1.indexOf('ERR')===0) throw new Error('Sửa đơn vị: '+_tkErr(r1));
+      // 2) cập nhật tài khoản (nếu node có tài khoản) — giữ vai trò; tên tài khoản theo tên đơn vị
+      //    khi trước đó nó vốn là tên đơn vị (tạo tự động), còn không thì giữ tên riêng
       if(a.username){
-        var r2 = await window._rpc('upsert_account', { p_actor:window._authUser, p_actor_pass:window._authPass,
-          p_user: a.username, p_name:ten, p_unit_id:a.node_id, p_role:'don_vi',
-          p_new_pass:'', p_email:email, p_phone:phone, p_status:status });
-        if(typeof r2==='string' && r2.indexOf('ERR')===0) throw new Error('upsert_account: '+r2);
+        var _nm = (!a.accName || a.accName === a.ten) ? ten : a.accName;
+        var r2 = await window._rpc('upsert_account', _tkUpsertArgs(a, {name:_nm, email:email, phone:phone, status:status}));
+        if(typeof r2==='string' && r2.indexOf('ERR')===0) throw new Error('Sửa tài khoản: '+_tkErr(r2));
       }
       if(window.closeEdit) closeEdit();
       await window._loadUnitsTree(); await window.tkLoadFromCloud();
-      if(window.showToast)showToast('✅ Đã cập nhật: '+ten);
-    }catch(e){ console.error('[saveEdit]',e); if(window.showToast)showToast('❌ Lỗi cập nhật: '+(e.message||e)); }
+      showToast('✅ Đã cập nhật: '+ten);
+    }catch(e){ console.error('[saveEdit]',e); showToast('❌ Lỗi cập nhật: '+(e.message||e)); }
   };
 
-  // Xoá: xoá tài khoản + node (RPC chặn nếu còn con/dữ liệu)
+  // Xoá đơn vị + tài khoản. Máy chủ (delete_unit) tự gỡ tài khoản gắn đơn vị SAU KHI đã kiểm tra
+  // còn cấp dưới / còn dữ liệu. Bản cũ xoá tài khoản TRƯỚC → đơn vị có dữ liệu thì mất tài khoản
+  // mà đơn vị vẫn còn.
   window.tkDeleteAccount = async function(id){
     var a=window.accounts.find(function(x){return x.id===id;}); if(!a) return;
+    if(_acctIsSelf(a)){ showToast('❌ Không thể xoá đơn vị / tài khoản đang đăng nhập'); return; }
     try{
-      if(a.username){
-        await window._rpc('delete_account', { p_actor:window._authUser, p_actor_pass:window._authPass, p_user:a.username });
-      }
       var res = await window._rpc('delete_unit', { p_actor:window._authUser, p_actor_pass:window._authPass, p_id:a.node_id });
-      if(res==='ERR_HAS_CHILD'){ if(window.showToast)showToast('❌ Còn đơn vị cấp dưới — xoá chúng trước'); await window.tkLoadFromCloud(); return; }
-      if(res==='ERR_HAS_DATA'){ if(window.showToast)showToast('❌ Đơn vị đã có dữ liệu báo cáo — không thể xoá'); await window.tkLoadFromCloud(); return; }
-      if(window.showToast)showToast('🗑️ Đã xoá: '+a.ten);
-      await window._loadUnitsTree(); await window.tkLoadFromCloud();
-    }catch(e){ console.error('[tkDeleteAccount]',e); if(window.showToast)showToast('❌ Lỗi xoá: '+(e.message||e)); }
+      if(res==='OK'){
+        showToast('🗑️ Đã xoá: '+a.ten);
+        await window._loadUnitsTree(); await window.tkLoadFromCloud();
+        return;
+      }
+      if((res==='ERR_HAS_DATA' || res==='ERR_HAS_CHILD') && a.username){
+        var why = res==='ERR_HAS_DATA' ? 'đã có dữ liệu báo cáo' : 'còn đơn vị cấp dưới';
+        _confirmModal('Không xoá được đơn vị',
+          'Đơn vị <b>'+_escH(a.ten)+'</b> '+why+' nên không xoá được.<br><br>'
+          +'Bạn có muốn <b>chỉ xoá tài khoản đăng nhập @'+_escH(a.username)+'</b> (giữ nguyên đơn vị và số liệu)?',
+          async function(){
+            try{
+              var rd = await window._rpc('delete_account', { p_actor:window._authUser, p_actor_pass:window._authPass, p_user:a.username });
+              if(rd !== 'OK') throw new Error(_tkErr(rd));
+              showToast('🗑️ Đã xoá tài khoản @'+a.username+' — đơn vị vẫn giữ');
+              await window.tkLoadFromCloud();
+            }catch(e2){ showToast('❌ Lỗi xoá tài khoản: '+(e2.message||e2)); }
+          }, null, 'Chỉ xoá tài khoản');
+        return;
+      }
+      showToast('❌ Không xoá được: '+_tkErr(res));
+      await window.tkLoadFromCloud();
+    }catch(e){ console.error('[tkDeleteAccount]',e); showToast('❌ Lỗi xoá: '+(e.message||e)); }
   };
 
   // Khi mở trang Quản lý tài khoản → nạp từ cloud
@@ -24474,12 +24665,17 @@ function _tkRenderOnly(){
     var u=document.getElementById('inp-uname').value.trim();
     var email=document.getElementById('inp-email').value.trim();
     var phone=document.getElementById('inp-phone').value.trim();
-    var pass=(document.getElementById('inp-pass')||{}).value||'';
+    // Chế độ "Tự tạo": sinh mật khẩu ngẫu nhiên lúc lưu, hiện ra sau khi tạo để admin sao chép
+    // (bản cũ không sinh gì → luôn báo "Nhập mật khẩu"; cũng không có máy chủ gửi email).
+    var autoPass = (typeof passMode!=='undefined' && passMode==='auto');
+    var pass = autoPass ? genRandPass() : ((document.getElementById('inp-pass')||{}).value||'').trim();
     var tinhCu=(document.getElementById('grp-tinhcu').style.display!=='none')?(document.getElementById('sel-tinhcu').value||''):'';
     if(!org){ showToast('⚠ Nhập tên đơn vị'); return; }
     if(!cap){ showToast('⚠ Chọn cấp độ'); return; }
     if(!u){ showToast('⚠ Nhập tên đăng nhập'); return; }
     if(!pass){ showToast('⚠ Nhập mật khẩu'); return; }
+    if(pass.length < TK_PASS_MIN){ showToast('⚠ Mật khẩu tối thiểu '+TK_PASS_MIN+' ký tự'); return; }
+    if(window.usedNames && window.usedNames.has(u)){ showToast('⚠ Tên đăng nhập @'+u+' đã tồn tại'); return; }
 
     var pval = sp ? sp.value : '';
     var parentNodeId = null;
@@ -24496,10 +24692,19 @@ function _tkRenderOnly(){
         p_slug:slug, p_name:org, p_parent_id:parentNodeId, p_utype:cap, p_mien:r, p_tinh:tinh, p_tinh_cu:tinhCu });
       if(typeof newId==='string' && newId.indexOf('ERR')===0){ showToast('❌ Tạo đơn vị lỗi: '+newId+(newId==='ERR_DUP'?' (trùng slug)':'')); return; }
       var unitId=(typeof newId==='string')?newId.replace(/"/g,''):newId;
-      var res=await window._rpc('upsert_account', { p_actor:window._authUser, p_actor_pass:window._authPass,
-        p_user:u, p_name:org, p_unit_id:unitId, p_role:'don_vi', p_new_pass:pass, p_email:email, p_phone:phone, p_status:'active' });
-      if(res && String(res).indexOf('ERR')===0){ showToast('❌ Tạo tài khoản lỗi: '+res+(res==='ERR_DUP'?' (username đã tồn tại)':'')); return; }
+      var res, resErr=null;
+      try{
+        res=await window._rpc('upsert_account', { p_actor:window._authUser, p_actor_pass:window._authPass,
+          p_user:u, p_name:org, p_unit_id:unitId, p_role:'don_vi', p_new_pass:pass, p_email:email, p_phone:phone, p_status:'active' });
+      }catch(eU){ resErr=eU; }
+      if(resErr || (res && String(res).indexOf('ERR')===0)){
+        // Tạo tài khoản lỗi → gỡ đơn vị vừa tạo (chưa có cấp dưới/dữ liệu) để không bỏ lại đơn vị mồ côi
+        try{ await window._rpc('delete_unit', { p_actor:window._authUser, p_actor_pass:window._authPass, p_id:unitId }); }catch(eD){ console.warn('[saveAccount] gỡ đơn vị lỗi', eD); }
+        showToast('❌ Tạo tài khoản lỗi: '+(resErr ? (resErr.message||resErr) : _tkErr(res))+' — chưa tạo gì, sửa rồi thử lại');
+        return;
+      }
       showToast('✅ Đã tạo: '+org+' (@'+u+')');
+      if(autoPass) _tkShowNewPass(org, u, pass);
       await window._loadUnitsTree(); await window.tkLoadFromCloud();
       if(andContinue){ ['inp-org','inp-uname','inp-email','inp-phone'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';}); var p=document.getElementById('inp-pass'); if(p)p.value=''; if(window.checkReady)checkReady(); }
       else if(window.closeCreate) closeCreate();
