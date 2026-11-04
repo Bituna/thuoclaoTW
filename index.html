@@ -6948,7 +6948,9 @@ function doLogin(){
 
     // Giữ thông tin xác thực trong RAM (chỉ phiên này) để tái xác thực thao tác quản trị
     _authUser = acc.user; _authPass = pass;
-    _secStartSession(acc.user, pass);   // xin phiên máy chủ (không chặn giao diện)
+    // xin phiên máy chủ (không chặn giao diện). SQL 07: list_accounts cần phiên → có phiên rồi mới
+    // tải lại danh sách tài khoản (lần tải lúc mở trang, chưa đăng nhập, sẽ bị máy chủ từ chối).
+    _secStartSession(acc.user, pass).then(function(ok){ if(ok){ try{ _loadAccountsFromCloud(); }catch(e){} } });
 
     // Đồng bộ vào ACCOUNTS (không có mật khẩu) để phần còn lại của app dùng
     var _ix = ACCOUNTS.findIndex(function(a){ return a.user === acc.user; });
