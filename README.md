@@ -13,3 +13,4 @@ Chạy lần lượt, mỗi file 1 lần (chạy lại vẫn an toàn):
 7. `sql/07_siet_bao_mat_rpc.sql` — `list_accounts` / `settings_merge` bắt buộc đăng nhập (chặn lộ email, SĐT tài khoản và ghi cài đặt không đăng nhập); bỏ chỉ mục trùng
 8. `sql/08_tai_khoan_an_toan.sql` — tài khoản: khoá là không đăng nhập được, admin không tự mất quyền, cấp dưới không đổi được cấp đơn vị, mật khẩu ≥ 8 ký tự, hàm tự sửa email/điện thoại
 9. `sql/09_cai_dat_chi_admin.sql` — cài đặt dùng chung toàn quốc (ngưỡng cảnh báo + tham số kế hoạch, miền, tên tỉnh, gộp miền, gom đơn vị, hạn nộp báo cáo, danh sách mở lại sau hạn) chỉ admin được ghi
+10. `sql/10_lan_ton_khi_da_khoa.sql` — chốt theo thứ tự kỳ: tồn cuối kỳ chỉ lan sang tồn đầu kỳ sau khi kỳ đó của đơn vị **đã khoá** (đã chốt/in), để bản in luôn khớp phần mềm
