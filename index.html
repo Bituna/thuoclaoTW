@@ -5803,6 +5803,14 @@ function showLockManager(){
   btnSyncLock.style.cssText='padding:9px 16px;border:none;background:linear-gradient(135deg,#6c3483,#9b59b6);color:#fff;border-radius:18px;cursor:pointer;font-size:13px;font-weight:700';
   btnSyncLock.onclick=async function(){
     if(!_mustOnline()) return;
+    var _negU = checks.filter(function(c){ return _negLots(periodKey, _lockUid(c.dataset.unit)).length > 0; })
+                      .map(function(c){ return _displayUnit(c.dataset.unit); });
+    if(_negU.length){
+      _confirmModal('⛔ Chưa khoá được — còn lô tồn cuối ÂM',
+        '<b>'+_negU.length+' đơn vị</b> còn lô có tồn cuối âm trong '+_keyToLabel(periodKey)+':<br><br>• '+_negU.slice(0,12).map(_escH).join('<br>• ')
+        +'<br><br>Sửa số liệu các đơn vị này trước (lọc theo đơn vị, dòng tồn cuối màu đỏ), rồi khoá lại.', function(){}, null, 'Đã hiểu');
+      return;
+    }
     btnSyncLock.disabled=true; btnSyncLock.textContent='⏳ Đang đồng bộ...';
     try{
       // 1. Tích chọn toàn bộ
@@ -5820,7 +5828,7 @@ function showLockManager(){
       btnSyncLock.textContent='⏳ Đang khóa...';
       checks.forEach(function(chk){
         var u=chk.dataset.unit, key=_lockKey(u);
-        lockedPeriods[key]='admin';
+        lockedPeriods[key]='admin'; _lockSetId(periodKey, u, 'admin');
         var arr=(u===BVPH)?bvphData:bcData;
         arr.filter(function(r){return r.bcMonth===periodKey&&(u===BVPH||r.unit===u);})
           .forEach(function(r){r.locked=true;r.editing=false;r.openLocked=true;});
@@ -5865,16 +5873,26 @@ function showLockManager(){
   btnO.onclick=async function(){
     if(!_mustOnline()) return;
     var lockedCount=0, unlockedCount=0;
+    // Không khoá MỚI đơn vị còn lô tồn cuối âm (chốt số âm làm sai tồn đầu các kỳ sau)
+    var _negSkip = [];
+    checks.forEach(function(chk){
+      var u0 = chk.dataset.unit;
+      if(chk.checked && !lockedPeriods[_lockKey(u0)] && _negLots(periodKey, _lockUid(u0)).length){
+        chk.checked = false; if(chk._updBadge) chk._updBadge(); _negSkip.push(_displayUnit(u0));
+      }
+    });
+    if(_negSkip.length) toast('⛔ Không khoá '+_negSkip.length+' đơn vị còn lô tồn cuối âm: '+_negSkip.slice(0,4).join(', ')+(_negSkip.length>4?'…':'')+'. Sửa số rồi khoá lại.','var(--danger)');
     checks.forEach(function(chk){
       var u=chk.dataset.unit, key=_lockKey(u);
       if(chk.checked){
         if(!lockedPeriods[key]) lockedCount++;
         lockedPeriods[key]=(lockedPeriods[key]||'admin');   // giữ loại khoá cũ (đơn vị tự chốt = true)
+        _lockSetId(periodKey, u, lockedPeriods[key]);
         var arr = (u===BVPH) ? bvphData : bcData;
         arr.filter(function(r){return r.bcMonth===periodKey && (u===BVPH || r.unit===u);}).forEach(function(r){ r.locked=true; r.editing=false; r.openLocked=true; });
       } else {
         if(lockedPeriods[key]){ unlockedCount++; try{ _sendUnlockNotification(periodKey, u); }catch(e){} }
-        delete lockedPeriods[key];
+        delete lockedPeriods[key]; _lockDelId(periodKey, u);
         var arr2 = (u===BVPH) ? bvphData : bcData;
         arr2.filter(function(r){return r.bcMonth===periodKey && (u===BVPH || r.unit===u);}).forEach(function(r){ r.locked=false; r.openLocked=false; });
       }
@@ -6008,6 +6026,7 @@ async function _applyDeadlineAutoLock(pk){
   if(lockedPeriods[pk] || lockedPeriods[key]) return;
   if(_dlIsOpened(pk, currentUser.unit)) return;
   lockedPeriods[key] = 'auto';   // khoá do quá hạn — KHÔNG tính là đã nộp
+  _lockSetId(pk, currentUser.unit, 'auto', currentUser.unitId);
   (isB ? bvphData : bvphData.concat(bcData)).forEach(function(r){
     if(r.bcMonth===pk && (isB || r.unit===currentUser.unit || r.unitId===currentUser.unitId)){ r.locked=true; r.editing=false; r.openLocked=true; }
   });
@@ -6229,6 +6248,29 @@ function _computeSubStates(){
   return {nSt:nSt, dlKey:dlKey};
 }
 
+// ── KHOÁ KỲ GHI 2 KEY: "kỳ_<tên đơn vị>" (tương thích cũ) và "kỳ_<unit_id>" ──
+// Key theo tên bị lẫn khi 2 tỉnh có đơn vị trùng tên; máy chủ (lan tồn đầu) chỉ tin key theo unit_id,
+// hoặc key theo tên khi tên đó là duy nhất trong cây.
+function _lockUid(unitName, unitId){
+  if(unitId) return unitId;
+  var rid = _currentRootId();
+  if(unitName === BVPH || unitName === 'bvph') return rid || null;
+  var rp = (rid && UNIT_BY_ID[rid]) ? UNIT_BY_ID[rid].path : '';
+  try{ return unitIdByName(unitName, rp) || null; }catch(e){ return null; }
+}
+function _lockSetId(period, unitName, val, unitId){
+  var id = _lockUid(unitName, unitId); if(id) lockedPeriods[period+'_'+id] = val;
+}
+function _lockDelId(period, unitName, unitId){
+  var id = _lockUid(unitName, unitId); if(id) delete lockedPeriods[period+'_'+id];
+}
+// Lô có tồn cuối ÂM của 1 đơn vị trong kỳ (không cho chốt khi còn — số âm phải sửa tại nguồn)
+function _negLots(period, unitId){
+  return bvphData.concat(bcData).filter(function(r){
+    return !r._agg && r.bcMonth===period && _rowUid(r)===unitId && calcRow(r).tonCuoi < 0;
+  });
+}
+
 function isCurrentPeriodLocked(){
   var periodKey = _currentPeriodKey();
   if (!periodKey) return false;
@@ -6443,8 +6485,13 @@ function monthsLeft(s){return s?Math.round((new Date(s)-new Date())/(1000*60*60*
 // Tính tình trạng lô
 function catalogStatus(expStr){
   if(!expStr) return {label:'Chưa rõ',cls:'badge-b'};
+  if(isExpiredStr(expStr)) return {label:'Hết hạn', cls:'badge-r'};
   var ml = monthsLeft(expStr);
-  if(ml<=0)  return {label:'Hết hạn',   cls:'badge-r'};
+  if(ml<=0){
+    var _m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(expStr));
+    var _dl = _m ? Math.max(1, Math.ceil((new Date(+_m[1], +_m[2]-1, +_m[3], 23, 59, 59) - new Date())/86400000)) : 1;
+    return {label:'Sắp hết hạn ('+_dl+' ngày)', cls:'badge-r'};
+  }
   if(ml<=3)  return {label:'Sắp hết hạn ('+ml+'T)',cls:'badge-r'};
   if(ml<=6)  return {label:'Gần hết hạn ('+ml+'T)',cls:'badge-y'};
   return {label:'Còn hạn',cls:'badge-g'};
@@ -13757,7 +13804,7 @@ async function _createNextPeriodRows(curKey, nextKey, scopeIds){
   var patches = [];
   prevRows.forEach(function(r){
     var uid = _rowUid(r); if(!uid) return;
-    var tonCuoi = Math.max(0, calcRow(r).tonCuoi);
+    var tonCuoi = calcRow(r).tonCuoi;   // KHÔNG kẹp về 0: tồn âm phải hiện ra để sửa, không được "sinh" thuốc từ số âm
     if(tonCuoi === 0 && isExpiredStr(r.exp)) return;                                   // lô hết + hết hạn → bỏ
     if(tonCuoi === 0 && deletedRows[_delRowKey(nextKey, (UNIT_BY_ID[uid]||{}).name||r.unit, r.drug, r.lot, r.exp)]) return;
     var k = _stockKey(r), ex = existIdx[k];
@@ -13866,9 +13913,10 @@ function _scheduleCascade(periodKey, unitIds){
 // Lan tồn đầu: ưu tiên chạy TRÊN MÁY CHỦ (RPC cascade_opening_stock — 1 giao dịch trọn vẹn,
 // tắt trình duyệt giữa chừng không làm đứt chuỗi). CSDL chưa có RPC → chạy kiểu cũ ở trình duyệt.
 var _CASCADE_RPC_OFF = false;
+var _CASCADE_Q_OFF = false;   // true = máy chủ chưa hỗ trợ lan tồn đầu kỳ quý (chưa chạy SQL 11)
 async function _cascadeOpeningStock(startPeriodKey, unitIds){
   if(!startPeriodKey || !_supaOnline) return 0;
-  if(_isQKey(startPeriodKey)) return _cascadeOpeningStockClient(startPeriodKey, unitIds);   // RPC máy chủ chỉ hiểu kỳ tháng
+  if(_isQKey(startPeriodKey) && _CASCADE_Q_OFF) return _cascadeOpeningStockClient(startPeriodKey, unitIds);   // máy chủ chưa chạy SQL 11
   if(!_SEC_V2 || _CASCADE_RPC_OFF) return _cascadeOpeningStockClient(startPeriodKey, unitIds);
   if(_cascadeRunning){ _scheduleCascade(startPeriodKey, unitIds); return 0; }
   _cascadeRunning = true;
@@ -13885,6 +13933,10 @@ async function _cascadeOpeningStock(startPeriodKey, unitIds){
     var m = String(e && e.message || '');
     if(e && (e.status === 404 || m.indexOf('PGRST202') >= 0)){
       _CASCADE_RPC_OFF = true;
+      return _cascadeOpeningStockClient(startPeriodKey, unitIds);
+    }
+    if(_isQKey(startPeriodKey) && m.indexOf('ERR_BAD_PERIOD') >= 0){
+      _CASCADE_Q_OFF = true;
       return _cascadeOpeningStockClient(startPeriodKey, unitIds);
     }
     console.warn('[cascade RPC] lỗi:', e);
@@ -13944,11 +13996,11 @@ async function _cascadeOpeningStockClient(startPeriodKey, unitIds){
       curRows.forEach(function(r){
         if(!_rowUid(r)) return;
         if(!_isLockedTW(_lpCas, curKey, _rowUid(r))) return;
-        var tonCuoi = Math.max(0, calcRow(r).tonCuoi);
+        var tonCuoi = calcRow(r).tonCuoi;   // không kẹp về 0 (xem _createNextPeriodRows)
         var ex = nextIdx[_stockKey(r)];
         if(ex){
           if((ex.t0||0) !== tonCuoi) patches.push({rid:ex._rid, src:ex, t0:tonCuoi, create:false});
-        } else if(tonCuoi > 0){
+        } else if(tonCuoi !== 0){
           patches.push({src:r, t0:tonCuoi, create:true});
         }
       });
@@ -14135,11 +14187,11 @@ function openReport(){
       // Sau hạn nộp: nhớ đơn vị được mở lại để không tự khoá lại
       if(_dlMarkOpen(periodKey, unitVal === '__all__' ? '*' : (unitVal === 'bvph' ? BVPH : unitVal), true)) _dlSaveOpen();
       if (unitVal !== '__all__') {
-          delete lockedPeriods[periodKey + '_' + unitVal];
+          delete lockedPeriods[periodKey + '_' + unitVal]; _lockDelId(periodKey, unitVal);
           if (lockedPeriods[periodKey]) {
               delete lockedPeriods[periodKey];
               if(unitVal !== 'bvph') lockedPeriods[periodKey + '_bvph'] = 'admin';
-              UNITS.forEach(function(u){ if(u !== BVPH && u !== unitVal) lockedPeriods[periodKey + '_' + u] = 'admin'; });
+              UNITS.forEach(function(u){ if(u !== BVPH && u !== unitVal){ lockedPeriods[periodKey + '_' + u] = 'admin'; _lockSetId(periodKey, u, 'admin'); } });
           }
           if (unitVal === 'bvph') {
               bvphData.filter(function(r){return r.bcMonth===periodKey;}).forEach(function(r){ r.locked=false;r._dirty=true; });
@@ -14543,8 +14595,10 @@ function onFormDc3BVPHChange(inp){
     if(qty>0 && !tg.name){ toast('Chọn tỉnh/thành phố nhận!','var(--warning)'); tgt.focus(); return; }
     var dp=d.value.split('/');
     var txD=(dp.length===3&&dp[2].length===4)?new Date(parseInt(dp[2]),parseInt(dp[1])-1,parseInt(dp[0])):new Date();
-    var txDate=isNaN(txD)?new Date().toISOString().slice(0,10):(txD.getFullYear()+'-'+('0'+(txD.getMonth()+1)).slice(-2)+'-'+('0'+txD.getDate()).slice(-2));
-    var txPeriod=isNaN(txD)?_currentPeriodKey():_periodKeyOfDate(txD);
+    if(isNaN(txD)) txD = new Date();
+    var txDate=_isoLocal(txD);
+    var txPeriod=_periodKeyOfDate(txD);
+    if(txPeriod !== _currentPeriodKey()){ toast('⚠ Ngày điều chuyển phải thuộc '+_keyToLabel(_currentPeriodKey())+'. Muốn ghi vào kỳ khác: mở kỳ đó rồi tạo phiếu.','var(--danger)'); return; }
     ov.remove();
     inp.value = qty;
     if(qty>0 && _supaOnline){
@@ -14567,6 +14621,14 @@ function onFormDc3BVPHChange(inp){
 // Hàm trợ giúp: render danh sách phiếu đã có bên trong popup
 
 // Hàm popup chính — thống nhất cho mọi loại điều chuyển
+// C14: xuất/điều chuyển lô ĐÃ HẾT HẠN → hỏi lại trước khi tạo phiếu
+function _askIfExpired(exp, drug, lot, go){
+  if(!isExpiredStr(exp)){ go(); return; }
+  _confirmModal('⚠ Lô đã HẾT HẠN',
+    'Lô <b>'+_escH(lot)+'</b> của <b>'+_escH(drug)+'</b> đã hết hạn dùng (<b>'+_escH(expToMMYYYY(exp))+'</b>).<br><br>'
+    +'Thuốc hết hạn thông thường ghi vào cột <b>Hỏng/Hết hạn</b>, không điều chuyển cho đơn vị khác.<br>Bạn vẫn muốn tạo phiếu điều chuyển lô này?',
+    go, null, 'Vẫn tạo phiếu');
+}
 function _showTransferModal(opts){
   // opts.mode: 'dc2' | 'dc2_bvph' | 'dc2_form'
   // opts.drug, lot, exp, fromUnit, maxCan, currentVal, receiveUnits
@@ -14752,7 +14814,7 @@ function _showTransferModal(opts){
   dateSection.style.cssText = 'display:flex;flex-direction:column;gap:4px';
   var dateLbl = document.createElement('label');
   dateLbl.style.cssText = 'font-size:12px;font-weight:600;color:#475569;display:flex;justify-content:space-between;align-items:center';
-  dateLbl.innerHTML = '<span>Ngày điều chuyển</span><span style="font-weight:400;color:#94a3b8;font-size:11px">(tháng nào → báo cáo tháng đó)</span>';
+  dateLbl.innerHTML = '<span>Ngày điều chuyển</span><span style="font-weight:400;color:#94a3b8;font-size:11px">(phải thuộc kỳ báo cáo đang mở)</span>';
   var dateInp = document.createElement('input');
   dateInp.type='text'; dateInp.placeholder='dd/mm/yyyy';
   (function(){ var t=new Date(); dateInp.value=('0'+t.getDate()).slice(-2)+'/'+('0'+(t.getMonth()+1)).slice(-2)+'/'+t.getFullYear(); })();
@@ -14809,9 +14871,18 @@ function _showTransferModal(opts){
     var dp=dateInp.value.split('/');
     var dISO=(dp.length===3&&dp[2].length===4)
       ? dp[2]+'-'+('0'+dp[1]).slice(-2)+'-'+('0'+dp[0]).slice(-2)
-      : new Date().toISOString().slice(0,10);
+      : _isoLocal(new Date());
+    var _pkView = opts.periodKey || _currentPeriodKey();
+    var _dObj = new Date(parseInt(dISO.slice(0,4)), parseInt(dISO.slice(5,7))-1, parseInt(dISO.slice(8,10)));
+    if(isNaN(_dObj)){ toast('Ngày điều chuyển không hợp lệ (dd/mm/yyyy)','var(--danger)'); return; }
+    if(_periodKeyOfDate(_dObj) !== _pkView){
+      toast('⚠ Ngày điều chuyển phải thuộc '+_keyToLabel(_pkView)+'. Muốn ghi vào kỳ khác: mở kỳ đó rồi tạo phiếu.','var(--danger)');
+      return;
+    }
     ov.remove();
-    if(typeof opts.onConfirmMulti === 'function') opts.onConfirmMulti(allocs, total, dISO);
+    _askIfExpired(opts.row ? opts.row.exp : '', opts.drug, opts.lot, function(){
+      if(typeof opts.onConfirmMulti === 'function') opts.onConfirmMulti(allocs, total, dISO);
+    });
   };
 
   footer.appendChild(btnCancel); footer.appendChild(btnOK);
@@ -14990,7 +15061,8 @@ function onDc2Change(prefix, rowIdx, inp){
       var dp=txDateISO.split('-');
       var txDate=(dp.length===3)?new Date(parseInt(dp[0]),parseInt(dp[1])-1,parseInt(dp[2])):new Date();
       var txPeriod=isNaN(txDate)?periodKey:_periodKeyOfDate(txDate);
-      var _txISO = txDate instanceof Date && !isNaN(txDate) ? txDate.toISOString().slice(0,10) : new Date().toISOString().slice(0,10);
+      var _txISO = _isoLocal((txDate instanceof Date && !isNaN(txDate)) ? txDate : new Date());
+      if(txPeriod !== periodKey){ toast('⚠ Ngày điều chuyển phải thuộc '+_keyToLabel(periodKey)+'. Muốn ghi vào kỳ khác: mở kỳ đó rồi tạo phiếu.','var(--danger)'); return; }
       var oldDc2 = arr[realIdx].x2||0;
 
       if(total===0){
@@ -15109,17 +15181,18 @@ async function _loadTransferList(el, periodKey, fromUnit, row, inp, arr, realIdx
     el.appendChild(titleDiv);
     el.appendChild(tbl);
 
-    // ĐỒNG BỘ: ô Xuất Tổ CL / Xuất ĐC của dòng = TỔNG số lượng các phiếu thực tế trong kỳ.
-    // Tránh trường hợp ô hiển thị lệch với tổng các phiếu đã tạo.
+    // Ô xuất của dòng phải = TỔNG các phiếu trong kỳ. KHÔNG tự ghi đè ô (bản cũ sửa trong RAM mà không lưu →
+    // màn hình và máy chủ lệch nhau); chỉ CẢNH BÁO để người dùng biết và xử lý.
     var sumQty = transfers.reduce(function(s,t){ return s + (t.qty||0); }, 0);
     var fieldName = (field==='x3') ? 'x3' : 'x2';
-    if(arr && typeof realIdx==='number' && realIdx>=0 && arr[realIdx]){
-      if((arr[realIdx][fieldName]||0) !== sumQty){
-        arr[realIdx][fieldName] = sumQty;
-        if(inp) inp.value = sumQty;
-        if(typeof renderBVPH==='function') renderBVPH();
-        if(typeof renderBC==='function') renderBC();
-        saveLocalCache();
+    if(arr && typeof realIdx==='number' && realIdx>=0 && arr[realIdx] && !arr[realIdx]._agg){
+      var _cellVal = arr[realIdx][fieldName]||0;
+      if(_cellVal !== sumQty){
+        var wDiv = document.createElement('div');
+        wDiv.style.cssText='font-size:12px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:7px 9px;margin-top:6px;line-height:1.5';
+        wDiv.innerHTML = '⚠ Ô đang ghi <b>'+fmtNum(_cellVal)+'</b> nhưng tổng các phiếu trong kỳ là <b>'+fmtNum(sumQty)+'</b> (lệch '+fmtNum(_cellVal - sumQty)+'). '
+          + 'Kiểm tra: phiếu tạo ở kỳ khác, phiếu chưa lưu được, hoặc số nhập tay. Báo quản trị nếu không rõ nguyên nhân.';
+        el.appendChild(wDiv);
       }
     }
     // Thêm dòng tổng dưới bảng cho rõ
@@ -15196,7 +15269,7 @@ function onDc3Change(prefix, rowIdx, inp){
 
   // Ngày điều chuyển
   var dateLbl = document.createElement('div'); dateLbl.style.cssText='font-size:12px;font-weight:600;color:#333;margin-bottom:4px';
-  dateLbl.innerHTML='Ngày điều chuyển: <span style="font-weight:400;color:#888">(tháng nào → vào báo cáo tháng đó)</span>';
+  dateLbl.innerHTML='Ngày điều chuyển: <span style="font-weight:400;color:#888">(phải thuộc kỳ báo cáo đang mở)</span>';
   var dateInp = document.createElement('input'); dateInp.type='text'; dateInp.placeholder='dd/mm/yyyy';
   (function(){ var _t=new Date(); dateInp.value=('0'+_t.getDate()).slice(-2)+'/'+('0'+(_t.getMonth()+1)).slice(-2)+'/'+_t.getFullYear(); })();
   dateInp.style.cssText='width:100%;padding:8px 10px;border:1px solid #cbd5e0;border-radius:7px;font-size:13px;margin-bottom:6px;box-sizing:border-box';
@@ -15219,8 +15292,14 @@ function onDc3Change(prefix, rowIdx, inp){
     if(qty>0 && !province){ toast('Chọn tỉnh/thành phố nhận!','var(--warning)'); _tgt.focus(); return; }
     var _dp2=dateInp.value.split('/');
     var txDate2 = (_dp2.length===3&&_dp2[2].length===4) ? new Date(parseInt(_dp2[2]),parseInt(_dp2[1])-1,parseInt(_dp2[0])) : new Date();
-    var txDate = txDate2.toISOString().slice(0,10);
-    var txPeriod = isNaN(txDate2) ? periodKey : _periodKeyOfDate(txDate2);
+    if(isNaN(txDate2)) txDate2 = new Date();
+    var txDate = _isoLocal(txDate2);
+    var txPeriod = _periodKeyOfDate(txDate2);
+    if(txPeriod !== periodKey){ toast('⚠ Ngày điều chuyển phải thuộc '+_keyToLabel(periodKey)+'. Muốn ghi vào kỳ khác: mở kỳ đó rồi tạo phiếu.','var(--danger)'); return; }
+    if(isExpiredStr(row.exp) && !btnO._expOk){
+      _askIfExpired(row.exp, row.drug, row.lot, function(){ btnO._expOk = true; btnO.onclick(); });
+      return;
+    }
     ov.remove();
     // CỘNG DỒN: phiếu mới thêm vào tổng Xuất tỉnh khác của lô
     var _newDc3 = (arr[realIdx].x3||0) + qty;
@@ -15234,7 +15313,13 @@ function onDc3Change(prefix, rowIdx, inp){
     if(_supaOnline){
       _saveTransfer(txPeriod, fromUnit, province, row, qty, 'dc3_province', txDate)
         .then(function(){ toast('✓ Đã xuất '+qty.toLocaleString()+' viên → '+province+(_tg.inSystem?' · chờ bên nhận xác nhận':' | Phiếu đã lưu'),'#8e44ad'); try{ renderTQTransfers(); }catch(e){} })
-        .catch(function(e){ toast('✓ Xuất OK nhưng chưa lưu phiếu: '+e.message,'orange'); });
+        .catch(function(e){
+          // Phiếu KHÔNG lưu được → hoàn số vừa cộng (không để ô xuất có số mà không có phiếu)
+          arr[realIdx].x3 = Math.max(0, (arr[realIdx].x3||0) - qty);
+          updField(prefix,rowIdx,'x3',arr[realIdx].x3);
+          renderBVPH(); renderBC(); renderTP(); _syncPeriodToCloud();
+          toast('✗ Chưa lưu được phiếu ('+((e&&e.message)||'lỗi mạng')+') — đã hoàn lại '+qty.toLocaleString()+' viên. Hãy tạo lại phiếu.','var(--danger)');
+        });
     } else {
       toast('✓ Đã xuất tỉnh khác (offline)','#8e44ad');
     }
@@ -15261,8 +15346,7 @@ function _applyTransfer(prefix, fromIdx, fromRow, qty, fromUnit, toUnit, txPerio
 
   // Kiểm tra tồn sau khi dc2 đã được set
   if(srcRow){
-    var finalVal = (srcRow.t0||0)+(srcRow.n1||0)+(srcRow.n3||0)+(srcRow.n4||0)
-                  -(srcRow.x1||0)-(srcRow.x2||0)-(srcRow.x3||0)-(srcRow.x4||0);
+    var finalVal = calcRow(srcRow).tonCuoi;   // đủ cả n2 (Nhập tỉnh khác)
     if(finalVal < 0){
       toast('⚠ Tồn không đủ! Tồn cuối = '+finalVal+'. Đã hoàn lại.','var(--danger)');
       srcRow.x2 = Math.max(0, (srcRow.x2||0) - (qty>0?qty:0));
@@ -15280,6 +15364,12 @@ function _applyTransfer(prefix, fromIdx, fromRow, qty, fromUnit, toUnit, txPerio
   renderBVPH(); renderBC(); renderTP();
   _syncPeriodToCloud();
 
+  // U8: phiếu không lưu được → hoàn số đã cộng vào Xuất ĐC (không để số xuất "mồ côi" không có phiếu)
+  function _undoDc2(){
+    if(!srcRow) return;
+    srcRow.x2 = Math.max(0, (srcRow.x2||0) - qty); srcRow._dirty = true;
+    renderBVPH(); renderBC(); renderTP(); _syncPeriodToCloud();
+  }
   // Lưu phiếu lên Supabase (chỉ khi delta > 0)
   if(qty > 0 && _supaOnline){
     _saveTransfer(periodKey, fromUnit, toUnit, fromRow, qty, 'dc2_to_dc', txDate)
@@ -15301,19 +15391,21 @@ function _applyTransfer(prefix, fromIdx, fromRow, qty, fromUnit, toUnit, txPerio
             +'nhưng <b style="color:#c0392b">phiếu điều chuyển CHƯA lưu được lên hệ thống</b> '
             +'(sẽ không xuất hiện trong bảng "Điều chuyển thuốc trong kỳ").<br><br>'
             +'<span style="color:#64748b;font-size:12px">Lỗi: '+escH(errMsg)+'</span><br><br>'
-            +'Bấm "Thử lại ngay" để lưu lại phiếu, hoặc "Hủy" nếu sẽ tự xử lý sau.'
+            +'Bấm "Thử lại ngay" để lưu lại phiếu, hoặc "Hủy" để <b>hoàn lại số đã ghi xuất</b>.'
           +'</div>',
           function(){
             _saveTransfer(periodKey, fromUnit, toUnit, fromRow, qty, 'dc2_to_dc', txDate)
               .then(function(saved){
+                if(saved && saved.id) _printTransfers.push(saved);
                 toast('✓ Đã lưu lại phiếu thành công','#27ae60');
                 try{ renderTQTransfers(); }catch(e2){}
               })
               .catch(function(e2){
-                toast('❌ Vẫn lỗi: '+(e2&&e2.message?e2.message:'không rõ'),'var(--danger)');
+                _undoDc2();
+                toast('❌ Vẫn lỗi: '+(e2&&e2.message?e2.message:'không rõ')+' — đã hoàn lại '+qty.toLocaleString()+' viên, hãy tạo lại phiếu sau.','var(--danger)');
               });
           },
-          null,
+          function(){ _undoDc2(); toast('Đã hoàn lại '+qty.toLocaleString()+' viên (không tạo phiếu)','var(--warning)'); },
           'Thử lại ngay'
         );
       });
@@ -15326,7 +15418,22 @@ function _applyTransfer(prefix, fromIdx, fromRow, qty, fromUnit, toUnit, txPerio
 
 // Cộng/trừ đúng 1 cột số của một dòng reports trên cloud (đọc theo khóa → PATCH theo id / INSERT nếu chưa có).
 // Trả về giá trị mới. Dùng khi tài khoản cấp trên ghi số cho đơn vị con (Xuất Tổ CL → Tỉnh cấp).
+var _INC_RPC_OFF = false;
 async function _incReportField(periodKey, unitId, src, field, delta){
+  // Cột Tỉnh cấp: gọi hàm máy chủ (cộng trong 1 câu lệnh) — bản đọc-rồi-ghi bên dưới mất số khi 2 máy thao tác cùng lúc.
+  if(field === 'n1' && !_INC_RPC_OFF){
+    var rr = await fetch(SUPA_URL+'/rest/v1/rpc/report_add_tinh', {method:'POST',
+      headers:Object.assign({}, _supaHdr, {'Content-Type':'application/json'}),
+      body:JSON.stringify({p_unit:unitId, p_period:periodKey, p_drug:src.drug, p_lot:src.lot, p_exp:src.exp||'', p_delta:delta})});
+    var rt = ''; try{ rt = await rr.text(); }catch(e){}
+    if(rr.ok){
+      var rv = null; try{ rv = JSON.parse(rt); }catch(e){}
+      if(typeof rv === 'number') return rv;          // máy chủ đã cộng xong — KHÔNG chạy tiếp cách cũ (tránh cộng 2 lần)
+      throw new Error('Máy chủ trả kết quả lạ khi cộng Tỉnh cấp — kiểm tra lại số trước khi thao tác tiếp');
+    }
+    if(rr.status === 404 || /PGRST202|Could not find the function/i.test(rt)) _INC_RPC_OFF = true;   // chưa chạy SQL 11 → dùng cách cũ
+    else { var rm = rt; try{ rm = JSON.parse(rt).message || rt; }catch(e){} throw new Error(String(rm).slice(0,160)); }
+  }
   var pl = _rowPL(src);
   var q = SUPA_URL+'/rest/v1/reports?period=eq.'+encodeURIComponent(periodKey)+'&unit_id=eq.'+encodeURIComponent(unitId)
     +'&phan_loai=eq.'+encodeURIComponent(pl)+'&drug=eq.'+encodeURIComponent(src.drug)+'&lot=eq.'+encodeURIComponent(src.lot)
@@ -15423,6 +15530,22 @@ function _applyDc3Transfer(prefix, fromIdx, fromRow, qty, fromUnit, toUnit, txPe
     try{ if(typeof _scheduleCascade==='function') _scheduleCascade(periodKey, [_currentRootId()]); }catch(e){}
   }
 
+  // U8: phiếu không lưu được → rút lại số Tỉnh cấp vừa cộng cho đơn vị nhận và tính lại Xuất TCL của kho
+  function _undoTcl(){
+    var tr = targetRow;
+    function _after(){
+      try{ _syncBVPHDc2FromUnits(); }catch(e){}
+      renderBVPH(); renderBC(); renderTP(); _syncPeriodToCloud();
+      try{ _scheduleCascade(periodKey, [_currentRootId()]); }catch(e){}
+    }
+    if(tr.unitId && !canWriteUnit(tr.unitId) && canViewUnit(tr.unitId) && _supaOnline){
+      _incReportField(periodKey, tr.unitId, tr, 'n1', -qty).then(function(nv){
+        tr.n1 = nv; try{ _scheduleDc2Sync(periodKey, true); }catch(e){} _after();
+      }).catch(function(e){ toast('❌ Chưa hoàn được Tỉnh cấp của '+toUnit+': '+(e&&e.message||e)+' — báo quản trị kiểm tra.','var(--danger)'); });
+    } else {
+      tr.n1 = Math.max(0, (tr.n1||0) - qty); tr._dirty = true; _after();
+    }
+  }
   if(_supaOnline){
     _saveTransfer(periodKey, fromUnit, toUnit, fromRow, qty, 'dc3_to_tinh', txDate)
       .then(function(saved){
@@ -15437,14 +15560,15 @@ function _applyDc3Transfer(prefix, fromIdx, fromRow, qty, fromUnit, toUnit, txPe
           '<div style="line-height:1.7">Báo cáo <b>đã cộng '+qty.toLocaleString()+' viên</b> vào <b>'+toUnit+'</b>, '
             +'nhưng <b style="color:#c0392b">phiếu CHƯA lưu được lên hệ thống</b>.<br><br>'
             +'<span style="color:#64748b;font-size:12px">Lỗi: '+escH(errMsg3)+'</span><br><br>'
-            +'Bấm "Thử lại ngay" để lưu lại phiếu.'
+            +'Bấm "Thử lại ngay" để lưu lại phiếu, hoặc "Hủy" để <b>hoàn lại số đã cấp</b>.'
           +'</div>',
           function(){
             _saveTransfer(periodKey, fromUnit, toUnit, fromRow, qty, 'dc3_to_tinh', txDate)
-              .then(function(){ toast('✓ Đã lưu lại phiếu thành công','#27ae60'); })
-              .catch(function(e2){ toast('❌ Vẫn lỗi: '+(e2&&e2.message?e2.message:''),'var(--danger)'); });
+              .then(function(saved){ if(saved && saved.id) _printTransfers.push(saved); toast('✓ Đã lưu lại phiếu thành công','#27ae60'); })
+              .catch(function(e2){ _undoTcl(); toast('❌ Vẫn lỗi: '+(e2&&e2.message?e2.message:'')+' — đã hoàn lại '+qty.toLocaleString()+' viên, hãy tạo lại phiếu sau.','var(--danger)'); });
           },
-          null, 'Thử lại ngay'
+          function(){ _undoTcl(); toast('Đã hoàn lại '+qty.toLocaleString()+' viên (không tạo phiếu)','var(--warning)'); },
+          'Thử lại ngay'
         );
       });
   } else {
@@ -16125,6 +16249,8 @@ async function cancelTransferById(transferId, toUnit){
 
 // Tính kỳ báo cáo (YYYY-MM) từ 1 chuỗi ngày
 // ref = kỳ của phiếu/dòng nguồn: kỳ quý (Hàng 1) → trả về quý chứa ngày; còn lại → tháng
+// Ngày dạng YYYY-MM-DD theo GIỜ ĐỊA PHƯƠNG (toISOString() đổi sang UTC → ở Việt Nam bị lùi 1 ngày)
+function _isoLocal(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
 function _periodFromDate(dateStr, ref){
   if(!dateStr) return '';
   var d = new Date(dateStr);
@@ -16242,6 +16368,26 @@ async function _editTransferDate(transferId, field, currentVal){
       }
     }
     var dbUnit = affUnit ? ((affUnit===BVPH || affUnit==='bvph') ? 'bvph' : affUnit) : '';
+    // Máy chủ đổi ngày + chuyển số giữa 2 kỳ TRỌN 1 GIAO DỊCH (SQL 11). Trả 'old' = máy chủ chưa có hàm → dùng cách cũ.
+    async function _moveViaRpc(){
+      var rr;
+      try{ rr = await _txRpc('transfer_move_date', {p_id:transferId, p_field:field, p_date:newISO}); }
+      catch(e){ toast('✗ Không đổi được '+label+': '+((e&&e.message)||e),'var(--danger)'); return 'err'; }
+      if(!rr || rr.missing) return 'old';
+      var d = rr.data || {};
+      if(d.result !== 'ok'){ toast('Phiếu không còn hiệu lực ('+(d.status||'')+') — không đổi ngày','var(--warning)'); return 'err'; }
+      toast('✓ Đã đổi '+label+' → '+_fmtDate(newISO)+(d.moved ? ' và chuyển số liệu sang '+_fmtPeriodVN(d.new_period) : ''),'var(--success)');
+      _tqTransferCache = null;
+      try{
+        if(d.moved && typeof _scheduleCascade==='function'){
+          _scheduleCascade(d.old_period, d.unit_id ? [d.unit_id] : null);
+          _scheduleCascade(d.new_period, d.unit_id ? [d.unit_id] : null);
+        }
+      }catch(e){}
+      try{ await loadFromSupabase(_currentPeriodKey(), true); }catch(e){}
+      try{ renderTQTransfers(); }catch(e){}
+      return 'done';
+    }
     // Lọc theo unit_id thật của phiếu (nếu có) + phân loại của kỳ — bản cũ lọc theo tên, không lọc phan_loai
     var _affUid = affUnit ? ((affUnit === tx.to_unit ? tx.to_unit_id : tx.from_unit_id) || _uid(dbUnit)) : null;
     var _uQ = function(){ return _affUid ? ('&unit_id=eq.'+encodeURIComponent(_affUid)) : ('&unit=eq.'+encodeURIComponent(dbUnit)); };
@@ -16249,6 +16395,9 @@ async function _editTransferDate(transferId, field, currentVal){
     // Không ảnh hưởng số liệu → chỉ update ngày rồi thoát
     if(_noMove){
       bSave.disabled=true; bSave.textContent='Đang lưu...';
+      var _mv1 = await _moveViaRpc();
+      if(_mv1 === 'done'){ ov.remove(); return; }
+      if(_mv1 === 'err'){ bSave.disabled=false; bSave.textContent='Lưu thay đổi'; return; }
       var bodyN = {}; bodyN[field] = newISO;
       var rN = await fetch(SUPA_URL+'/rest/v1/transfers?id=eq.'+encodeURIComponent(transferId), {
         method:'PATCH',
@@ -16271,6 +16420,9 @@ async function _editTransferDate(transferId, field, currentVal){
     // Cùng kỳ → chỉ update ngày
     if(newPeriod === oldPeriod){
       bSave.disabled=true; bSave.textContent='Đang lưu...';
+      var _mv2 = await _moveViaRpc();
+      if(_mv2 === 'done'){ ov.remove(); return; }
+      if(_mv2 === 'err'){ bSave.disabled=false; bSave.textContent='Lưu thay đổi'; return; }
       var body1 = {}; body1[field] = newISO;
       var r1 = await fetch(SUPA_URL+'/rest/v1/transfers?id=eq.'+encodeURIComponent(transferId), {
         method:'PATCH',
@@ -16308,6 +16460,8 @@ async function _editTransferDate(transferId, field, currentVal){
 
     ov.remove();
     _confirmModal('⚠ Chuyển số liệu giữa 2 kỳ?', confirmMsg, async function(){
+      var _mv3 = await _moveViaRpc();
+      if(_mv3 !== 'old') return;
       try{
         toast('⏳ Đang chuyển số liệu...','#94a3b8');
         var expQ = '&exp=eq.'+encodeURIComponent(tx.exp||'');
@@ -16484,12 +16638,13 @@ async function _saveTransfer(period, fromUnit, toUnit, row, qty, type, txDate){
     drug:row.drug, lot:row.lot, exp:row.exp||'', qty:qty,
     phan_loai: _plFromKey(period),
     type: type||'dc2_to_dc',
-    status: 'pending',
+    status: ((type==='dc3_province') && !_tid) ? 'confirmed' : 'pending',   // nơi nhận ngoài hệ thống: không ai bấm xác nhận → coi như đã giao
     notif_for: toUnit,   // Đơn vị nhận thấy chuông thông báo ngay
     notif_read: false
   };
   if(_tid) payload.to_unit_id = _tid;   // nơi nhận ngoài hệ thống → để trống
   if(txDate) payload.transfer_date = txDate;
+  if(payload.status === 'confirmed' && txDate) payload.receive_date = txDate;
   var res = await fetch(SUPA_URL+'/rest/v1/transfers', {
     method:'POST', headers:hdPost,
     body:JSON.stringify([payload])
@@ -16518,8 +16673,9 @@ async function _cacheTransfers(periodKey){
             : (_isQKey(periodKey) ? ('period=in.('+_monthsOfQ(periodKey).concat([periodKey]).join(',')+')')
             : ('period=eq.'+encodeURIComponent(periodKey)));
     var r = await fetch(
-      SUPA_URL+'/rest/v1/transfers?'+_pf+'&status=eq.confirmed&type=in.(dc2_to_dc,dc3_to_tinh,dc3_province)'
-        +'&select=id,period,type,status,from_unit,to_unit,drug,lot,exp,qty,transfer_date,created_at,phan_loai&order=created_at.asc',
+      SUPA_URL+'/rest/v1/transfers?'+_pf+'&type=in.(dc2_to_dc,dc3_to_tinh,dc3_province)'
+        +'&or=(status.eq.confirmed,and(status.eq.pending,type.eq.dc3_to_tinh))'
+        +'&select=id,period,type,status,from_unit,to_unit,from_unit_id,to_unit_id,drug,lot,exp,qty,transfer_date,receive_date,created_at,phan_loai&order=created_at.asc',
       {headers:_supaHdr}
     );
     _printTransfers = r.ok ? await r.json() : [];
@@ -16672,6 +16828,9 @@ function _showPrintUnitPicker(periodKey){
     var scopeIds = isAgg ? _subtreeIds(rootId) : [unitId];
     var printRows;
     if(isCurrentPeriod){
+      if(_supaOnline && bvphData.concat(bcData).some(function(r){ return r.bcMonth===printPeriod && r._dirty; })){
+        try{ await saveToSupabase(printPeriod, {skipMeta:true}); }catch(e){ console.warn('[in] lưu trước khi in lỗi', e); }
+      }
       var _sset = {}; scopeIds.forEach(function(i){ _sset[i]=1; });
       printRows = bvphData.concat(bcData).filter(function(r){ return r.bcMonth===printPeriod && _sset[_rowUid(r)] && _plOK(r, printPL); });
     } else {
@@ -16729,7 +16888,18 @@ function _showPrintUnitPicker(periodKey){
     // --- CHỐT (KHÓA) SỐ LIỆU SAU KHI IN: admin, hoặc đơn vị in CHÍNH MÌNH ---
     var isLocking = ((role==='admin') || (unitId === myId)) && !_printRO;
     if(isLocking){
-      lockedPeriods[printPeriod + '_' + unit] = (role==='admin' && unitId !== myId) ? 'admin' : true;   // đơn vị tự chốt = true (tính là đã nộp)
+      var _neg = printRows.filter(function(r){ return !r._agg && _rowUid(r)===unitId && calcRow(r).tonCuoi < 0; });
+      if(_neg.length){
+        _confirmModal('⛔ Chưa chốt được — còn lô tồn cuối ÂM',
+          'Báo cáo '+_keyToLabel(printPeriod)+' còn <b style="color:#c0392b">'+_neg.length+' lô có tồn cuối âm</b> (xuất nhiều hơn tồn đầu + nhập):<br><br>'
+          + _neg.slice(0,10).map(function(r){ return '• '+_escH(r.drug)+' — lô '+_escH(r.lot)+': <b>'+fmtNum(calcRow(r).tonCuoi)+'</b>'; }).join('<br>')
+          + '<br><br>Sửa số liệu các lô này rồi in/chốt lại. (Chốt khi còn tồn âm sẽ làm sai tồn đầu các kỳ sau.)',
+          function(){}, null, 'Đã hiểu');
+        return;
+      }
+      var _lkVal = (role==='admin' && unitId !== myId) ? 'admin' : true;   // đơn vị tự chốt = true (tính là đã nộp)
+      lockedPeriods[printPeriod + '_' + unit] = _lkVal;
+      _lockSetId(printPeriod, unit, _lkVal, unitId);
       bvphData.concat(bcData).forEach(function(r){
         if(r.bcMonth===printPeriod && _rowUid(r)===unitId && !r._agg){ r.locked = true; r.editing = false; r.openLocked = true; }
       });
@@ -16776,7 +16946,8 @@ function _isLockedTW(lp, periodKey, unitId){
   if(lp[periodKey]) return true;
   if(!unitId) return false;
   var nm = unitNameById(unitId);
-  return !!((nm && lp[periodKey+'_'+nm]) || lp[periodKey+'_'+unitId]);
+  if(lp[periodKey+'_'+unitId]) return true;
+  return !!(nm && !_DUP_UNIT_NAMES[nm] && lp[periodKey+'_'+nm]);
 }
 async function _fetchCloudLocked(){
   if(!_supaOnline) return null;
@@ -17222,10 +17393,8 @@ function _doRenderPrint(unitName,rows,periodKey,month,year,ngayKy,isBVPH,ghiChuS
   groupOrder.forEach(function(drug){
     var drugRows=groups[drug];
     var validRows = drugRows.filter(function(r){
-      var tonDau=r.t0||0, n1=r.n1||0, n2=r.n2||0, n3=r.n3||0, n4=r.n4||0;
-      var x1=r.x1||0, x2=r.x2||0, x3=r.x3||0, x4=r.x4||0;
-      var nhap=n1+n2+n3+n4, xuat=x1+x2+x3+x4, tonCuoi=tonDau+nhap-xuat;
-      return !(tonDau === 0 && nhap === 0 && xuat === 0 && tonCuoi === 0);
+      var c = calcRow(r);   // một công thức duy nhất cho màn hình / bản in / Excel
+      return !((r.t0||0) === 0 && c.nTong === 0 && c.xTong === 0 && c.tonCuoi === 0);
     });
     if(validRows.length === 0) return;
     validRows.forEach(function(r,i){
@@ -17234,19 +17403,19 @@ function _doRenderPrint(unitName,rows,periodKey,month,year,ngayKy,isBVPH,ghiChuS
       var tonDau=r.t0||0, n1=r.n1||0, n2=r.n2||0, n3=r.n3||0, n4=r.n4||0;
       var n23=n3+n2; // Nhập tỉnh khác gộp vào cột Điều chuyển/trả lại trên mẫu in
       var x1=r.x1||0, x2=r.x2||0, x3=r.x3||0, x4=r.x4||0;
-      var nhap=n1+n2+n3+n4, xuat=x1+x2+x3+x4, tonCuoi=tonDau+nhap-xuat;
+      var _c = calcRow(r), nhap=_c.nTong, xuat=_c.xTong, tonCuoi=_c.tonCuoi;
       var rowspan=validRows.length;
       var fc=i===0
         ?'<td rowspan="'+rowspan+'" class="c b">'+stt+'</td>'
-         +'<td rowspan="'+rowspan+'" class="l b">'+drug+'</td>'
+         +'<td rowspan="'+rowspan+'" class="l b">'+_escH(drug)+'</td>'
          +'<td rowspan="'+rowspan+'" class="c">Viên</td>'
          +'<td rowspan="'+rowspan+'" class="c">'+_escH(r.note||'QTC')+'</td>'
         :'';
       var key=r.drug+'|'+r.lot+'|'+(r.exp||'');
       var gc=ghiChuStr[key]||'';
       tableRows+='<tr>'+fc
-        +'<td class="c">'+r.lot+'</td>'
-        +'<td class="c">'+expDisp+'</td>'
+        +'<td class="c">'+_escH(r.lot)+'</td>'
+        +'<td class="c">'+_escH(expDisp)+'</td>'
         +'<td class="n b">'+fmtNum(tonDau)+'</td>'
         +'<td class="n">'+fmtNum(n1)+'</td>'
         +'<td class="n">'+fmtNum(n23)+'</td>'
@@ -17542,7 +17711,17 @@ function importReportsExcel(input){
     try{
       var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
       function norm(s){ return String(s==null?'':s).trim().toLowerCase(); }
-      function ival(v){ var n=parseInt(String(v==null?'':v).replace(/[^\d\-]/g,''),10); return isNaN(n)?0:n; }
+      var _badNum = [];
+      function ival(v){
+        if(v==null || v==='') return 0;
+        var n;
+        if(typeof v === 'number') n = v;
+        else { var s=String(v).trim().replace(/\s/g,'');
+          if(/^-?\d{1,3}([.,]\d{3})+$/.test(s)) s=s.replace(/[.,]/g,''); else s=s.replace(',','.');
+          n = Number(s); }
+        if(!isFinite(n) || n < 0 || n !== Math.round(n)){ _badNum.push(String(v)); return 0; }
+        return n;
+      }
       function toIso(v){ var s=String(v==null?'':v).trim(); if(!s||s==='—') return '';
         var m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if(m) return m[3]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2);
         var m2=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if(m2) return s.slice(0,10); return s; }
@@ -17591,6 +17770,7 @@ function importReportsExcel(input){
         }
       });
       if(!periodKey){ toast('Không đọc được kỳ báo cáo (Tháng .../...) trong file.','var(--danger)'); input.value=''; return; }
+      if(_badNum.length){ toast('⛔ File có '+_badNum.length+' ô số không hợp lệ (số âm, số lẻ hoặc chữ): '+_badNum.slice(0,5).join(', ')+' — sửa file rồi nhập lại. Chưa ghi gì.','var(--danger)'); input.value=''; return; }
       if(!cand.length){ toast('Không tìm thấy dòng dữ liệu nào trong file.','orange'); input.value=''; return; }
       var existing={};
       try{ var er=await fetch(SUPA_URL+'/rest/v1/reports?period=eq.'+encodeURIComponent(periodKey)+'&select=unit,drug,lot,exp&limit=100000',{headers:_supaHdr,cache:'no-store'});
@@ -17707,7 +17887,8 @@ async function _doExportExcel(curMonth, curYear, unitShort, allMonths, quarterKe
     if(!_supaOnline) return (_printTransfersPeriod===per) ? _printTransfers : [];
     try{
       var _pq = _isQKey(per) ? ('period=in.('+_monthsOfQ(per).concat([per]).join(',')+')') : ('period=eq.'+encodeURIComponent(per));
-      var r = await fetch(SUPA_URL+'/rest/v1/transfers?'+_pq+'&status=eq.confirmed&select=period,type,status,from_unit,to_unit,drug,lot,exp,qty'+(_isQKey(per)?',receive_date':''), {headers:_supaHdr});
+      var r = await fetch(SUPA_URL+'/rest/v1/transfers?'+_pq+'&type=in.(dc2_to_dc,dc3_to_tinh,dc3_province)&or=(status.eq.confirmed,and(status.eq.pending,type.eq.dc3_to_tinh))'
+        +'&select=id,period,type,status,from_unit,to_unit,from_unit_id,to_unit_id,drug,lot,exp,qty,transfer_date,receive_date,created_at,phan_loai&order=created_at.asc', {headers:_supaHdr, cache:'no-store'});   // cùng bộ lọc với _cacheTransfers (N9): có ngày nhận + phiếu Tổ CL chờ nhận
       return r.ok ? await r.json() : [];
     }catch(e){ return []; }
   }
@@ -17774,6 +17955,8 @@ async function _doExportExcel(curMonth, curYear, unitShort, allMonths, quarterKe
           aoaM.push([]); aoaM.push(['TỔNG HỢP CẢ PHẠM VI (đã triệt tiêu điều chuyển nội bộ)']);
           aoaM.push(['','','','','', 'Tồn đầu','Tổng nhập','Tổng xuất','Tồn cuối']);
           aoaM.push(['','','','','', agg.tot.t0, agg.tot.nTong, agg.tot.xTong, agg.tot.tonCuoi]);
+          aoaM.push(['Ghi chú: dòng CỘNG phía trên cộng thẳng từng đơn vị (thuốc chuyển nội bộ được tính ở cả nơi xuất và nơi nhập); khối này đã loại điều chuyển nội bộ nên Tổng nhập / Tổng xuất nhỏ hơn. Tồn đầu và Tồn cuối của hai cách phải bằng nhau.']);
+          if(agg.onePeriod && agg.tot.tonCuoi !== agg.sumUnitFinal) aoaM.push(['⚠ Tồn cuối tổng hợp lệch '+(agg.tot.tonCuoi - agg.sumUnitFinal)+' so với tổng tồn cuối các đơn vị ('+agg.sumUnitFinal+') — kiểm tra phiếu điều chuyển và lô tồn âm.']);
         }
         addSheet(wb, aoaM, 'T'+parseInt(pp[1]), COLS_U); nSheets++;
         continue;
@@ -18377,7 +18560,8 @@ function _internalCircFor(scopeRootId, match, transfers, bucketKey){
   var inScope = function(nm){ if(!nm||nm==='admin') return false; var id=(typeof unitIdByName==='function')?unitIdByName(nm, rootPath):null; return !!((id&&subSet[id])||rootNames[nm]); };
   var ek = function(dr,lo,ex){ return (dr||'')+'|'+(lo||'')+'|'+((typeof _normExp==='function')?_normExp(ex):(ex||'')); };
   (transfers || window._printTransfers || []).forEach(function(t){
-    if(t.status && t.status !== 'confirmed') return;
+    // Xuất Tổ CL: n1 bên nhận và x2 của kho ghi NGAY lúc tạo phiếu → phiếu chờ nhận cũng là nội bộ
+    if(t.status && t.status !== 'confirmed' && !(t.status === 'pending' && t.type === 'dc3_to_tinh')) return;
     if(t.type!=='dc3_to_tinh' && t.type!=='dc2_to_dc' && t.type!=='dc3_province') return;
     var sp = t.period || '';
     var rp = (t.type==='dc3_to_tinh') ? sp
@@ -18452,7 +18636,10 @@ function _aggScopeTotals(scopeRootId, opts){
     byDrug[d].t0+=m.t0; byDrug[d].nTong+=nTong; byDrug[d].xTong+=xTong; byDrug[d].tonCuoi+=tonCuoi;
   });
   rows.sort(function(a,b){ var c=(a.drug||'').localeCompare(b.drug||'','vi'); return c||String(a.lot||'').localeCompare(String(b.lot||''),'vi'); });
-  return {rows:rows, tot:tot, byDrug:byDrug, sumUnitFinal:sumUnitFinal};
+  var _pers = {}; src.forEach(function(r){ _pers[r.bcMonth||''] = 1; });
+  // onePeriod: chỉ khi gộp ĐÚNG 1 kỳ thì "tồn cuối tổng hợp = Σ tồn cuối đơn vị" mới là phép đối chiếu hợp lệ
+  // (gộp nhiều kỳ: kỳ chưa chốt thì tồn đầu kỳ sau chưa nhận tồn cuối kỳ trước → lệch là bình thường).
+  return {rows:rows, tot:tot, byDrug:byDrug, sumUnitFinal:sumUnitFinal, onePeriod:(Object.keys(_pers).length === 1 && !src.some(function(r){ return r._agg; }))};
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -18512,8 +18699,18 @@ function _renderTpcDetail(uid){
   window._TPC.aggs[uid]=agg;
   body.innerHTML=_aggTableBody(agg,{noXn:false});
   if(tt) tt.textContent='📋 Chi tiết theo '+(window._TPC.label||_levelLabel(u.utype))+' ('+((window._TPC.kids||[]).length)+') · '+_unitDistinctName(u);
-  if(st) st.textContent='Tổng hợp cả nhánh (kho riêng + mọi đơn vị trực thuộc) · '
-    +agg.rows.length+' lô · điều chuyển nội bộ trong nhánh đã triệt tiêu.';
+  if(st){
+    st.textContent='Tổng hợp cả nhánh (kho riêng + mọi đơn vị trực thuộc) · '
+      +agg.rows.length+' lô · điều chuyển nội bộ trong nhánh đã triệt tiêu.';
+    // U3: tồn cuối tổng hợp phải = Σ tồn cuối từng đơn vị. Lệch = số điều chuyển 2 phía không khớp / có lô âm.
+    var _dAgg = (agg.tot.tonCuoi||0) - (agg.sumUnitFinal||0);
+    if(agg.onePeriod && _dAgg !== 0){
+      var _w = document.createElement('span');
+      _w.style.cssText='color:#b91c1c;font-weight:700';
+      _w.textContent=' ⚠ Tồn cuối tổng hợp ('+fmtNum(agg.tot.tonCuoi)+') lệch '+fmtNum(_dAgg)+' so với tổng tồn cuối các đơn vị ('+fmtNum(agg.sumUnitFinal)+') — kiểm tra phiếu điều chuyển và lô tồn âm.';
+      st.appendChild(_w);
+    }
+  }
 }
 
 function renderChildBreakdown(rootId){
