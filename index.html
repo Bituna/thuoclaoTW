@@ -10554,17 +10554,43 @@ function _cpMatrixData(){
   var byLot = !!(document.getElementById('cp-mx-lot')||{}).checked;
   var onlyErr = !!(document.getElementById('cp-mx-err')||{}).checked;
   var q = _cpNoMark((document.getElementById('cp-filter-search')||{}).value||'');
-  var cmp = _cpCompareForPeriod(), rowMap = {}, unitSet = {};
-  Object.keys(cmp).forEach(function(rk){
-    var o = cmp[rk];
-    var key = byLot ? rk : _normStr(o.drug);
-    Object.keys(o.units).forEach(function(u){
-      var d = o.units[u].declared, p = o.units[u].reported;
-      if(d===0 && p===0) return;
-      if(!rowMap[key]) rowMap[key] = {drug:o.drug, lot:byLot?o.lot:'', exp:byLot?o.exp:'', cells:{}};
-      var c = rowMap[key].cells[u] || (rowMap[key].cells[u] = {d:0, p:0});
-      c.d += d; c.p += p;
-    });
+  var rowMap = {}, unitSet = {};
+  // THEO CẤP: chỉ các đơn vị TRỰC THUỘC kho đang xem (kho cấp cho tuyến ngay dưới mình).
+  var rid = _currentRootId(), kidNodes = (_UNIT_CHILDREN[rid]||[]).filter(function(u){ return u.active!==false; });
+  var kidName = {}, kidId = {};
+  kidNodes.forEach(function(u){ kidName[u.name] = u.id; kidId[u.id] = u.name; });
+  // KỲ: tháng → đúng tháng đó; quý → 3 tháng của quý (+ dòng quý của Hàng 1); cả năm → mọi kỳ trong năm.
+  var P = getSelectedPeriod(), perSet = {};
+  if(P.type === 'quarter'){ (P.months||[]).forEach(function(m){ perSet[m]=1; }); perSet[P.val]=1; }
+  var inPer = function(bm){
+    if(!bm) return false;
+    if(P.type === 'year') return bm.indexOf(P.year+'-') === 0;
+    if(P.type === 'quarter') return !!perSet[bm];
+    return bm === P.val;
+  };
+  var add = function(r, unit, d, p){
+    if(d===0 && p===0) return;
+    var key = byLot ? _cpRowKey(r) : _normStr(r.drug);
+    var R = rowMap[key] || (rowMap[key] = {drug:r.drug, lot:byLot?r.lot:'', exp:byLot?r.exp:'', cells:{}, items:{}});
+    var c = R.cells[unit] || (R.cells[unit] = {d:0, p:0});
+    c.d += d; c.p += p;
+    var ik = (r.bcMonth||'')+'|'+unit+'|'+_normStr(r.lot)+'|'+_normExp(r.exp);
+    var it = R.items[ik] || (R.items[ik] = {bm:r.bcMonth||'', unit:unit, lot:r.lot, exp:r.exp, d:0, p:0});
+    it.d += d; it.p += p;
+  };
+  (capPhatData||[]).forEach(function(r){
+    if(!inPer(r.bcMonth) || !(r.unit in kidName)) return;
+    add(r, r.unit, Number(r.qty)||0, 0);
+  });
+  var _rep = (bcData||[]).filter(function(r){
+    if(r.unit===BVPH || !inPer(r.bcMonth) || !_plOK(r)) return false;
+    var id = _rowUid(r); return id ? !!kidId[id] : (r.unit in kidName);
+  });
+  // xem theo quý/năm: RAM có thể vừa có dòng từng tháng vừa có dòng gộp (_agg) → chỉ lấy 1 loại, ưu tiên dòng thật
+  var _hasReal = _rep.some(function(r){ return !r._agg; });
+  _rep.forEach(function(r){
+    if(_hasReal && r._agg) return;
+    add(r, kidId[_rowUid(r)] || r.unit, 0, Number(r.n1)||0);
   });
   var rows = Object.keys(rowMap).map(function(k){ return rowMap[k]; });
   // lọc theo ô tìm kiếm: khớp tên thuốc → giữ hàng; khớp tên đơn vị → giữ cột
@@ -10577,7 +10603,7 @@ function _cpMatrixData(){
     if(onlyErr && r.cells[u].d === r.cells[u].p) return;
     unitSet[u] = 1;
   }); });
-  var ord = {}; (typeof UNITS!=='undefined' ? UNITS : []).forEach(function(u,i){ ord[u]=i; });
+  var ord = {}; kidNodes.slice().sort(function(a,b){ return String(a.path).localeCompare(String(b.path),'vi'); }).forEach(function(u,i){ ord[u.name]=i; });
   var units = Object.keys(unitSet).sort(function(a,b){
     var x = (a in ord)?ord[a]:1e9, y = (b in ord)?ord[b]:1e9; if(x!==y) return x-y;
     return String(_displayUnit(a)).localeCompare(String(_displayUnit(b)),'vi');
@@ -10585,33 +10611,43 @@ function _cpMatrixData(){
   rows = rows.filter(function(r){ return units.some(function(u){ return r.cells[u]; }); });
   rows.sort(function(a,b){ var c=String(a.drug).localeCompare(String(b.drug),'vi'); return c || String(a.lot).localeCompare(String(b.lot),'vi'); });
   var val = function(c){ return !c ? 0 : (mode==='reported' ? c.p : (mode==='diff' ? (c.p - c.d) : c.d)); };
-  return {mode:mode, byLot:byLot, rows:rows, units:units, val:val};
+  return {mode:mode, byLot:byLot, rows:rows, units:units, val:val, rootId:rid, nKids:kidNodes.length, P:P,
+          perLabel:(P.type==='year' ? ('Cả năm '+P.year) : _keyToLabel(P.val))};
 }
 function renderCapPhatMatrix(){
   var box = document.getElementById('capphat-matrix'); if(!box) return;
   var M = _cpMatrixData(), sumEl = document.getElementById('capphat-summary');
+  window._cpMxLast = M;
+  var _rootNm = M.rootId ? (unitNameById(M.rootId)||'') : '';
+  var cap = '<div style="position:sticky;left:0;padding:9px 12px;font-size:12px;color:#334155;background:#f8fafc;border-bottom:1px solid #e2e8f0;line-height:1.6">'
+    + 'Kho cấp: <b>'+_escH(_displayUnit(_rootNm)||_rootNm||'—')+'</b> → <b>'+M.nKids+' đơn vị trực thuộc</b> · Kỳ: <b>'+_escH(M.perLabel)+'</b>'
+    + '<span style="color:#64748b"> — đổi Tháng / Quý / Cả năm ở ô chọn kỳ phía trên; đổi kho (cấp) ở ô chọn đơn vị. Bấm vào tên thuốc hoặc một ô số để xem từng lần cấp.</span></div>';
+  if(!M.nKids){
+    box.innerHTML = cap + '<div style="text-align:center;color:var(--muted);padding:18px;font-size:13px">Đơn vị đang xem không có đơn vị trực thuộc nên không cấp phát cho tuyến dưới.</div>';
+    if(sumEl) sumEl.textContent = ''; return;
+  }
   if(!M.rows.length || !M.units.length){
-    box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:18px;font-size:13px">Không có số liệu cấp phát phù hợp trong kỳ này.</div>';
+    box.innerHTML = cap + '<div style="text-align:center;color:var(--muted);padding:18px;font-size:13px">Không có số liệu cấp phát phù hợp trong kỳ này.</div>';
     if(sumEl) sumEl.textContent = ''; return;
   }
   var TH = 'position:sticky;top:0;z-index:2;background:#1a5276;color:#fff;padding:6px 6px;font-size:11px;font-weight:700;border-right:1px solid #244359;';
   var C1 = 'position:sticky;left:0;z-index:1;background:#fff;';
-  var h = '<table style="border-collapse:separate;border-spacing:0;font-size:12px;min-width:100%"><thead><tr>'
+  var h = cap + '<table style="border-collapse:separate;border-spacing:0;font-size:12px;min-width:100%"><thead><tr>'
     + '<th style="'+TH+'left:0;z-index:3;text-align:left;min-width:190px">Thuốc'+(M.byLot?' · Số lô · Hạn':'')+'</th>';
   M.units.forEach(function(u){ h += '<th style="'+TH+'min-width:74px;max-width:110px;white-space:normal;line-height:1.25" title="'+_escH(u)+'">'+_escH(_displayUnit(u))+'</th>'; });
   h += '<th style="'+TH+'background:#0d6632;min-width:80px">Tổng</th></tr></thead><tbody>';
   var colTot = {}, grand = 0, nErr = 0, nCell = 0;
   M.rows.forEach(function(r, i){
     var rt = 0, bg = (i%2) ? '#f8fafc' : '#fff';
-    h += '<tr><td style="'+C1+'background:'+bg+';text-align:left;padding:7px 8px;border-bottom:1px solid #e2e8f0;border-right:1px solid #cbd5e1;font-weight:700;color:#1e293b">'+_escH(r.drug)
+    h += '<tr><td onclick="cpMxDetail('+i+',-1)" title="Xem các lần cấp thuốc này" style="'+C1+'background:'+bg+';cursor:pointer;text-align:left;padding:7px 8px;border-bottom:1px solid #e2e8f0;border-right:1px solid #cbd5e1;font-weight:700;color:#1a5276;text-decoration:underline dotted">'+_escH(r.drug)
       + (M.byLot ? '<div style="font-weight:500;color:#64748b;font-size:11px">Lô '+_escH(r.lot)+' · '+_escH(expToMMYYYY(r.exp))+'</div>' : '')+'</td>';
-    M.units.forEach(function(u){
+    M.units.forEach(function(u, j){
       var c = r.cells[u], v = M.val(c);
       if(!c){ h += '<td style="background:'+bg+';border-bottom:1px solid #e2e8f0;border-right:1px solid #f1f5f9"></td>'; return; }
       nCell++; var bad = (c.d !== c.p); if(bad) nErr++;
       rt += v; colTot[u] = (colTot[u]||0) + v;
-      h += '<td title="'+_escH(_displayUnit(u))+' — Kho cấp: '+fmtNum(c.d)+' · Đơn vị báo nhận: '+fmtNum(c.p)+(bad?' · LỆCH '+fmtNum(c.p-c.d):' · khớp')+'" '
-        + 'style="text-align:right;padding:7px 8px;border-bottom:1px solid #e2e8f0;border-right:1px solid #f1f5f9;font-weight:700;'
+      h += '<td onclick="cpMxDetail('+i+','+j+')" title="'+_escH(_displayUnit(u))+' — Kho cấp: '+fmtNum(c.d)+' · Đơn vị báo nhận: '+fmtNum(c.p)+(bad?' · LỆCH '+fmtNum(c.p-c.d):' · khớp')+'" '
+        + 'style="cursor:pointer;text-align:right;padding:7px 8px;border-bottom:1px solid #e2e8f0;border-right:1px solid #f1f5f9;font-weight:700;'
         + (bad ? 'background:#fef2f2;color:#b91c1c' : 'background:'+bg+';color:#0f172a')+'">'+(v===0?'0':fmtNum(v))+(bad?' ⚠':'')+'</td>';
     });
     grand += rt;
@@ -10624,6 +10660,77 @@ function renderCapPhatMatrix(){
   if(sumEl) sumEl.innerHTML = M.rows.length+' '+(M.byLot?'lô':'thuốc')+' × '+M.units.length+' đơn vị · '
     + '<span style="color:#10b981;font-weight:700">✓ '+(nCell-nErr)+' ô khớp</span> · <span style="color:#ef4444;font-weight:700">⚠ '+nErr+' ô lệch</span>';
 }
+// Phiếu Xuất Tổ CL (kho đang xem → đơn vị trực thuộc) trong kỳ — mỗi phiếu = 1 lần cấp, có ngày xuất / ngày nhận.
+var _cpMxTxCache = {};
+async function _cpMxFetchTx(M){
+  if(!_supaOnline || !M.rootId) return null;
+  var P = M.P, pq = (P.type==='year') ? ('period=like.'+P.year+'-*')
+        : (P.type==='quarter' ? ('period=in.('+(P.months||[]).concat([P.val]).join(',')+')') : ('period=eq.'+encodeURIComponent(P.val)));
+  var ck = M.rootId+'|'+pq, c = _cpMxTxCache[ck];
+  if(c && Date.now()-c.ts < 30000) return c.rows;
+  try{
+    var r = await fetch(SUPA_URL+'/rest/v1/transfers?'+pq+'&type=eq.dc3_to_tinh&from_unit_id=eq.'+encodeURIComponent(M.rootId)
+      +'&status=in.(pending,confirmed)&select=id,period,status,to_unit,to_unit_id,drug,lot,exp,qty,transfer_date,receive_date,created_at&order=transfer_date.asc,created_at.asc',
+      {headers:_supaHdr, cache:'no-store'});
+    if(!r.ok) return null;
+    var rows = await r.json(); _cpMxTxCache[ck] = {ts:Date.now(), rows:rows}; return rows;
+  }catch(e){ return null; }
+}
+// Bấm tên thuốc (ui = -1: mọi đơn vị) hoặc 1 ô (ui = thứ tự cột): từng lần cấp — ngày, đơn vị, lô, hạn, số lượng.
+async function cpMxDetail(ri, ui){
+  var M = window._cpMxLast; if(!M || !M.rows[ri]) return;
+  var R = M.rows[ri], unit = (ui>=0) ? M.units[ui] : null;
+  _cpCloseOverlay();
+  var ov = document.createElement('div'); ov.id = 'cp_detail_ov'; ov.className = 'app-popup';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999999;display:flex;align-items:center;justify-content:center';
+  var TH = 'padding:6px 8px;background:#f1f5f9;font-size:11px;font-weight:700;color:#475569;text-align:left;border-bottom:1px solid #cbd5e1;position:sticky;top:0';
+  var TD = 'padding:6px 8px;border-bottom:1px solid #eef2f7;font-size:12px';
+  var items = Object.keys(R.items).map(function(k){ return R.items[k]; }).filter(function(it){ return !unit || it.unit===unit; });
+  items.sort(function(a,b){ return String(a.bm).localeCompare(String(b.bm)) || String(_displayUnit(a.unit)).localeCompare(String(_displayUnit(b.unit)),'vi') || String(a.lot).localeCompare(String(b.lot)); });
+  var tD=0, tP=0;
+  var tb2 = items.map(function(it){ tD+=it.d; tP+=it.p; var df=it.p-it.d;
+    return '<tr><td style="'+TD+'">'+_escH(_keyToLabel(it.bm))+'</td><td style="'+TD+'">'+_escH(_displayUnit(it.unit))+'</td><td style="'+TD+'">'+_escH(it.lot)+'</td><td style="'+TD+'">'+_escH(expToMMYYYY(it.exp))+'</td>'
+      +'<td style="'+TD+';text-align:right;font-weight:700;color:#0d6632">'+fmtNum(it.d)+'</td><td style="'+TD+';text-align:right;font-weight:700;color:#b91c1c">'+fmtNum(it.p)+'</td>'
+      +'<td style="'+TD+';text-align:right;font-weight:700;color:'+(df===0?'#94a3b8':'#dc2626')+'">'+(df===0?'✓':(df>0?'+':'')+fmtNum(df))+'</td></tr>'; }).join('');
+  ov.innerHTML = '<div onclick="event.stopPropagation()" style="background:#fff;border-radius:14px;width:min(820px,95vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+    + '<div style="padding:14px 18px;background:#1a5276;color:#fff;display:flex;justify-content:space-between;align-items:flex-start;gap:10px">'
+      + '<div><div style="font-size:15px;font-weight:800">'+_escH(R.drug)+(M.byLot?' · Lô '+_escH(R.lot)+' · '+_escH(expToMMYYYY(R.exp)):'')+'</div>'
+      + '<div style="font-size:12px;opacity:.9;margin-top:2px">'+_escH(M.perLabel)+' · '+(unit?('Cấp cho <b>'+_escH(_displayUnit(unit))+'</b>'):('Cấp cho '+M.units.length+' đơn vị trực thuộc'))+'</div></div>'
+      + '<button onclick="_cpCloseOverlay()" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer;line-height:1">&times;</button></div>'
+    + '<div style="padding:14px 18px;overflow:auto">'
+      + '<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:6px">1. Các lần xuất kho <span style="font-weight:500;color:#64748b">(phiếu Xuất Tổ CL — mỗi phiếu là một lần cấp)</span></div>'
+      + '<div id="cp-mx-tx" style="font-size:12px;color:#64748b;padding:8px 0 14px">Đang tải phiếu…</div>'
+      + '<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:6px">2. Tổng theo từng tháng · lô <span style="font-weight:500;color:#64748b">(kho khai cấp phát — đơn vị báo nhận trong báo cáo)</span></div>'
+      + '<div style="border:1px solid #e2e8f0;border-radius:10px;overflow:auto;max-height:38vh"><table style="width:100%;border-collapse:collapse">'
+        + '<thead><tr><th style="'+TH+'">Kỳ</th><th style="'+TH+'">Đơn vị</th><th style="'+TH+'">Số lô</th><th style="'+TH+'">Hạn dùng</th><th style="'+TH+';text-align:right">Kho cấp</th><th style="'+TH+';text-align:right">ĐV báo nhận</th><th style="'+TH+';text-align:right">Chênh</th></tr></thead>'
+        + '<tbody>'+(tb2||'<tr><td colspan="7" style="'+TD+';text-align:center;color:#94a3b8">Không có số liệu</td></tr>')+'</tbody>'
+        + '<tfoot><tr><td colspan="4" style="'+TD+';font-weight:800;background:#f8fafc">Tổng</td><td style="'+TD+';text-align:right;font-weight:800;background:#f8fafc;color:#0d6632">'+fmtNum(tD)+'</td><td style="'+TD+';text-align:right;font-weight:800;background:#f8fafc;color:#b91c1c">'+fmtNum(tP)+'</td><td style="'+TD+';text-align:right;font-weight:800;background:#f8fafc">'+(tP-tD===0?'✓':((tP-tD>0?'+':'')+fmtNum(tP-tD)))+'</td></tr></tfoot></table></div>'
+    + '</div></div>';
+  ov.addEventListener('click', function(e){ if(e.target===ov) _cpCloseOverlay(); });
+  document.body.appendChild(ov);
+
+  var tx = await _cpMxFetchTx(M), el = document.getElementById('cp-mx-tx'); if(!el) return;
+  if(tx === null){ el.textContent = _supaOnline ? 'Không tải được danh sách phiếu.' : 'Đang offline — không xem được danh sách phiếu.'; return; }
+  var nd = _normStr(R.drug), nl = _normStr(R.lot), ne = _normExp(R.exp);
+  tx = tx.filter(function(t){
+    if(_normStr(t.drug) !== nd) return false;
+    if(M.byLot && (_normStr(t.lot) !== nl || _normExp(t.exp) !== ne)) return false;
+    return !unit || t.to_unit === unit || (t.to_unit_id && UNIT_BY_ID[t.to_unit_id] && UNIT_BY_ID[t.to_unit_id].name === unit);
+  });
+  tx.sort(function(a,b){ return String(a.transfer_date||a.created_at||'').localeCompare(String(b.transfer_date||b.created_at||'')); });
+  if(!tx.length){ el.innerHTML = 'Không có phiếu xuất nào trong kỳ. <span style="color:#94a3b8">(Số "Kho cấp" bên dưới là số kho khai qua Thêm dòng / Tải Excel.)</span>'; return; }
+  var tq = 0;
+  var tb1 = tx.map(function(t, i){ tq += (t.qty||0);
+    var dt = t.transfer_date || t.created_at;
+    return '<tr><td style="'+TD+';color:#64748b">'+(i+1)+'</td><td style="'+TD+';font-weight:700">'+_escH(_fmtDate(dt))+'</td><td style="'+TD+'">'+_escH(_displayUnit(t.to_unit))+'</td>'
+      +'<td style="'+TD+'">'+_escH(t.lot)+'</td><td style="'+TD+'">'+_escH(expToMMYYYY(t.exp))+'</td><td style="'+TD+';text-align:right;font-weight:800;color:#0d6632">'+fmtNum(t.qty||0)+'</td>'
+      +'<td style="'+TD+'">'+(t.status==='confirmed' ? ('<span style="color:#16a34a;font-weight:700">✓ Đã nhận</span>'+(t.receive_date?' '+_escH(_fmtDate(t.receive_date)):'')) : '<span style="color:#d97706;font-weight:700">⏳ Chờ xác nhận</span>')+'</td></tr>'; }).join('');
+  el.style.padding = '0 0 14px';
+  el.innerHTML = '<div style="margin-bottom:6px;color:#334155"><b>'+tx.length+' lần cấp</b> · tổng <b>'+fmtNum(tq)+'</b></div>'
+    + '<div style="border:1px solid #e2e8f0;border-radius:10px;overflow:auto;max-height:34vh"><table style="width:100%;border-collapse:collapse">'
+    + '<thead><tr><th style="'+TH+'">Lần</th><th style="'+TH+'">Ngày xuất</th><th style="'+TH+'">Đơn vị nhận</th><th style="'+TH+'">Số lô</th><th style="'+TH+'">Hạn dùng</th><th style="'+TH+';text-align:right">Số lượng</th><th style="'+TH+'">Tình trạng</th></tr></thead>'
+    + '<tbody>'+tb1+'</tbody></table></div>';
+}
 function cpExportMatrix(){
   if(typeof XLSX === 'undefined'){ toast('Chưa tải được thư viện Excel','var(--danger)'); return; }
   var M = _cpMatrixData();
@@ -10631,7 +10738,7 @@ function cpExportMatrix(){
   var per = getSelectedPeriod();
   var lblV = {declared:'Kho cấp', reported:'Đơn vị báo nhận', diff:'Chênh (báo nhận − kho cấp)'}[M.mode];
   var head = ['Thuốc'].concat(M.byLot ? ['Số lô','Hạn dùng'] : []).concat(M.units.map(_displayUnit)).concat(['Tổng']);
-  var aoa = [['THEO DÕI CẤP PHÁT THUỐC — '+(per.type==='year' ? ('Năm '+per.year) : _keyToLabel(per.val))], ['Số hiển thị: '+lblV], [], head];
+  var aoa = [['THEO DÕI CẤP PHÁT THUỐC — '+M.perLabel+' — Kho cấp: '+(unitNameById(M.rootId)||'')], ['Số hiển thị: '+lblV], [], head];
   var colTot = M.units.map(function(){ return 0; }), grand = 0;
   M.rows.forEach(function(r){
     var rt = 0, line = [r.drug].concat(M.byLot ? [r.lot, expToMMYYYY(r.exp)] : []);
