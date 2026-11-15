@@ -25988,8 +25988,15 @@ function _vmProvView(P){
 }
 
 // ── Lớp Số bệnh nhân ──
-var _VM_BN=['#e0f2fe','#a5d8f3','#5fb0e0','#2a7fbf','#0b4f8a'];
-function _vmBnSeq(v,max){ if(!v) return '#f8fafc'; var i=Math.max(0,Math.min(4, Math.ceil(v*5/Math.max(1,max))-1)); return _VM_BN[i]; }
+// Thang ĐỎ LIÊN TỤC: tỉnh nhiều bệnh nhân nhất đỏ đậm nhất, ít dần thì nhạt dần; 0 BN để trắng xám.
+// "max" tính lại theo ranh giới đang chọn (34 hoặc 63 tỉnh) nên mỗi kiểu ranh giới có thang riêng.
+var _VM_BN_STOPS=[[254,226,226],[248,113,113],[220,38,38],[127,29,29]];   // hồng nhạt → đỏ tươi → đỏ sẫm
+function _vmBnSeq(v,max){
+  if(!v) return '#f8fafc';
+  var t=Math.max(0, Math.min(1, max>1 ? (v-1)/(max-1) : 1));
+  var x=t*(_VM_BN_STOPS.length-1), k=Math.min(_VM_BN_STOPS.length-2, Math.floor(x)), f=x-k, A=_VM_BN_STOPS[k], B=_VM_BN_STOPS[k+1];
+  return 'rgb('+A.map(function(a,i){ return Math.round(a+(B[i]-a)*f); }).join(',')+')';
+}
 function _vmPdKey(bn){ var p=bn.pd||bn.phacDo||''; return (typeof PHAC_DO!=='undefined' && PHAC_DO[p]) ? p : (p ? 'Khác' : '(chưa ghi)'); }
 function _vmBnUid(bn){
   var u=bn.unit||bn.donVi||''; if(!u) return null;
@@ -26095,9 +26102,10 @@ function renderVNMap(){
     else lg=[['ok','0 mặt hàng thiếu'],['warn','1 mặt hàng'],['danger','2–3 mặt hàng'],['zero','≥ 4 mặt hàng'],['none','Chưa có dữ liệu']]
       .map(function(x){ return '<span><i style="background:'+_VM_COL[x[0]]+'"></i>'+x[1]+'</span>'; }).join('');
   } else if(isBn){
-    lg='<span><i style="background:#f8fafc;border:1px solid #cbd5e1"></i>0 BN</span>'+_VM_BN.map(function(c,i){
-      var a=Math.floor(max*i/5)+1, b=Math.floor(max*(i+1)/5);
-      return (max && b>=a)? '<span><i style="background:'+c+'"></i>'+(a===b?a:a+'–'+b)+' BN</span>' : ''; }).join('');
+    lg='<span><i style="background:#f8fafc;border:1px solid #cbd5e1"></i>0 BN</span>'
+      +(max ? '<span>Ít (1 BN)</span><span style="display:inline-block;width:160px;height:11px;border-radius:3px;vertical-align:-1px;background:linear-gradient(90deg,'
+        +_VM_BN_STOPS.map(function(c){ return 'rgb('+c.join(',')+')'; }).join(',')+')"></span><span>Nhiều nhất ('+max+' BN)</span>'
+        +'<span style="color:#94a3b8">· càng đỏ đậm càng nhiều bệnh nhân · thang tính theo '+(_VM.bound==='34'?'34':'63')+' tỉnh/thành đang chọn</span>' : '');
   } else {
     lg='<span><i style="background:#dcefe2"></i>Không có</span>'+_VM_SEQ.map(function(c,i){
       return '<span><i style="background:'+c+'"></i>'+(max? _vmFmt(max*i/5)+'–'+_vmFmt(max*(i+1)/5):'')+'</span>'; }).join('')
