@@ -26907,6 +26907,12 @@ function _ppGroups(issuerId){
 }
 function _ppUnitLabel(u, self){ return self ? ('Kho riêng · '+(_displayUnit(u.name)||u.name)) : (_unitDistinctName(u) || u.name); }
 function _ppCanSeeUnit(id){ return isAdmin() || canViewUnit(id); }
+// Đơn vị tính của thuốc theo Danh mục thuốc (viên / lọ / ống / gói…); danh mục chưa ghi thì coi là viên như các bảng khác.
+function _ppDvt(drug){
+  var nd = _normStr(drug), v = '';
+  for(var i=0;i<(catalogData||[]).length;i++){ var c = catalogData[i]; if(c.unit_dose && _normStr(c.drug)===nd){ v = c.unit_dose; break; } }
+  return String(v || 'Viên').toLowerCase();
+}
 function _ppDrugs(){
   var seen = {}, out = [];
   (catalogData||[]).forEach(function(c){ var k=_normStr(c.drug); if(c.drug && !seen[k]){ seen[k]=1; out.push(c.drug); } });
@@ -27127,7 +27133,7 @@ function ppRender(){
 
   var TH = 'position:sticky;top:0;z-index:2;background:#1a5276;color:#fff;border-right:1px solid #244359;font-size:11px;font-weight:700;';
   var t = '<table class="pp-tbl"><thead><tr><th style="'+TH+'width:38px;padding:6px 4px">Stt</th><th style="'+TH+'left:0;z-index:3;text-align:left;min-width:200px;padding:6px 8px">Tỉnh / Đơn vị</th>';
-  cols.forEach(function(d){ t += '<th style="'+TH+'padding:8px 6px;vertical-align:middle;min-width:96px;max-width:130px"><div class="pp-vh">'+_ppEsc(d)+'</div><div style="font-weight:400;opacity:.85;margin-top:2px;text-align:center">(viên)</div></th>'; });
+  cols.forEach(function(d){ t += '<th style="'+TH+'padding:8px 6px;vertical-align:middle;min-width:96px;max-width:130px"><div class="pp-vh">'+_ppEsc(d)+'</div><div style="font-weight:400;opacity:.85;margin-top:2px;text-align:center">('+_ppEsc(_ppDvt(d))+')</div></th>'; });
   t += '</tr></thead><tbody>';
   var stt = 0, colTot = cols.map(function(){ return 0; }), nBad = 0, nOk = 0, nWait = 0, nRow = 0;
   groups.forEach(function(g){
@@ -27175,7 +27181,8 @@ function ppRender(){
   var cap = '<div class="pp-cap"><b>BẢNG PHÂN PHỐI THUỐC CHƯƠNG TRÌNH CHỐNG LAO — '+_ppEsc(_ppPerLabel().toUpperCase())+'</b>'
     + '<div>Kho lập bảng: <b>'+_ppEsc(_displayUnit(issuer.name)||issuer.name)+'</b> · '+(one ? _ppEsc(_ppDocLabel(curDoc)) : ('cộng '+docs.filter(function(d){ return !_ppIsDraft(d); }).length+' văn bản đã ban hành'))
     + (ed ? ' · <span style="color:#b45309;font-weight:700">ĐANG SỬA — gõ số vào ô rồi bấm Lưu bảng</span>' : '')+'</div></div>';
-  var leg = ed ? '<div class="pp-leg"><button class="pp-mini pri" onclick="ppAddUnit()">＋ Thêm đơn vị khác vào bảng</button><span style="color:#64748b">Bảng chỉ gồm các đơn vị bạn thêm vào; phần mềm tự gom theo miền. Dòng không có số sẽ tự ẩn sau khi lưu.</span></div>' : '<div class="pp-leg">'
+  var leg = ed ? '<div class="pp-leg"><button class="pp-mini pri" onclick="ppAddUnit()">＋ Thêm đơn vị khác vào bảng</button><span style="color:#64748b">Bảng chỉ gồm các đơn vị bạn thêm vào; phần mềm tự gom theo miền. Dòng không có số sẽ tự ẩn sau khi lưu.</span>'
+    + '<span style="flex-basis:100%;color:#64748b">💊 Cột thuốc và đơn vị tính (viên / lọ / ống…) lấy từ <b>Danh mục thuốc</b>. Cần thêm thuốc mới hoặc sửa đơn vị tính: <button class="pp-mini" onclick="ppGoCatalog()">mở Danh sách thuốc</button> — thêm xong quay lại đây là có cột mới. Cột không có số sẽ tự ẩn khi xem và khi in.</span></div>' : '<div class="pp-leg">'
     + (!one ? '<span><i style="background:#dcfce7"></i>Khớp: phân phối = đơn vị đã nhập ('+nOk+')</span><span><i style="background:#fee2e2"></i>Lệch ('+nBad+')</span><span><i style="background:#fef9c3"></i>Đơn vị chưa nhập ('+nWait+')</span>'
               + '<span style="color:#64748b">Số đơn vị nhập = cột Nhập tuyến trên, cộng mọi lô trong 3 tháng của quý. Bấm vào ô để xem từng văn bản, từng lô.</span>'
             : '<span><i style="background:#dcfce7"></i>Đơn vị đã ghi nhận đủ theo văn bản này</span><span><i style="background:#fee2e2"></i>Ghi nhận chưa đủ / vượt</span><span style="color:#64748b">Đối chiếu số lượng theo cả quý: chọn "Σ Cộng cả quý".</span>')
@@ -27270,6 +27277,12 @@ function ppEditStart(preset){
   ppRender();
 }
 function ppEditCancel(){ _PP.edit = null; ppRender(); }
+function ppGoCatalog(){
+  var go = function(){ _PP.edit = null; nav('thuoc', document.getElementById('sb-thuoc')); };
+  if(_PP.edit && Object.keys(_PP.edit.v).some(function(k){ return _PP.edit.v[k] > 0; }))
+    _confirmModal('Rời bảng đang sửa?', 'Các số vừa gõ mà <b>chưa bấm Lưu bảng</b> sẽ mất. Nên bấm Hủy, lưu bảng trước rồi hãy sang Danh sách thuốc.', go, null, 'Vẫn chuyển');
+  else go();
+}
 function ppEditInput(inp){
   if(!_PP.edit) return;
   var n = _ppNum(inp.value);
@@ -27409,8 +27422,8 @@ function ppTemplate(){
   if(typeof XLSX==='undefined'){ toast('Chưa tải được thư viện Excel','var(--danger)'); return; }
   var drugs = _ppDrugs(), issuer = UNIT_BY_ID[_PP.issuer];
   var aoa = [['BẢNG PHÂN PHỐI THUỐC — '+_ppPerLabel()+' — '+(issuer?issuer.name:'')],
-             ['Điền số lượng (viên) vào các ô. KHÔNG đổi tên đơn vị và tên thuốc. Ô trống = không phân.'], [],
-             ['Stt','Tỉnh / Đơn vị'].concat(drugs)];
+             ['Điền số lượng vào các ô (theo đơn vị tính ghi dưới tên thuốc). KHÔNG đổi tên đơn vị và tên thuốc. Ô trống = không phân.'], [],
+             ['Stt','Tỉnh / Đơn vị'].concat(drugs), ['', '(đơn vị tính)'].concat(drugs.map(function(d){ return '('+_ppDvt(d)+')'; }))];
   _ppFlatUnits().forEach(function(x, i){ aoa.push([i+1, x.label].concat(drugs.map(function(){ return ''; }))); });
   var ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = [{wch:5},{wch:38}].concat(drugs.map(function(){ return {wch:16}; }));
   var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Phân phối');
@@ -27437,7 +27450,7 @@ function ppImport(inp){
       var umap = {}; _ppFlatUnits().forEach(function(x){ umap[key(x.label)] = x.u.id; if(!x.self && !(key(x.u.name) in umap)) umap[key(x.u.name)] = x.u.id; });
       var preset = {}, badUnit = [], badNum = [], n = 0;
       for(var r=hi+1;r<aoa.length;r++){
-        var nm = String(aoa[r][uc]||'').trim(); if(!nm || /^t[ổo]ng/i.test(nm)) continue;
+        var nm = String(aoa[r][uc]||'').trim(); if(!nm || /^t[ổo]ng/i.test(nm) || /^\(.*\)$/.test(nm)) continue;
         var uid = umap[key(nm)];
         var any = dcol.some(function(c){ return String(aoa[r][c.j]).trim() !== '' && String(aoa[r][c.j]).trim() !== '-'; });
         if(!uid){ if(any) badUnit.push(nm); continue; }
@@ -27468,7 +27481,7 @@ function ppExport(){
   var cols = window._ppCols || _ppDrugs(), issuer = UNIT_BY_ID[_PP.issuer], one = (_PP.docId!=='all'), d = one ? _ppDocById(_PP.docId) : null;
   var aoa = [['BẢNG PHÂN PHỐI THUỐC CHƯƠNG TRÌNH CHỐNG LAO — '+_ppPerLabel().toUpperCase()],
              ['Kho lập bảng: '+(issuer?issuer.name:'')+' · '+(d ? _ppDocLabel(d)+(d.title?' — '+d.title:'') : 'Cộng các văn bản trong quý')], [],
-             ['Stt','Tỉnh / Đơn vị'].concat(cols)];
+             ['Stt','Tỉnh / Đơn vị'].concat(cols), ['', '(đơn vị tính)'].concat(cols.map(function(d){ return '('+_ppDvt(d)+')'; }))];
   var tot = cols.map(function(){ return 0; }), stt = 0;
   var gs = _ppShownGroups();
   gs.forEach(function(g){
@@ -27671,7 +27684,7 @@ function _ppPrintHtml(c){
     + '<div class="sb">'+(d&&d.title ? '('+E(d.title)+')' : (d ? '' : '(Tổng hợp các văn bản phân phối trong '+(_ppIsYear()?'năm':'quý')+')'))+'</div>'
     + '<table><thead><tr><th rowspan="2" style="width:34px">Stt</th><th rowspan="2">Tỉnh/ Đơn vị</th>'
       + cols.map(function(dn){ return '<th class="v"><div>'+E(dn)+'</div></th>'; }).join('')+'</tr>'
-      + '<tr>'+cols.map(function(){ return '<th class="dv">(viên)</th>'; }).join('')+'</tr></thead><tbody>'
+      + '<tr>'+cols.map(function(dn){ return '<th class="dv">('+E(_ppDvt(dn))+')</th>'; }).join('')+'</tr></thead><tbody>'
       + body + '<tr class="tot"><td></td><td class="l">TỔNG CỘNG</td>'+tot.map(function(v){ return '<td class="n">'+num(v)+'</td>'; }).join('')+'</tr></tbody></table>'
     + '<div class="gc"><b>Ghi chú:</b> '+E(note)+'</div>'
     + '<div class="ft"><div class="nn"><b>Nơi nhận:</b>'+String(c.noiNhan||'').split(/\n/).filter(function(x){ return x.trim(); }).map(function(x){ return '<div>'+E(x.trim())+'</div>'; }).join('')+'</div>'
