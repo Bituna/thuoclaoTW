@@ -27071,6 +27071,7 @@ function ppRenderTools(){
   el.innerHTML = b('＋ Văn bản mới', 'ppDocForm()', 'btn-primary', can && !ed)
     + b('✎ Sửa số liệu', 'ppEditStart()', 'btn-outline', can && one && !ed && (_ppDocById(_PP.docId)||{}).status !== 'issued')
     + b('＋ Thêm đơn vị', 'ppAddUnit()', 'btn-outline', ed)
+    + b('＋ Thêm thuốc', 'ppAddDrug()', 'btn-outline', ed)
     + b('💾 Lưu bảng', 'ppEditSave()', 'btn-success', ed)
     + b('Hủy sửa', 'ppEditCancel()', 'btn-outline', ed)
     + b('⬆ Tải Excel', "document.getElementById('pp-file').click()", 'btn-outline', can && one)
@@ -27128,8 +27129,15 @@ function ppRender(){
   var groups = _ppShownGroups();   // chỉ đơn vị người làm đã thêm / đã có số — tự gom theo miền
   var drugs = _ppDrugs();
   var hasQty = function(u, d){ return ed ? (ed.v[u.id+'|'+_normStr(d)]>0) : (_ppQty(u.id, d, 'view')>0); };
-  var cols = (ed || _PP.allCols) ? drugs : drugs.filter(function(d){ return groups.some(function(g){ return g.units.some(function(u){ return _ppCanSeeUnit(u.id) && hasQty(u,d); }); }); });
-  if(!cols.length) cols = drugs;
+  var cols;
+  if(ed){
+    // Đang sửa: thuốc đã có số trong văn bản này + thuốc vừa chọn thêm từ danh mục (không dàn hết danh mục)
+    var _has = {}; Object.keys(ed.v).forEach(function(k){ if(ed.v[k] > 0) _has[k.slice(k.indexOf('|')+1)] = 1; });
+    var _add = _PP_ADDD[_PP.docId] || {};
+    cols = drugs.filter(function(d){ var nd = _normStr(d); return _has[nd] || _add[nd]; });
+  } else {
+    cols = _PP.allCols ? drugs : drugs.filter(function(d){ return groups.some(function(g){ return g.units.some(function(u){ return _ppCanSeeUnit(u.id) && hasQty(u,d); }); }); });
+  }
 
   var TH = 'position:sticky;top:0;z-index:2;background:#1a5276;color:#fff;border-right:1px solid #244359;font-size:11px;font-weight:700;';
   var t = '<table class="pp-tbl"><thead><tr><th style="'+TH+'width:38px;padding:6px 4px">Stt</th><th style="'+TH+'left:0;z-index:3;text-align:left;min-width:200px;padding:6px 8px">Tỉnh / Đơn vị</th>';
@@ -27175,14 +27183,15 @@ function ppRender(){
   });
   if(!nRow) t += '<tr><td colspan="'+(cols.length+2)+'" style="padding:22px;text-align:center;color:#64748b;font-weight:500">'
     + (ed ? 'Chưa có đơn vị nào trong bảng. Bấm <b>＋ Thêm đơn vị</b> để chọn đơn vị nhận — phần mềm tự xếp đơn vị vào đúng miền.' : 'Văn bản này chưa có số liệu.')+'</td></tr>';
+  if(ed && !cols.length) t += '<tr><td colspan="2" style="padding:14px;text-align:center;color:#b45309;font-weight:600;background:#fffbeb">Chưa chọn thuốc nào. Bấm <b>＋ Thêm thuốc</b> để chọn thuốc từ Danh mục — mỗi thuốc là một cột.</td></tr>';
   t += '<tr class="pp-tot"><td></td><td class="pp-u">TỔNG CỘNG</td>'+colTot.map(function(v, j){ return '<td class="pp-n" id="pp-tot-'+j+'">'+(v?fmtNum(v):'-')+'</td>'; }).join('')+'</tr></tbody></table>';
   window._ppCols = cols;
 
   var cap = '<div class="pp-cap"><b>BẢNG PHÂN PHỐI THUỐC CHƯƠNG TRÌNH CHỐNG LAO — '+_ppEsc(_ppPerLabel().toUpperCase())+'</b>'
     + '<div>Kho lập bảng: <b>'+_ppEsc(_displayUnit(issuer.name)||issuer.name)+'</b> · '+(one ? _ppEsc(_ppDocLabel(curDoc)) : ('cộng '+docs.filter(function(d){ return !_ppIsDraft(d); }).length+' văn bản đã ban hành'))
     + (ed ? ' · <span style="color:#b45309;font-weight:700">ĐANG SỬA — gõ số vào ô rồi bấm Lưu bảng</span>' : '')+'</div></div>';
-  var leg = ed ? '<div class="pp-leg"><button class="pp-mini pri" onclick="ppAddUnit()">＋ Thêm đơn vị khác vào bảng</button><span style="color:#64748b">Bảng chỉ gồm các đơn vị bạn thêm vào; phần mềm tự gom theo miền. Dòng không có số sẽ tự ẩn sau khi lưu.</span>'
-    + '<span style="flex-basis:100%;color:#64748b">💊 Cột thuốc và đơn vị tính (viên / lọ / ống…) lấy từ <b>Danh mục thuốc</b>. Cần thêm thuốc mới hoặc sửa đơn vị tính: <button class="pp-mini" onclick="ppGoCatalog()">mở Danh sách thuốc</button> — thêm xong quay lại đây là có cột mới. Cột không có số sẽ tự ẩn khi xem và khi in.</span></div>' : '<div class="pp-leg">'
+  var leg = ed ? '<div class="pp-leg"><button class="pp-mini pri" onclick="ppAddUnit()">＋ Thêm đơn vị khác vào bảng</button><button class="pp-mini pri" onclick="ppAddDrug()">＋ Thêm thuốc</button><span style="color:#64748b">Bảng chỉ gồm các đơn vị bạn thêm vào; phần mềm tự gom theo miền. Dòng không có số sẽ tự ẩn sau khi lưu.</span>'
+    + '<span style="flex-basis:100%;color:#64748b">💊 Mỗi cột là một thuốc bạn chọn từ <b>Danh mục thuốc</b> (bấm ＋ Thêm thuốc). Thuốc chưa có trong danh mục hoặc sai đơn vị tính: <button class="pp-mini" onclick="ppGoCatalog()">mở Danh sách thuốc</button> để thêm / sửa trước. Cột không có số nào sẽ tự ẩn sau khi lưu và không in ra.</span></div>' : '<div class="pp-leg">'
     + (!one ? '<span><i style="background:#dcfce7"></i>Khớp: phân phối = đơn vị đã nhập ('+nOk+')</span><span><i style="background:#fee2e2"></i>Lệch ('+nBad+')</span><span><i style="background:#fef9c3"></i>Đơn vị chưa nhập ('+nWait+')</span>'
               + '<span style="color:#64748b">Số đơn vị nhập = cột Nhập tuyến trên, cộng mọi lô trong 3 tháng của quý. Bấm vào ô để xem từng văn bản, từng lô.</span>'
             : '<span><i style="background:#dcfce7"></i>Đơn vị đã ghi nhận đủ theo văn bản này</span><span><i style="background:#fee2e2"></i>Ghi nhận chưa đủ / vượt</span><span style="color:#64748b">Đối chiếu số lượng theo cả quý: chọn "Σ Cộng cả quý".</span>')
@@ -27272,7 +27281,7 @@ function ppEditStart(preset){
   if((_ppDocById(_PP.docId)||{}).status === 'issued'){ toast('Văn bản đã ban hành — bấm "Mở lại để sửa" trước khi đổi số','var(--warning)'); return; }
   var v = {};
   _PP.lines.forEach(function(l){ if(l.doc_id===_PP.docId) v[l.to_unit_id+'|'+_normStr(l.drug)] = Number(l.qty)||0; });
-  if(preset) Object.keys(preset).forEach(function(k){ v[k] = preset[k]; (_PP_ADD[_PP.issuer] = _PP_ADD[_PP.issuer] || {})[k.slice(0, k.indexOf('|'))] = 1; });
+  if(preset) Object.keys(preset).forEach(function(k){ v[k] = preset[k]; (_PP_ADD[_PP.issuer] = _PP_ADD[_PP.issuer] || {})[k.slice(0, k.indexOf('|'))] = 1; (_PP_ADDD[_PP.docId] = _PP_ADDD[_PP.docId] || {})[k.slice(k.indexOf('|')+1)] = 1; });
   _PP.edit = {v:v};
   ppRender();
 }
@@ -27362,6 +27371,64 @@ function _ppExtraUnits(known){
   out.sort(function(a,b){ return String(a.path).localeCompare(String(b.path),'vi'); });
   return out;
 }
+// Thuốc do người làm chọn thêm vào văn bản đang sửa (theo văn bản; có số và Lưu thì thành cố định)
+var _PP_ADDD = {};   // docId → {tên thuốc đã chuẩn hoá: 1}
+function _ppShownDrugSet(){
+  var o = {}; if(!_PP.edit) return o;
+  Object.keys(_PP.edit.v).forEach(function(k){ if(_PP.edit.v[k] > 0) o[k.slice(k.indexOf('|')+1)] = 1; });
+  Object.keys(_PP_ADDD[_PP.docId]||{}).forEach(function(k){ o[k] = 1; });
+  return o;
+}
+function ppAddDrug(){
+  if(!_PP.edit){ toast('Bấm "Sửa số liệu" trước rồi mới thêm thuốc','var(--warning)'); return; }
+  var old = document.getElementById('pp_ov'); if(old) old.remove();
+  var ov = document.createElement('div'); ov.id='pp_ov'; ov.className='app-popup';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999999;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML = '<div onclick="event.stopPropagation()" style="background:#fff;border-radius:14px;width:min(520px,94vw);max-height:86vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+    + '<div style="padding:14px 18px 8px"><div style="font-size:15px;font-weight:800;color:#1e293b">Thêm thuốc vào bảng phân phối</div>'
+    + '<div style="font-size:12px;color:#64748b;margin:3px 0 10px">Chỉ chọn được thuốc có trong Danh mục thuốc. Bấm vào tên để thêm cột (thêm được nhiều thuốc).</div>'
+    + '<input id="pp-ad-q" placeholder="Gõ tên thuốc để tìm…" autocomplete="off" oninput="_ppAddDrugFilter()" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:13px"></div>'
+    + '<div id="pp-ad-quick" style="padding:0 18px 8px;display:flex;flex-wrap:wrap;gap:6px"></div>'
+    + '<div id="pp-ad-list" style="overflow:auto;padding:0 10px 6px"></div>'
+    + '<div style="padding:10px 18px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;gap:10px"><span style="font-size:11.5px;color:#64748b">Không thấy thuốc cần thêm? Thêm thuốc ở mục Danh sách thuốc trước.</span>'
+    + '<button class="btn btn-primary" style="font-size:13px;padding:8px 16px;border-radius:18px" onclick="document.getElementById(\'pp_ov\').remove()">Xong</button></div></div>';
+  ov.onclick = function(){ ov.remove(); };
+  document.body.appendChild(ov);
+  _ppAddDrugFilter();
+  setTimeout(function(){ var e=document.getElementById('pp-ad-q'); if(e) e.focus(); }, 60);
+}
+function _ppUsedDrugs(){   // thuốc đã dùng ở các văn bản khác của kho này (đang tải) — để thêm nhanh
+  var o = {}; _PP.lines.forEach(function(l){ var d = _ppDocById(l.doc_id); if(d && d.from_unit_id===_PP.issuer && d.id!==_PP.docId) o[_normStr(l.drug)] = 1; });
+  return o;
+}
+function _ppAddDrugFilter(){
+  var box = document.getElementById('pp-ad-list'); if(!box) return;
+  var shown = _ppShownDrugSet(), q = _cpNoMark((document.getElementById('pp-ad-q')||{}).value||'');
+  var cat = {}; (catalogData||[]).forEach(function(c){ if(c.drug) cat[_normStr(c.drug)] = c.drug; });
+  var all = Object.keys(cat).map(function(k){ return cat[k]; }).filter(function(d){ return !shown[_normStr(d)]; });
+  var used = _ppUsedDrugs(), nUsed = all.filter(function(d){ return used[_normStr(d)]; }).length;
+  var qk = document.getElementById('pp-ad-quick');
+  if(qk) qk.innerHTML = (nUsed ? '<button class="pp-mini" onclick="_ppAddDrugBulk(\'used\')">＋ Các thuốc đã dùng ở văn bản khác ('+nUsed+')</button>' : '')
+    + (all.length ? '<button class="pp-mini" onclick="_ppAddDrugBulk(\'all\')">＋ Tất cả thuốc trong danh mục ('+all.length+')</button>' : '');
+  var list = all.filter(function(d){ return !q || _cpNoMark(d).indexOf(q) >= 0; }).sort(function(a,b){ return String(a).localeCompare(String(b),'vi'); });
+  window._ppAdList = list;
+  box.innerHTML = list.map(function(d, i){
+    return '<div onclick="_ppAddDrugPick('+i+')" style="padding:8px 10px;border-bottom:1px solid #f1f5f9;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;gap:10px" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'\'">'
+      + '<b>'+_ppEsc(d)+'</b><span style="color:#94a3b8;font-size:11.5px">'+_ppEsc(_ppDvt(d))+'</span></div>'; }).join('')
+    || '<div style="padding:16px;text-align:center;color:#94a3b8;font-size:13px">'+(all.length ? 'Không có thuốc phù hợp' : 'Mọi thuốc trong danh mục đã có trong bảng')+'</div>';
+}
+function _ppAddDrugPick(i){
+  var d = (window._ppAdList||[])[i]; if(!d || !_PP.edit) return;
+  (_PP_ADDD[_PP.docId] = _PP_ADDD[_PP.docId] || {})[_normStr(d)] = 1;
+  ppRender(); _ppAddDrugFilter();
+}
+function _ppAddDrugBulk(kind){
+  if(!_PP.edit) return;
+  var A = (_PP_ADDD[_PP.docId] = _PP_ADDD[_PP.docId] || {}), used = _ppUsedDrugs(), n = 0;
+  (catalogData||[]).forEach(function(c){ var k = _normStr(c.drug); if(c.drug && !A[k] && (kind==='all' || used[k])){ A[k] = 1; n++; } });
+  ppRender(); _ppAddDrugFilter();
+  toast('Đã thêm các cột thuốc','#1a5276');
+}
 function ppAddUnit(){
   if(!_PP.edit){ toast('Bấm "Sửa số liệu" trước rồi mới thêm đơn vị','var(--warning)'); return; }
   var old = document.getElementById('pp_ov'); if(old) old.remove();
@@ -27420,7 +27487,8 @@ function _ppAddUnitPick(id){
 }
 function ppTemplate(){
   if(typeof XLSX==='undefined'){ toast('Chưa tải được thư viện Excel','var(--danger)'); return; }
-  var drugs = _ppDrugs(), issuer = UNIT_BY_ID[_PP.issuer];
+  var _sh = _ppShownDrugSet(), _all = _ppDrugs(), drugs = _all.filter(function(d){ return _sh[_normStr(d)]; }), issuer = UNIT_BY_ID[_PP.issuer];
+  if(!drugs.length) drugs = (window._ppCols && window._ppCols.length && !_PP.edit) ? window._ppCols : _all;
   var aoa = [['BẢNG PHÂN PHỐI THUỐC — '+_ppPerLabel()+' — '+(issuer?issuer.name:'')],
              ['Điền số lượng vào các ô (theo đơn vị tính ghi dưới tên thuốc). KHÔNG đổi tên đơn vị và tên thuốc. Ô trống = không phân.'], [],
              ['Stt','Tỉnh / Đơn vị'].concat(drugs), ['', '(đơn vị tính)'].concat(drugs.map(function(d){ return '('+_ppDvt(d)+')'; }))];
@@ -27622,6 +27690,9 @@ function ppPrintForm(){
   ov.innerHTML = '<div onclick="event.stopPropagation()" style="background:#fff;border-radius:14px;width:min(520px,94vw);max-height:92vh;overflow:auto;padding:18px 20px;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
     + '<div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:3px">In bảng phân phối</div>'
     + '<div style="font-size:12px;color:#64748b;margin-bottom:12px">'+(d ? _ppEsc(_ppDocLabel(d)) : 'Cộng các văn bản trong '+_ppEsc(_ppPerLabel())+' (không ghi số văn bản)')+' · các ô dưới đây được nhớ cho lần in sau</div>'
+    + '<div style="display:flex;gap:10px"><div style="flex:1.4"><label style="'+L+'">Số văn bản</label><input id="pp-p-so" style="'+F+'" placeholder="vd 2014/BVPTƯ-DAPCL" value="'+_ppEsc(d && d.so_vb && d.so_vb.indexOf('(chưa') !== 0 ? d.so_vb : '')+'"></div>'
+    + '<div style="flex:1"><label style="'+L+'">Ngày ban hành</label><input id="pp-p-ngay" type="date" style="'+F+'" value="'+_ppEsc(d && d.ngay_vb ? String(d.ngay_vb).slice(0,10) : '')+'"></div></div>'
+    + (d && _ppCanEditDoc(d) ? '<label style="display:block;font-size:12px;color:#475569;margin:-4px 0 10px;cursor:pointer"><input type="checkbox" id="pp-p-save" checked style="vertical-align:middle"> Lưu số và ngày này vào văn bản trên phần mềm</label>' : '')
     + '<label style="'+L+'">Cơ quan chủ quản (dòng trên, góc trái)</label><input id="pp-p-org1" style="'+F+'" value="'+_ppEsc(c.org1)+'">'
     + '<label style="'+L+'">Tên đơn vị ban hành</label><input id="pp-p-org2" style="'+F+'" value="'+_ppEsc(c.org2)+'">'
     + '<label style="'+L+'">Địa danh ghi ngày tháng (vd Hà Nội)</label><input id="pp-p-place" style="'+F+'" value="'+_ppEsc(c.place)+'">'
@@ -27653,13 +27724,15 @@ function _ppPrintHtml(c){
     });
     if(multi) body += '<tr class="sub"><td></td><td class="l">Cộng '+E(x.g.label)+'</td>'+sub.map(function(v){ return '<td class="n">'+num(v)+'</td>'; }).join('')+'</tr>';
   });
-  var dt = (d && d.ngay_vb) ? String(d.ngay_vb).slice(0,10).split('-') : null;
+  var _ngay = (typeof c.ngay === 'string') ? c.ngay : ((d && d.ngay_vb) ? String(d.ngay_vb).slice(0,10) : '');
+  var _so = (typeof c.so === 'string') ? c.so : ((d && d.so_vb) || '');
+  var dt = /^\d{4}-\d{2}-\d{2}$/.test(_ngay) ? _ngay.split('-') : null;
   var dateTxt = (c.place ? c.place+', ' : '')+(dt ? ('ngày '+parseInt(dt[2],10)+' tháng '+parseInt(dt[1],10)+' năm '+dt[0]) : 'ngày ..... tháng ..... năm .......');
   var qTxt = _ppIsYear() ? ('NĂM '+_PP.year) : ('QUÝ '+_PP.q+' NĂM '+_PP.year);
   var land = c.orient==='landscape' || (c.orient!=='portrait' && cols.length > 9);
   var fs = cols.length > 12 ? 9.5 : (cols.length > 9 ? 10.5 : 11.5);
   var note = (d && d.note) ? d.note : '';
-  return '<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Bảng phân phối thuốc '+E(_ppPerLabel())+(d&&d.so_vb?' - '+E(d.so_vb):'')+'</title><style>'
+  return '<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Bảng phân phối thuốc '+E(_ppPerLabel())+(_so?' - '+E(_so):'')+'</title><style>'
     + '@page{size:A4 '+(land?'landscape':'portrait')+';margin:14mm 12mm 14mm 16mm}'
     + '*{box-sizing:border-box}body{font-family:"Times New Roman",Times,serif;color:#000;font-size:13px;margin:0}'
     + '.hd{display:flex;justify-content:space-between;gap:20px;text-align:center}.hd .a{width:40%}.hd .b{width:56%}'
@@ -27677,7 +27750,7 @@ function _ppPrintHtml(c){
     + '@media print{td.grp{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
     + '</style></head><body>'
     + '<div class="hd"><div class="a">'+(c.org1?'<div>'+E(c.org1)+'</div>':'')+'<div class="u"><span class="ln">'+E(c.org2)+'</span></div>'
-      + '<div class="so">Số: '+(d&&d.so_vb ? E(d.so_vb) : '............')+'</div></div>'
+      + '<div class="so">Số: '+(_so ? E(_so) : '............')+'</div></div>'
     + '<div class="b"><div class="u">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div><div class="u"><span class="ln">Độc lập - Tự do - Hạnh phúc</span></div>'
       + '<div class="dt">'+E(dateTxt)+'</div></div></div>'
     + '<h1>BẢNG PHÂN PHỐI THUỐC CHƯƠNG TRÌNH CHỐNG LAO - '+E(qTxt)+'</h1>'
@@ -27695,6 +27768,15 @@ function ppPrint(){
   var g = function(id){ var e = document.getElementById(id); return e ? e.value : ''; };
   var c = { org1:g('pp-p-org1').trim(), org2:g('pp-p-org2').trim(), place:g('pp-p-place').trim(), signTitle:g('pp-p-st').trim(), signName:g('pp-p-sn').trim(), noiNhan:g('pp-p-nn'), orient:g('pp-p-or')||'auto' };
   try{ localStorage.setItem('pp_print_'+_PP.issuer, JSON.stringify(c)); }catch(e){}
+  c.so = g('pp-p-so').trim(); c.ngay = g('pp-p-ngay');
+  // lưu số / ngày vừa điền vào văn bản (nếu được quyền và có đổi)
+  var d0 = (_PP.docId!=='all') ? _ppDocById(_PP.docId) : null, sv = document.getElementById('pp-p-save');
+  if(d0 && sv && sv.checked && (c.so !== (d0.so_vb||'') || (c.ngay||'') !== (d0.ngay_vb ? String(d0.ngay_vb).slice(0,10) : '')) && c.so){
+    var _upd = {so_vb:c.so, ngay_vb:c.ngay || null};
+    fetch(SUPA_URL+'/rest/v1/pp_docs?id=eq.'+encodeURIComponent(d0.id), {method:'PATCH', headers:_ppHd({'Prefer':'return=minimal'}), body:JSON.stringify(_upd)})
+      .then(function(r){ if(r.ok){ d0.so_vb = _upd.so_vb; d0.ngay_vb = _upd.ngay_vb; ppRender(); } else toast('Chưa lưu được số / ngày vào văn bản (bản in vẫn dùng số vừa điền)','var(--warning)'); })
+      .catch(function(){ toast('Chưa lưu được số / ngày vào văn bản (bản in vẫn dùng số vừa điền)','var(--warning)'); });
+  }
   var html = _ppPrintHtml(c);
   var w = window.open('', '_blank', 'width=1000,height=800');
   if(!w){ toast('Trình duyệt đang chặn cửa sổ in — cho phép cửa sổ bật lên (pop-up) cho trang này rồi bấm In lại','var(--danger)'); return; }
