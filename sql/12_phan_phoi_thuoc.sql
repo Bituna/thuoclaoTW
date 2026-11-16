@@ -124,20 +124,17 @@ begin
   end loop;
 end $$;
 
--- ── RLS: theo đúng cách các bảng báo cáo đang dùng ──────────────────────
--- Nếu bảng reports đang bật RLS thì bật RLS cho 3 bảng mới với chính sách "đọc/ghi qua anon key"
--- (quyền ghi thật do trigger ở trên quyết định). Nếu reports không bật RLS thì để nguyên.
+-- ── RLS: chính sách "đọc/ghi qua khoá ứng dụng" — quyền ghi thật do trigger ở trên quyết định ──
+-- Supabase có thể TỰ BẬT RLS cho bảng mới tạo → không có chính sách thì mọi lệnh ghi bị từ chối
+-- ("new row violates row-level security policy"). Vì vậy luôn bật RLS + tạo chính sách cho 3 bảng.
 do $$
-declare t text; v_rls boolean;
+declare t text;
 begin
-  select c.relrowsecurity into v_rls from pg_class c where c.oid = 'public.reports'::regclass;
-  if coalesce(v_rls, false) then
-    foreach t in array array['pp_docs', 'pp_lines', 'pp_receipts'] loop
-      execute format('alter table public.%I enable row level security', t);
-      execute format('drop policy if exists pp_all on public.%I', t);
-      execute format('create policy pp_all on public.%I for all to anon, authenticated using (true) with check (true)', t);
-    end loop;
-  end if;
+  foreach t in array array['pp_docs', 'pp_lines', 'pp_receipts'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists pp_all on public.%I', t);
+    execute format('create policy pp_all on public.%I for all to public using (true) with check (true)', t);
+  end loop;
 end $$;
 
 notify pgrst, 'reload schema';
