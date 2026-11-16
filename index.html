@@ -242,7 +242,7 @@ body{font-family:'Be Vietnam Pro',sans-serif;background:var(--bg);color:var(--te
 .pp-tbl .pp-n.ok{background:#dcfce7;color:#166534}.pp-tbl .pp-n.bad{background:#fee2e2;color:#b91c1c}.pp-tbl .pp-n.wait{background:#fef9c3;color:#854d0e}
 .pp-tbl .pp-grp{background:#eef2f7;font-weight:800;color:#334155;font-size:11.5px;text-align:left}
 .pp-tbl .pp-tot td{background:#f1f5f9;font-weight:800}.pp-tbl .pp-tot .pp-u{background:#f1f5f9}
-.pp-vh{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;max-height:150px;margin:0 auto;line-height:1.15}
+.pp-vh{white-space:normal;line-height:1.3;text-align:center;font-size:11.5px}
 .pp-inp{width:74px;box-sizing:border-box;padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;text-align:right;font-weight:700}
 .pp-inp:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.15)}
 .pp-leg{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin-top:10px;font-size:11.5px;color:#475569}
@@ -26989,6 +26989,7 @@ async function _ppLoadN1(){
   var ids = {};
   _ppGroups(_PP.issuer).forEach(function(g){ g.units.forEach(function(u){ if(!g.self && _ppCanSeeUnit(u.id)) ids[u.id]=1; }); });
   (_PP.lines||[]).forEach(function(l){ if(_ppCanSeeUnit(l.to_unit_id) && l.to_unit_id !== _PP.issuer) ids[l.to_unit_id]=1; });
+  Object.keys((typeof _PP_ADD!=='undefined' && _PP_ADD[_PP.issuer]) || {}).forEach(function(id){ if(_ppCanSeeUnit(id)) ids[id]=1; });
   var list = Object.keys(ids); if(!list.length) return;
   var chunks = []; for(var i=0;i<list.length;i+=60) chunks.push(list.slice(i,i+60));
   var jobs = [];
@@ -27045,6 +27046,7 @@ function ppRenderTools(){
   var b = function(lbl, fn, cls, show){ return show ? '<button class="btn '+cls+'" style="font-size:12px;padding:7px 12px;border-radius:10px" onclick="'+fn+'">'+lbl+'</button>' : ''; };
   el.innerHTML = b('＋ Văn bản mới', 'ppDocForm()', 'btn-primary', can && !ed)
     + b('✎ Sửa số liệu', 'ppEditStart()', 'btn-outline', can && one && !ed)
+    + b('＋ Thêm đơn vị', 'ppAddUnit()', 'btn-outline', ed)
     + b('💾 Lưu bảng', 'ppEditSave()', 'btn-success', ed)
     + b('Hủy sửa', 'ppEditCancel()', 'btn-outline', ed)
     + b('⬆ Tải Excel', "document.getElementById('pp-file').click()", 'btn-outline', can && one)
@@ -27095,9 +27097,8 @@ function ppRender(){
   // 2) Hàng (đơn vị) và cột (thuốc)
   var groups = _ppGroups(_PP.issuer), known = {};
   groups.forEach(function(g){ g.units.forEach(function(u){ known[u.id]=1; }); });
-  var extra = [];   // đơn vị có số trong VB nhưng không còn nằm trong cây của kho (đổi cây sau khi lập bảng)
-  _PP.lines.forEach(function(l){ var d = _ppDocById(l.doc_id); if(d && d.from_unit_id===_PP.issuer && !known[l.to_unit_id] && UNIT_BY_ID[l.to_unit_id]){ known[l.to_unit_id]=1; extra.push(UNIT_BY_ID[l.to_unit_id]); } });
-  if(extra.length) groups.push({label:'Đơn vị khác', units:extra});
+  var extra = _ppExtraUnits(known);   // đơn vị thêm tay (ngoài danh sách mặc định của kho) hoặc đã có số trong văn bản
+  if(extra.length) groups.push({label:'Đơn vị thêm', units:extra});
   var drugs = _ppDrugs();
   var hasQty = function(u, d){ return ed ? (ed.v[u.id+'|'+_normStr(d)]>0) : (_ppQty(u.id, d, 'view')>0); };
   var cols = (ed || _PP.allCols) ? drugs : drugs.filter(function(d){ return groups.some(function(g){ return g.units.some(function(u){ return _ppCanSeeUnit(u.id) && hasQty(u,d); }); }); });
@@ -27105,7 +27106,7 @@ function ppRender(){
 
   var TH = 'position:sticky;top:0;z-index:2;background:#1a5276;color:#fff;border-right:1px solid #244359;font-size:11px;font-weight:700;';
   var t = '<table class="pp-tbl"><thead><tr><th style="'+TH+'width:38px;padding:6px 4px">Stt</th><th style="'+TH+'left:0;z-index:3;text-align:left;min-width:200px;padding:6px 8px">Tỉnh / Đơn vị</th>';
-  cols.forEach(function(d){ t += '<th style="'+TH+'padding:8px 4px;vertical-align:bottom;min-width:62px"><div class="pp-vh">'+_ppEsc(d)+'</div><div style="font-weight:400;opacity:.85;margin-top:4px">(viên)</div></th>'; });
+  cols.forEach(function(d){ t += '<th style="'+TH+'padding:8px 6px;vertical-align:middle;min-width:96px;max-width:130px"><div class="pp-vh">'+_ppEsc(d)+'</div><div style="font-weight:400;opacity:.85;margin-top:2px;text-align:center">(viên)</div></th>'; });
   t += '</tr></thead><tbody>';
   var stt = 0, colTot = cols.map(function(){ return 0; }), nBad = 0, nOk = 0, nWait = 0, nRow = 0;
   groups.forEach(function(g){
@@ -27148,7 +27149,7 @@ function ppRender(){
   var cap = '<div class="pp-cap"><b>BẢNG PHÂN PHỐI THUỐC CHƯƠNG TRÌNH CHỐNG LAO — '+_ppEsc(_keyToLabel(_ppPeriod()).toUpperCase())+'</b>'
     + '<div>Kho lập bảng: <b>'+_ppEsc(_displayUnit(issuer.name)||issuer.name)+'</b> · '+(one ? _ppEsc(_ppDocLabel(curDoc)) : ('cộng '+docs.length+' văn bản'))
     + (ed ? ' · <span style="color:#b45309;font-weight:700">ĐANG SỬA — gõ số vào ô rồi bấm Lưu bảng</span>' : '')+'</div></div>';
-  var leg = ed ? '' : '<div class="pp-leg">'
+  var leg = ed ? '<div class="pp-leg"><button class="pp-mini pri" onclick="ppAddUnit()">＋ Thêm đơn vị khác vào bảng</button><span style="color:#64748b">Danh sách có sẵn là các đơn vị trực thuộc kho lập bảng. Đơn vị khác (tuyến dưới nữa, nhánh khác) thêm bằng nút này; dòng không có số sẽ tự ẩn sau khi lưu.</span></div>' : '<div class="pp-leg">'
     + (!one ? '<span><i style="background:#dcfce7"></i>Khớp: phân phối = đơn vị đã nhập ('+nOk+')</span><span><i style="background:#fee2e2"></i>Lệch ('+nBad+')</span><span><i style="background:#fef9c3"></i>Đơn vị chưa nhập ('+nWait+')</span>'
               + '<span style="color:#64748b">Số đơn vị nhập = cột Nhập tuyến trên, cộng mọi lô trong 3 tháng của quý. Bấm vào ô để xem từng văn bản, từng lô.</span>'
             : '<span><i style="background:#dcfce7"></i>Đơn vị đã ghi nhận đủ theo văn bản này</span><span><i style="background:#fee2e2"></i>Ghi nhận chưa đủ / vượt</span><span style="color:#64748b">Đối chiếu số lượng theo cả quý: chọn "Σ Cộng cả quý".</span>')
@@ -27258,9 +27259,59 @@ async function ppEditSave(){
 
 // ── Excel: file mẫu / tải lên / xuất ──
 function _ppFlatUnits(){
-  var out = [];
-  _ppGroups(_PP.issuer).forEach(function(g){ g.units.forEach(function(u){ out.push({u:u, self:!!g.self, label:_ppUnitLabel(u, g.self), group:g.label}); }); });
+  var out = [], known = {};
+  _ppGroups(_PP.issuer).forEach(function(g){ g.units.forEach(function(u){ known[u.id]=1; out.push({u:u, self:!!g.self, label:_ppUnitLabel(u, g.self), group:g.label}); }); });
+  _ppExtraUnits(known).forEach(function(u){ out.push({u:u, self:false, label:_ppUnitLabel(u, false), group:'Đơn vị thêm'}); });
   return out;
+}
+// Đơn vị ngoài danh sách mặc định của kho lập bảng: đã có số trong văn bản của kho này, hoặc vừa được thêm tay.
+var _PP_ADD = {};   // issuerId → {unitId:1}  (thêm tay trong phiên; có số và Lưu thì thành cố định)
+function _ppExtraUnits(known){
+  var out = [], seen = Object.assign({}, known||{});
+  var push = function(id){ var u = UNIT_BY_ID[id]; if(u && !seen[id]){ seen[id]=1; out.push(u); } };
+  _PP.lines.forEach(function(l){ var d = _ppDocById(l.doc_id); if(d && d.from_unit_id===_PP.issuer) push(l.to_unit_id); });
+  Object.keys(_PP_ADD[_PP.issuer]||{}).forEach(push);
+  out.sort(function(a,b){ return String(a.path).localeCompare(String(b.path),'vi'); });
+  return out;
+}
+function ppAddUnit(){
+  if(!_PP.edit){ toast('Bấm "Sửa số liệu" trước rồi mới thêm đơn vị','var(--warning)'); return; }
+  var old = document.getElementById('pp_ov'); if(old) old.remove();
+  var shown = {}; _ppFlatUnits().forEach(function(x){ shown[x.u.id]=1; });
+  var all = UNITS_TREE.filter(function(u){ return u.active!==false && !shown[u.id] && u.id!==_PP.issuer; })
+    .sort(function(a,b){ return String(a.path).localeCompare(String(b.path),'vi'); });
+  var ov = document.createElement('div'); ov.id='pp_ov'; ov.className='app-popup';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999999;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML = '<div onclick="event.stopPropagation()" style="background:#fff;border-radius:14px;width:min(520px,94vw);max-height:86vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+    + '<div style="padding:14px 18px 8px"><div style="font-size:15px;font-weight:800;color:#1e293b">Thêm đơn vị vào bảng phân phối</div>'
+    + '<div style="font-size:12px;color:#64748b;margin:3px 0 10px">Chọn đơn vị có trong cây đơn vị của phần mềm. Bấm vào tên để thêm (thêm được nhiều đơn vị).</div>'
+    + '<input id="pp-au-q" placeholder="Gõ tên đơn vị để tìm…" autocomplete="off" oninput="_ppAddUnitFilter()" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:13px"></div>'
+    + '<div id="pp-au-list" style="overflow:auto;padding:0 10px 6px"></div>'
+    + '<div style="padding:10px 18px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;gap:10px"><span style="font-size:11.5px;color:#64748b">Không thấy đơn vị cần thêm? Tạo đơn vị ở mục Quản lý tài khoản trước.</span>'
+    + '<button class="btn btn-primary" style="font-size:13px;padding:8px 16px;border-radius:18px" onclick="document.getElementById(\'pp_ov\').remove()">Xong</button></div></div>';
+  ov.onclick = function(){ ov.remove(); };
+  document.body.appendChild(ov);
+  window._ppAuAll = all;
+  _ppAddUnitFilter();
+  setTimeout(function(){ var e=document.getElementById('pp-au-q'); if(e) e.focus(); }, 60);
+}
+function _ppAddUnitFilter(){
+  var box = document.getElementById('pp-au-list'); if(!box) return;
+  var q = _cpNoMark((document.getElementById('pp-au-q')||{}).value||''), added = _PP_ADD[_PP.issuer]||{};
+  var list = (window._ppAuAll||[]).filter(function(u){ return !added[u.id] && (!q || _cpNoMark(u.name).indexOf(q)>=0 || _cpNoMark(_unitDistinctName(u)).indexOf(q)>=0); });
+  var more = list.length > 80; list = list.slice(0, 80);
+  box.innerHTML = (list.map(function(u){
+    var par = u.parent_id ? unitNameById(u.parent_id) : '';
+    return '<div onclick="_ppAddUnitPick(\''+u.id+'\')" style="padding:8px 10px;border-bottom:1px solid #f1f5f9;cursor:pointer;font-size:13px" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'\'">'
+      + '<b>'+_ppEsc(_unitDistinctName(u)||u.name)+'</b>'+(par?' <span style="color:#94a3b8;font-size:11.5px">· thuộc '+_ppEsc(_displayUnit(par)||par)+'</span>':'')+'</div>'; }).join('')
+    || '<div style="padding:16px;text-align:center;color:#94a3b8;font-size:13px">Không có đơn vị phù hợp</div>')
+    + (more ? '<div style="padding:8px 10px;color:#94a3b8;font-size:12px">… còn nữa — gõ thêm chữ để thu hẹp</div>' : '');
+}
+function _ppAddUnitPick(id){
+  if(!_PP.edit) return;
+  (_PP_ADD[_PP.issuer] = _PP_ADD[_PP.issuer] || {})[id] = 1;
+  ppRender(); _ppAddUnitFilter();
+  toast('Đã thêm dòng "'+(unitNameById(id)||'')+'" — gõ số rồi bấm Lưu bảng','#1a5276');
 }
 function ppTemplate(){
   if(typeof XLSX==='undefined'){ toast('Chưa tải được thư viện Excel','var(--danger)'); return; }
