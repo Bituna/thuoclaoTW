@@ -225,6 +225,28 @@ body{font-family:'Be Vietnam Pro',sans-serif;background:var(--bg);color:var(--te
 .vm-lbl{font-size:10px;font-weight:700;fill:#1a5276}
 .vm-lbl2{font-size:9px;fill:#5f6b7a}
 .vm-tip{position:absolute;display:none;pointer-events:none;background:#1a2332;color:#fff;font-size:12px;line-height:1.45;padding:7px 10px;border-radius:7px;max-width:290px;z-index:20;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.pp-empty{padding:26px;text-align:center;color:var(--muted);font-size:13px;background:#fff;border:1px dashed #cbd5e1;border-radius:12px;line-height:1.7}
+.pp-docs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.pp-chip{padding:6px 12px;border:1px solid #cbd5e1;border-radius:18px;background:#fff;color:#1a5276;font-size:12px;font-weight:700;cursor:pointer}
+.pp-chip.act{background:#1a5276;color:#fff;border-color:#1a5276}
+.pp-docinfo{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:12.5px;color:#334155}
+.pp-mini{padding:4px 10px;border:1px solid #cbd5e1;border-radius:14px;background:#fff;color:#334155;font-size:11.5px;font-weight:600;cursor:pointer}
+.pp-mini.pri{background:#1a5276;color:#fff;border-color:#1a5276}.pp-mini.dng{color:#dc2626;border-color:#fca5a5}
+.pp-tag{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700}.pp-tag.ok{background:#dcfce7;color:#166534}
+.pp-cap{text-align:center;font-size:13px;color:#1e293b;margin:6px 0 10px;line-height:1.7}.pp-cap div{font-size:12px;color:#475569}
+.pp-wrap{border:1px solid #cbd5e1;border-radius:12px;background:#fff;overflow:auto;max-height:68vh}
+.pp-tbl{border-collapse:separate;border-spacing:0;font-size:12px;min-width:100%}
+.pp-tbl td{border-bottom:1px solid #e2e8f0;border-right:1px solid #eef2f7;padding:6px 8px}
+.pp-tbl .pp-c{text-align:center}.pp-tbl .pp-u{position:sticky;left:0;background:#fff;z-index:1;text-align:left;font-weight:600;color:#1e293b;border-right:1px solid #cbd5e1;white-space:nowrap}
+.pp-tbl .pp-n{text-align:right;font-weight:700;white-space:nowrap}
+.pp-tbl .pp-n.ok{background:#dcfce7;color:#166534}.pp-tbl .pp-n.bad{background:#fee2e2;color:#b91c1c}.pp-tbl .pp-n.wait{background:#fef9c3;color:#854d0e}
+.pp-tbl .pp-grp{background:#eef2f7;font-weight:800;color:#334155;font-size:11.5px;text-align:left}
+.pp-tbl .pp-tot td{background:#f1f5f9;font-weight:800}.pp-tbl .pp-tot .pp-u{background:#f1f5f9}
+.pp-vh{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;max-height:150px;margin:0 auto;line-height:1.15}
+.pp-inp{width:74px;box-sizing:border-box;padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;text-align:right;font-weight:700}
+.pp-inp:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.15)}
+.pp-leg{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin-top:10px;font-size:11.5px;color:#475569}
+.pp-leg i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px;border:1px solid #e2e8f0}
 .vm-legend{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:8px;font-size:11px;color:#475569}
 .vm-legend i,.vm-dot{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .vm-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:10px}
@@ -1121,6 +1143,9 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
   <div class="sb-sec">Báo cáo</div>
   <button id="sb-bc" class="sb-item" onclick="nav('bc',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Báo cáo thuốc
+  </button>
+  <button id="sb-pp" class="sb-item" onclick="nav('pp',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="9" y1="4" x2="9" y2="20"/><line x1="15" y1="4" x2="15" y2="20"/></svg>Phân phối thuốc
   </button>
   <div class="sb-sec">Bệnh nhân</div>
   <button id="sb-bn" class="sb-item" onclick="nav('bn',this)">
@@ -2288,6 +2313,25 @@ div[id^="_"][id$="_modal"] > div, div[id="_cm_ov"] > div, div[id="_print_picker"
 </div>
 
 <!-- TÀI KHOẢN -->
+<div class="page" id="page-pp">
+  <div class="page-header">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div><h1>Phân phối thuốc</h1><p>Bảng phân phối theo văn bản của kho tuyến trên — đối chiếu với số đơn vị nhập về</p></div>
+      <div id="pp-tools" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+    </div>
+  </div>
+  <div class="page-body">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;font-size:12.5px;color:#475569">
+      <label>Năm <select id="pp-year" onchange="ppSetFilter()" style="padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px"></select></label>
+      <label>Quý <select id="pp-q" onchange="ppSetFilter()" style="padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px">
+        <option value="1">Quý 1</option><option value="2">Quý 2</option><option value="3">Quý 3</option><option value="4">Quý 4</option></select></label>
+      <label>Kho lập bảng <select id="pp-issuer" onchange="ppSetFilter()" style="padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;max-width:340px"></select></label>
+      <button class="btn btn-outline" style="font-size:12px;padding:6px 12px;border-radius:10px" onclick="ppReload(true)">↻ Tải lại</button>
+      <input type="file" id="pp-file" accept=".xlsx,.xls" style="display:none" onchange="ppImport(this)">
+    </div>
+    <div id="pp-root"><div class="pp-empty">Đang tải…</div></div>
+  </div>
+</div>
 <div class="page" id="page-tk">
 <div id="tk-app">
 <div class="main">
@@ -8057,6 +8101,7 @@ function nav(page,el){
   if(page==='tk')renderAccounts();
   if(page==='cd'){ _thrFillUI(); _fillUnitInfoUI(); _loadUnitInfo().then(_fillUnitInfoUI); _fillBackupYears(); _loadDeadlineCfg(true).then(_fillDeadlineUI); }
   if(page==='bn'){ renderPatientPage(); }
+  if(page==='pp'){ ppOpen(); }
 }
 
 // ============================================================
@@ -26797,6 +26842,684 @@ function vmSet(k,v){
   window.renderTQ=function(){ var r=_orig.apply(this, arguments); try{ if(_vmActive()) renderVNMap(); }catch(e){ console.warn('[vnmap]',e); } return r; };
 })();
 
+</script>
+<script>
+// ════════════════════════════════════════════════════════════════════════
+// PHÂN PHỐI THUỐC — bảng phân phối theo VĂN BẢN của kho tuyến trên (cần sql/12)
+//   Hàng = đơn vị nhận, cột = thuốc, ô = số lượng phân phối trong quý (KHÔNG có lô / hạn).
+//   Một quý có thể có nhiều văn bản; xem "Cộng cả quý" hoặc từng văn bản.
+//   Đối chiếu 3 số cho từng đơn vị × thuốc trong quý:
+//     PP  = số phân phối (cộng mọi văn bản gửi cho đơn vị)
+//     KX  = kho đã khai xuất (tab Cấp phát thuốc) — chỉ so khi kho có khai
+//     NH  = đơn vị đã nhập (cột Nhập tuyến trên / Nhập TW / Tỉnh cấp, cộng mọi lô, mọi tháng trong quý)
+//   Chỉ CẢNH BÁO khi lệch — không tự sửa số của ai.
+//   Đơn vị nhận: đánh dấu "đã nhận đủ" theo từng văn bản; gắn từng lô đã nhập với văn bản.
+// ════════════════════════════════════════════════════════════════════════
+var _PP = { year:null, q:null, issuer:null, docId:'all', docs:[], lines:[], recs:[], n1:{}, key:'', edit:null, missing:false, loading:false, allCols:false };
+
+function _ppEsc(x){ return _escH(x); }
+function _ppPeriod(){ return _PP.year+'-Q'+_PP.q; }
+function _ppMonths(){ return _monthsOfQ(_ppPeriod()).concat([_ppPeriod()]); }
+function _ppHd(extra){ return Object.assign({}, _supaHdr, {'Content-Type':'application/json'}, extra||{}); }
+function _ppNum(v){ var n = parseInt(String(v==null?'':v).replace(/[.,\s]/g,''), 10); return (isNaN(n) || n<0) ? 0 : n; }
+function _ppIn(ids){ return 'in.('+ids.map(function(x){ return '"'+x+'"'; }).join(',')+')'; }
+
+// Kho được lập bảng: mọi node CÓ đơn vị trực thuộc mà tài khoản nhìn thấy, cộng các tuyến trên của tài khoản
+// (để đơn vị nhận xem được bảng tuyến trên phân cho mình).
+function _ppIssuers(){
+  var out = [], seen = {};
+  var push = function(u){ if(u && !seen[u.id] && (_UNIT_CHILDREN[u.id]||[]).length){ seen[u.id]=1; out.push(u); } };
+  UNITS_TREE.forEach(function(u){ if(u.active!==false && (isAdmin() || canViewUnit(u.id))) push(u); });
+  if(!isAdmin() && currentUser && currentUser.unitId){
+    var u = UNIT_BY_ID[currentUser.unitId], g = 0;
+    while(u && u.parent_id && g++<20){ u = UNIT_BY_ID[u.parent_id]; push(u); }
+  }
+  out.sort(function(a,b){ return String(a.path).localeCompare(String(b.path),'vi'); });
+  return out;
+}
+function _ppCanEdit(){ return !!(_PP.issuer && (isAdmin() || canWriteUnit(_PP.issuer))); }
+// Đơn vị có thể nhận từ kho lập bảng: đơn vị trực thuộc; riêng Kho toàn quốc thêm các tỉnh dưới từng kho miền
+// (TW có đợt chia thẳng tới tỉnh, có đợt giao tổng cho kho miền). Dòng đầu: kho riêng của chính kho lập bảng.
+function _ppGroups(issuerId){
+  var me = UNIT_BY_ID[issuerId]; if(!me) return [];
+  var byPath = function(a,b){ return String(a.path).localeCompare(String(b.path),'vi'); };
+  var kids = (_UNIT_CHILDREN[issuerId]||[]).filter(function(u){ return u.active!==false; }).sort(byPath);
+  var groups = [{label:'Kho riêng', units:[me], self:true}];
+  if(me.utype === 'kho_tq'){
+    groups.push({label:'Kho miền / đơn vị trực thuộc Trung ương', units:kids});
+    kids.filter(function(k){ return k.utype==='kho_mien'; }).forEach(function(k){
+      var gk = (_UNIT_CHILDREN[k.id]||[]).filter(function(u){ return u.active!==false; }).sort(byPath);
+      if(gk.length) groups.push({label:'Các tỉnh thuộc '+(_displayUnit(k.name)||k.name), units:gk});
+    });
+  } else groups.push({label:'Đơn vị trực thuộc', units:kids});
+  return groups;
+}
+function _ppUnitLabel(u, self){ return self ? ('Kho riêng · '+(_displayUnit(u.name)||u.name)) : (_unitDistinctName(u) || u.name); }
+function _ppCanSeeUnit(id){ return isAdmin() || canViewUnit(id); }
+function _ppDrugs(){
+  var seen = {}, out = [];
+  (catalogData||[]).forEach(function(c){ var k=_normStr(c.drug); if(c.drug && !seen[k]){ seen[k]=1; out.push(c.drug); } });
+  (_PP.lines||[]).forEach(function(l){ var k=_normStr(l.drug); if(l.drug && !seen[k]){ seen[k]=1; out.push(l.drug); } });
+  return out;
+}
+
+// ── Mở trang ──
+function ppOpen(){
+  var yEl = document.getElementById('pp-year'), qEl = document.getElementById('pp-q'), iEl = document.getElementById('pp-issuer');
+  if(!yEl) return;
+  if(!_PP.year){
+    var now = new Date(), gp = null; try{ gp = getSelectedPeriod(); }catch(e){}
+    _PP.year = (gp && gp.year) ? String(gp.year) : String(now.getFullYear());
+    _PP.q = (gp && gp.type==='quarter') ? gp.q : ((gp && gp.type==='month') ? Math.floor((parseInt(String(gp.val).slice(5,7),10)-1)/3)+1 : Math.floor(now.getMonth()/3)+1);
+  }
+  var y0 = new Date().getFullYear(), ys = [];
+  for(var y=y0+1; y>=y0-4; y--) ys.push(y);
+  if(ys.indexOf(parseInt(_PP.year,10))<0) ys.push(parseInt(_PP.year,10));
+  yEl.innerHTML = ys.map(function(y){ return '<option value="'+y+'"'+(String(y)===String(_PP.year)?' selected':'')+'>'+y+'</option>'; }).join('');
+  qEl.value = String(_PP.q);
+  var iss = _ppIssuers();
+  if(!_PP.issuer || !iss.some(function(u){ return u.id===_PP.issuer; })){
+    var def = null;
+    if(isAdmin()) def = iss.filter(function(u){ return u.utype==='kho_tq'; })[0] || iss[0];
+    else {
+      var mine = currentUser && currentUser.unitId;
+      def = iss.filter(function(u){ return u.id===mine; })[0];
+      if(!def && mine && UNIT_BY_ID[mine]) def = iss.filter(function(u){ return u.id===UNIT_BY_ID[mine].parent_id; })[0];
+      def = def || iss[0];
+    }
+    _PP.issuer = def ? def.id : null;
+  }
+  iEl.innerHTML = iss.map(function(u){
+    var dep = Math.max(0, String(u.path||'').split('/').length-2), pad = new Array(dep+1).join('  ');
+    return '<option value="'+_ppEsc(u.id)+'"'+(u.id===_PP.issuer?' selected':'')+'>'+pad+_ppEsc(_unitDistinctName(u)||u.name)+'</option>'; }).join('')
+    || '<option value="">(không có kho nào)</option>';
+  ppReload(true);
+}
+function ppSetFilter(){
+  _PP.year = document.getElementById('pp-year').value;
+  _PP.q = parseInt(document.getElementById('pp-q').value, 10);
+  _PP.issuer = document.getElementById('pp-issuer').value || null;
+  _PP.docId = 'all'; _PP.edit = null;
+  ppReload(true);
+}
+
+// ── Tải dữ liệu quý: văn bản + dòng phân phối + ghi nhận + số đơn vị đã nhập (n1) ──
+async function ppReload(force){
+  var root = document.getElementById('pp-root'); if(!root) return;
+  if(!_supaOnline){ root.innerHTML = '<div class="pp-empty">Cần kết nối máy chủ để xem bảng phân phối.</div>'; return; }
+  var key = _ppPeriod()+'|'+(_PP.issuer||'');
+  if(!force && _PP.key === key && !_PP.loading){ ppRender(); return; }
+  _PP.loading = true; _PP.key = key;
+  root.innerHTML = '<div class="pp-empty">Đang tải bảng phân phối '+_ppEsc(_keyToLabel(_ppPeriod()))+'…</div>';
+  try{
+    var r = await fetch(SUPA_URL+'/rest/v1/pp_docs?period=eq.'+encodeURIComponent(_ppPeriod())+'&select=*&order=ngay_vb.asc,created_at.asc', {headers:_supaHdr, cache:'no-store'});
+    if(!r.ok){
+      var t = ''; try{ t = await r.text(); }catch(e){}
+      _PP.missing = (r.status===404 || /PGRST205|PGRST204|42P01|does not exist|Could not find the table/i.test(t));
+      _PP.loading = false;
+      root.innerHTML = '<div class="pp-empty">'+(_PP.missing
+        ? '⚠ Máy chủ chưa có bảng phân phối. Quản trị viên cần chạy file <b>sql/12_phan_phoi_thuoc.sql</b> trong Supabase rồi tải lại trang.'
+        : 'Không tải được bảng phân phối (HTTP '+r.status+').')+'</div>';
+      ppRenderTools(); return;
+    }
+    _PP.missing = false;
+    _PP.docs = await r.json();
+    _PP.lines = []; _PP.recs = [];
+    var ids = _PP.docs.map(function(d){ return d.id; });
+    if(ids.length){
+      var rs = await Promise.all([
+        fetch(SUPA_URL+'/rest/v1/pp_lines?doc_id='+_ppIn(ids)+'&select=*', {headers:_supaHdr, cache:'no-store'}),
+        fetch(SUPA_URL+'/rest/v1/pp_receipts?doc_id='+_ppIn(ids)+'&select=*', {headers:_supaHdr, cache:'no-store'})
+      ]);
+      _PP.lines = rs[0].ok ? await rs[0].json() : [];
+      _PP.recs  = rs[1].ok ? await rs[1].json() : [];
+    }
+    await _ppLoadN1();
+  }catch(e){
+    _PP.loading = false;
+    root.innerHTML = '<div class="pp-empty">Không tải được bảng phân phối: '+_ppEsc((e&&e.message)||e)+'</div>'; return;
+  }
+  _PP.loading = false;
+  if(_PP.docId !== 'all' && !_PP.docs.some(function(d){ return d.id===_PP.docId; })) _PP.docId = 'all';
+  ppRender();
+}
+// Số đơn vị ĐÃ NHẬP: cột Nhập tuyến trên (n1) trong báo cáo của các đơn vị có trong bảng, 3 tháng của quý + kỳ quý (Hàng 1)
+async function _ppLoadN1(){
+  _PP.n1 = {};
+  var ids = {};
+  _ppGroups(_PP.issuer).forEach(function(g){ g.units.forEach(function(u){ if(!g.self && _ppCanSeeUnit(u.id)) ids[u.id]=1; }); });
+  (_PP.lines||[]).forEach(function(l){ if(_ppCanSeeUnit(l.to_unit_id) && l.to_unit_id !== _PP.issuer) ids[l.to_unit_id]=1; });
+  var list = Object.keys(ids); if(!list.length) return;
+  var chunks = []; for(var i=0;i<list.length;i+=60) chunks.push(list.slice(i,i+60));
+  var jobs = [];
+  _ppMonths().forEach(function(per){ chunks.forEach(function(ch){ jobs.push(_fetchPeriodFromCloud(per, {unitIds:ch})); }); });
+  var res = await Promise.all(jobs);
+  res.forEach(function(rows){ (rows||[]).forEach(function(r){
+    var q = Number(r.n1)||0; if(q<=0 || r._agg) return;
+    var uid = _rowUid(r); if(!uid) return;
+    var k = uid+'|'+_normStr(r.drug), o = _PP.n1[k] || (_PP.n1[k] = {sum:0, lots:[]});
+    o.sum += q; o.lots.push({period:r.bcMonth||r.period||'', lot:r.lot||'', exp:r.exp||'', qty:q});
+  }); });
+}
+
+// ── Tính toán ──
+function _ppIssuerDocs(){ return _PP.docs.filter(function(d){ return d.from_unit_id === _PP.issuer; }); }
+function _ppDocById(id){ return _PP.docs.filter(function(d){ return d.id===id; })[0] || null; }
+function _ppDocLabel(d){ return (d.so_vb ? ('VB '+d.so_vb) : 'VB (chưa ghi số)')+(d.ngay_vb ? ' · '+_fmtDate(d.ngay_vb) : ''); }
+// Số phân phối cho 1 đơn vị × thuốc: scope 'view' = văn bản đang xem; 'issuer' = mọi VB của kho đang xem; 'all' = mọi kho
+function _ppQty(unitId, drug, scope){
+  var nd = _normStr(drug), s = 0;
+  var docOk = {};
+  _PP.docs.forEach(function(d){
+    if(scope==='all') docOk[d.id]=1;
+    else if(d.from_unit_id === _PP.issuer && (scope==='issuer' || _PP.docId==='all' || d.id===_PP.docId)) docOk[d.id]=1;
+  });
+  _PP.lines.forEach(function(l){ if(docOk[l.doc_id] && l.to_unit_id===unitId && _normStr(l.drug)===nd) s += Number(l.qty)||0; });
+  return s;
+}
+function _ppKX(unitId, drug){
+  var u = UNIT_BY_ID[unitId]; if(!u) return 0;
+  var nd = _normStr(drug), ms = {}, s = 0; _ppMonths().forEach(function(m){ ms[m]=1; });
+  (capPhatData||[]).forEach(function(r){ if(ms[r.bcMonth] && r.unit===u.name && _normStr(r.drug)===nd) s += Number(r.qty)||0; });
+  return s;
+}
+function _ppNH(unitId, drug){ var o = _PP.n1[unitId+'|'+_normStr(drug)]; return o ? o.sum : 0; }
+function _ppLinked(docId, unitId, drug){
+  var nd = _normStr(drug), s = 0;
+  _PP.recs.forEach(function(x){ if(x.kind==='link' && x.doc_id===docId && x.unit_id===unitId && _normStr(x.drug)===nd) s += Number(x.qty)||0; });
+  return s;
+}
+function _ppDone(docId, unitId){ return _PP.recs.filter(function(x){ return x.kind==='done' && x.doc_id===docId && x.unit_id===unitId; })[0] || null; }
+// Trạng thái đối chiếu cả quý của 1 ô
+function _ppCmp(unitId, drug, self){
+  var ppAll = _ppQty(unitId, drug, 'all'), kx = _ppKX(unitId, drug), nh = _ppNH(unitId, drug);
+  if(self) return {st:'na', ppAll:ppAll, kx:kx, nh:nh};
+  var st = (ppAll===0 && nh===0) ? 'none' : (nh===0 ? 'wait' : ((ppAll===nh && (kx===0 || kx===nh)) ? 'ok' : 'bad'));
+  return {st:st, ppAll:ppAll, kx:kx, nh:nh};
+}
+
+// ── Vẽ ──
+function ppRenderTools(){
+  var el = document.getElementById('pp-tools'); if(!el) return;
+  var can = _ppCanEdit() && !_PP.missing, one = (_PP.docId !== 'all'), ed = !!_PP.edit;
+  var b = function(lbl, fn, cls, show){ return show ? '<button class="btn '+cls+'" style="font-size:12px;padding:7px 12px;border-radius:10px" onclick="'+fn+'">'+lbl+'</button>' : ''; };
+  el.innerHTML = b('＋ Văn bản mới', 'ppDocForm()', 'btn-primary', can && !ed)
+    + b('✎ Sửa số liệu', 'ppEditStart()', 'btn-outline', can && one && !ed)
+    + b('💾 Lưu bảng', 'ppEditSave()', 'btn-success', ed)
+    + b('Hủy sửa', 'ppEditCancel()', 'btn-outline', ed)
+    + b('⬆ Tải Excel', "document.getElementById('pp-file').click()", 'btn-outline', can && one)
+    + b('⬇ File mẫu', 'ppTemplate()', 'btn-outline', can)
+    + b('⬇ Xuất Excel', 'ppExport()', 'btn-outline', !_PP.missing && !ed);
+}
+function ppPickDoc(id){ if(_PP.edit){ toast('Đang sửa bảng — Lưu hoặc Hủy sửa trước','var(--warning)'); return; } _PP.docId = id; ppRender(); }
+
+function ppRender(){
+  var root = document.getElementById('pp-root'); if(!root || _PP.missing) return;
+  ppRenderTools();
+  var issuer = UNIT_BY_ID[_PP.issuer];
+  if(!issuer){ root.innerHTML = '<div class="pp-empty">Không có kho nào để xem bảng phân phối.</div>'; return; }
+  var docs = _ppIssuerDocs(), ed = _PP.edit, one = (_PP.docId !== 'all'), curDoc = one ? _ppDocById(_PP.docId) : null;
+  var myUnit = currentUser && currentUser.unitId;
+
+  // 1) Danh sách văn bản
+  var h = '<div class="pp-docs"><button class="pp-chip'+(!one?' act':'')+'" onclick="ppPickDoc(\'all\')">Σ Cộng cả quý ('+docs.length+' văn bản)</button>'
+    + docs.map(function(d){ return '<button class="pp-chip'+(d.id===_PP.docId?' act':'')+'" onclick="ppPickDoc(\''+d.id+'\')" title="'+_ppEsc(d.title||'')+'">'+_ppEsc(_ppDocLabel(d))+'</button>'; }).join('')
+    + '</div>';
+  if(curDoc){
+    var dn = (myUnit && myUnit !== _PP.issuer) ? _ppDone(curDoc.id, myUnit) : null;
+    var hasMine = myUnit && _PP.lines.some(function(l){ return l.doc_id===curDoc.id && l.to_unit_id===myUnit; });
+    h += '<div class="pp-docinfo"><div><b>'+_ppEsc(_ppDocLabel(curDoc))+'</b>'+(curDoc.title?' — '+_ppEsc(curDoc.title):'')
+      + (curDoc.note?'<div style="color:#64748b;margin-top:2px">Ghi chú: '+_ppEsc(curDoc.note)+'</div>':'')+'</div><div style="display:flex;gap:6px;flex-wrap:wrap">'
+      + (hasMine && !isAdmin() ? (dn
+          ? '<span class="pp-tag ok">✓ Đơn vị đã nhận đủ'+(dn.received_date?' ngày '+_fmtDate(dn.received_date):'')+'</span><button class="pp-mini" onclick="ppMarkDone(\''+curDoc.id+'\',\''+myUnit+'\',false)">Bỏ đánh dấu</button>'
+          : '<button class="pp-mini pri" onclick="ppMarkDone(\''+curDoc.id+'\',\''+myUnit+'\',true)">✓ Đánh dấu đã nhận đủ văn bản này</button>') : '')
+      + (_ppCanEdit() && !ed ? '<button class="pp-mini" onclick="ppDocForm(\''+curDoc.id+'\')">Sửa thông tin VB</button><button class="pp-mini dng" onclick="ppDocDelete(\''+curDoc.id+'\')">Xóa VB</button>' : '')
+      + '</div></div>';
+  }
+  // Đơn vị vừa là kho lập bảng vừa là nơi nhận: nhắc có văn bản tuyến trên phân cho mình
+  if(myUnit && !isAdmin()){
+    var inc = {};
+    _PP.lines.forEach(function(l){ var d0 = _ppDocById(l.doc_id); if(d0 && l.to_unit_id===myUnit && d0.from_unit_id!==_PP.issuer) inc[d0.from_unit_id] = (inc[d0.from_unit_id]||0)+1; });
+    Object.keys(inc).forEach(function(fid){
+      var nDoc = _PP.docs.filter(function(d){ return d.from_unit_id===fid && _PP.lines.some(function(l){ return l.doc_id===d.id && l.to_unit_id===myUnit; }); }).length;
+      h = '<div class="pp-docinfo" style="background:#eff6ff;border-color:#bfdbfe"><div>📩 <b>'+_ppEsc(_displayUnit(unitNameById(fid))||unitNameById(fid))+'</b> có <b>'+nDoc+' văn bản</b> phân thuốc cho đơn vị bạn trong '+_ppEsc(_keyToLabel(_ppPeriod()))+'.</div>'
+        + '<button class="pp-mini pri" onclick="document.getElementById(\'pp-issuer\').value=\''+fid+'\';ppSetFilter()">Xem bảng đó</button></div>' + h;
+    });
+  }
+  if(!docs.length){
+    root.innerHTML = h + '<div class="pp-empty">'+_ppEsc(_displayUnit(issuer.name)||issuer.name)+' chưa có văn bản phân phối nào trong '+_ppEsc(_keyToLabel(_ppPeriod()))+'.'
+      + (_ppCanEdit() ? ' Bấm <b>＋ Văn bản mới</b> để bắt đầu.' : '')+'</div>';
+    return;
+  }
+
+  // 2) Hàng (đơn vị) và cột (thuốc)
+  var groups = _ppGroups(_PP.issuer), known = {};
+  groups.forEach(function(g){ g.units.forEach(function(u){ known[u.id]=1; }); });
+  var extra = [];   // đơn vị có số trong VB nhưng không còn nằm trong cây của kho (đổi cây sau khi lập bảng)
+  _PP.lines.forEach(function(l){ var d = _ppDocById(l.doc_id); if(d && d.from_unit_id===_PP.issuer && !known[l.to_unit_id] && UNIT_BY_ID[l.to_unit_id]){ known[l.to_unit_id]=1; extra.push(UNIT_BY_ID[l.to_unit_id]); } });
+  if(extra.length) groups.push({label:'Đơn vị khác', units:extra});
+  var drugs = _ppDrugs();
+  var hasQty = function(u, d){ return ed ? (ed.v[u.id+'|'+_normStr(d)]>0) : (_ppQty(u.id, d, 'view')>0); };
+  var cols = (ed || _PP.allCols) ? drugs : drugs.filter(function(d){ return groups.some(function(g){ return g.units.some(function(u){ return _ppCanSeeUnit(u.id) && hasQty(u,d); }); }); });
+  if(!cols.length) cols = drugs;
+
+  var TH = 'position:sticky;top:0;z-index:2;background:#1a5276;color:#fff;border-right:1px solid #244359;font-size:11px;font-weight:700;';
+  var t = '<table class="pp-tbl"><thead><tr><th style="'+TH+'width:38px;padding:6px 4px">Stt</th><th style="'+TH+'left:0;z-index:3;text-align:left;min-width:200px;padding:6px 8px">Tỉnh / Đơn vị</th>';
+  cols.forEach(function(d){ t += '<th style="'+TH+'padding:8px 4px;vertical-align:bottom;min-width:62px"><div class="pp-vh">'+_ppEsc(d)+'</div><div style="font-weight:400;opacity:.85;margin-top:4px">(viên)</div></th>'; });
+  t += '</tr></thead><tbody>';
+  var stt = 0, colTot = cols.map(function(){ return 0; }), nBad = 0, nOk = 0, nWait = 0, nRow = 0;
+  groups.forEach(function(g){
+    var us = g.units.filter(function(u){
+      if(!_ppCanSeeUnit(u.id)) return false;
+      return ed ? true : cols.some(function(d){ return hasQty(u,d); });
+    });
+    if(!us.length) return;
+    t += '<tr><td colspan="'+(cols.length+2)+'" class="pp-grp">'+_ppEsc(g.label)+'</td></tr>';
+    us.forEach(function(u){
+      stt++; nRow++;
+      t += '<tr><td class="pp-c" style="color:#64748b">'+stt+'</td><td class="pp-u">'+_ppEsc(_ppUnitLabel(u, g.self))
+        + ((one && !ed && !g.self && _ppDone(_PP.docId, u.id)) ? ' <span class="pp-tag ok" title="Đơn vị đã đánh dấu nhận đủ văn bản này">✓ đã nhận</span>' : '')+'</td>';
+      cols.forEach(function(d, j){
+        if(ed){
+          var k = u.id+'|'+_normStr(d), v = ed.v[k]||0; colTot[j] += v;
+          t += '<td class="pp-n"><input class="pp-inp" inputmode="numeric" value="'+(v?v:'')+'" data-k="'+_ppEsc(k)+'" data-j="'+j+'" oninput="ppEditInput(this)"></td>';
+          return;
+        }
+        var q = _ppQty(u.id, d, 'view'); colTot[j] += q;
+        var c = _ppCmp(u.id, d, g.self), cls = '', mark = '', tip = '';
+        if(!one){
+          if(c.st==='ok'){ cls=' ok'; mark=' ✓'; nOk++; } else if(c.st==='bad'){ cls=' bad'; mark=' ⚠'; nBad++; } else if(c.st==='wait' && c.ppAll>0){ cls=' wait'; nWait++; }
+          tip = g.self ? 'Kho riêng — không đối chiếu' : ('Phân phối: '+fmtNum(c.ppAll)+' · Kho khai xuất: '+(c.kx?fmtNum(c.kx):'chưa khai')+' · Đơn vị đã nhập: '+fmtNum(c.nh)
+              + (c.st==='bad' ? ' · LỆCH '+fmtNum(c.nh-c.ppAll) : (c.st==='ok' ? ' · khớp' : (c.st==='wait' ? ' · đơn vị chưa nhập' : ''))));
+        } else if(q>0 && !g.self){
+          var lk = _ppLinked(_PP.docId, u.id, d);
+          if(lk===q){ cls=' ok'; mark=' ✓'; } else if(lk>0){ cls=' bad'; mark=' ⚠'; }
+          tip = 'Văn bản này phân: '+fmtNum(q)+' · Đơn vị đã ghi nhận theo văn bản này: '+fmtNum(lk);
+        }
+        var show = (q>0 || c.st==='bad');
+        t += '<td class="pp-n'+cls+'" title="'+_ppEsc(tip)+'" '+(show && !g.self ? 'onclick="ppDetail(\''+u.id+'\','+j+')" style="cursor:pointer"' : '')+'>'+(q>0 ? fmtNum(q) : (c.st==='bad' && !one ? '0' : '-'))+mark+'</td>';
+      });
+      t += '</tr>';
+    });
+  });
+  t += '<tr class="pp-tot"><td></td><td class="pp-u">TỔNG CỘNG</td>'+colTot.map(function(v, j){ return '<td class="pp-n" id="pp-tot-'+j+'">'+(v?fmtNum(v):'-')+'</td>'; }).join('')+'</tr></tbody></table>';
+  window._ppCols = cols;
+
+  var cap = '<div class="pp-cap"><b>BẢNG PHÂN PHỐI THUỐC CHƯƠNG TRÌNH CHỐNG LAO — '+_ppEsc(_keyToLabel(_ppPeriod()).toUpperCase())+'</b>'
+    + '<div>Kho lập bảng: <b>'+_ppEsc(_displayUnit(issuer.name)||issuer.name)+'</b> · '+(one ? _ppEsc(_ppDocLabel(curDoc)) : ('cộng '+docs.length+' văn bản'))
+    + (ed ? ' · <span style="color:#b45309;font-weight:700">ĐANG SỬA — gõ số vào ô rồi bấm Lưu bảng</span>' : '')+'</div></div>';
+  var leg = ed ? '' : '<div class="pp-leg">'
+    + (!one ? '<span><i style="background:#dcfce7"></i>Khớp: phân phối = đơn vị đã nhập ('+nOk+')</span><span><i style="background:#fee2e2"></i>Lệch ('+nBad+')</span><span><i style="background:#fef9c3"></i>Đơn vị chưa nhập ('+nWait+')</span>'
+              + '<span style="color:#64748b">Số đơn vị nhập = cột Nhập tuyến trên, cộng mọi lô trong 3 tháng của quý. Bấm vào ô để xem từng văn bản, từng lô.</span>'
+            : '<span><i style="background:#dcfce7"></i>Đơn vị đã ghi nhận đủ theo văn bản này</span><span><i style="background:#fee2e2"></i>Ghi nhận chưa đủ / vượt</span><span style="color:#64748b">Đối chiếu số lượng theo cả quý: chọn "Σ Cộng cả quý".</span>')
+    + '<label style="margin-left:auto;cursor:pointer"><input type="checkbox" '+(_PP.allCols?'checked':'')+' onchange="_PP.allCols=this.checked;ppRender()" style="vertical-align:middle"> Hiện mọi thuốc trong danh mục</label></div>';
+  root.innerHTML = h + cap + '<div class="pp-wrap">'+t+'</div>' + leg;
+}
+
+// ── Văn bản: tạo / sửa / xóa ──
+function ppDocForm(id){
+  var d = id ? _ppDocById(id) : null, issuer = UNIT_BY_ID[_PP.issuer];
+  var old = document.getElementById('pp_ov'); if(old) old.remove();
+  var ov = document.createElement('div'); ov.id='pp_ov'; ov.className='app-popup';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999999;display:flex;align-items:center;justify-content:center';
+  var F='width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;margin:3px 0 10px';
+  ov.innerHTML = '<div onclick="event.stopPropagation()" style="background:#fff;border-radius:14px;width:min(460px,94vw);padding:18px 20px;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+    + '<div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:4px">'+(d?'Sửa thông tin văn bản':'Văn bản phân phối mới')+'</div>'
+    + '<div style="font-size:12px;color:#64748b;margin-bottom:12px">'+_ppEsc(_displayUnit(issuer.name)||issuer.name)+' · '+_ppEsc(_keyToLabel(_ppPeriod()))+'</div>'
+    + '<label style="font-size:12px;font-weight:700;color:#475569">Số văn bản</label><input id="pp-f-so" style="'+F+'" placeholder="vd 2014/BVPTƯ-DAPCL" value="'+_ppEsc(d?d.so_vb:'')+'">'
+    + '<label style="font-size:12px;font-weight:700;color:#475569">Ngày văn bản</label><input id="pp-f-ngay" type="date" style="'+F+'" value="'+_ppEsc(d&&d.ngay_vb?String(d.ngay_vb).slice(0,10):'')+'">'
+    + '<label style="font-size:12px;font-weight:700;color:#475569">Tiêu đề / phạm vi</label><input id="pp-f-title" style="'+F+'" placeholder="vd Dành cho các tỉnh thuộc khu vực miền Bắc" value="'+_ppEsc(d?d.title:'')+'">'
+    + '<label style="font-size:12px;font-weight:700;color:#475569">Ghi chú</label><input id="pp-f-note" style="'+F+'" value="'+_ppEsc(d?d.note:'')+'">'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px"><button class="btn btn-outline" style="font-size:13px;padding:8px 16px;border-radius:18px" onclick="document.getElementById(\'pp_ov\').remove()">Hủy</button>'
+    + '<button class="btn btn-primary" id="pp-f-ok" style="font-size:13px;padding:8px 16px;border-radius:18px" onclick="ppDocSave('+(d?'\''+d.id+'\'':'null')+')">'+(d?'Lưu':'Tạo văn bản')+'</button></div></div>';
+  ov.onclick = function(){ ov.remove(); };
+  document.body.appendChild(ov);
+  setTimeout(function(){ var e=document.getElementById('pp-f-so'); if(e) e.focus(); }, 60);
+}
+async function ppDocSave(id){
+  var so = document.getElementById('pp-f-so').value.trim(), ng = document.getElementById('pp-f-ngay').value || null;
+  if(!so){ toast('Nhập số văn bản','var(--warning)'); return; }
+  var body = {so_vb:so, ngay_vb:ng, title:document.getElementById('pp-f-title').value.trim(), note:document.getElementById('pp-f-note').value.trim()};
+  var btn = document.getElementById('pp-f-ok'); if(btn){ btn.disabled = true; btn.textContent = 'Đang lưu…'; }
+  try{
+    var r;
+    if(id) r = await fetch(SUPA_URL+'/rest/v1/pp_docs?id=eq.'+encodeURIComponent(id), {method:'PATCH', headers:_ppHd({'Prefer':'return=representation'}), body:JSON.stringify(body)});
+    else { body.from_unit_id = _PP.issuer; body.period = _ppPeriod();
+      r = await fetch(SUPA_URL+'/rest/v1/pp_docs', {method:'POST', headers:_ppHd({'Prefer':'return=representation'}), body:JSON.stringify([body])}); }
+    if(!r.ok) throw new Error(await _ppErr(r));
+    var rows = await r.json(), nd = rows && rows[0];
+    var ov = document.getElementById('pp_ov'); if(ov) ov.remove();
+    toast(id ? '✓ Đã lưu thông tin văn bản' : '✓ Đã tạo văn bản — bấm "Sửa số liệu" hoặc "Tải Excel" để nhập số','var(--success)');
+    if(nd && nd.id) _PP.docId = nd.id;
+    await ppReload(true);
+    if(!id && nd && nd.id) ppEditStart();
+  }catch(e){ toast('✗ Không lưu được văn bản: '+((e&&e.message)||e),'var(--danger)'); if(btn){ btn.disabled=false; btn.textContent = id?'Lưu':'Tạo văn bản'; } }
+}
+async function _ppErr(r){ var t=''; try{ t = await r.text(); }catch(e){} var m=t; try{ m = JSON.parse(t).message || t; }catch(e){} return String(m||('HTTP '+r.status)).slice(0,200); }
+function ppDocDelete(id){
+  var d = _ppDocById(id); if(!d) return;
+  var n = _PP.lines.filter(function(l){ return l.doc_id===id; }).length;
+  _confirmModal('Xóa văn bản phân phối?', 'Xóa <b>'+_ppEsc(_ppDocLabel(d))+'</b> cùng <b>'+n+' ô số liệu</b> và mọi ghi nhận của đơn vị theo văn bản này.<br><br>Không khôi phục được. Báo cáo của các đơn vị KHÔNG bị thay đổi.',
+    async function(){
+      try{
+        var r = await fetch(SUPA_URL+'/rest/v1/pp_docs?id=eq.'+encodeURIComponent(id), {method:'DELETE', headers:_ppHd({'Prefer':'return=minimal'})});
+        if(!r.ok) throw new Error(await _ppErr(r));
+        toast('Đã xóa văn bản','var(--warning)'); _PP.docId='all'; await ppReload(true);
+      }catch(e){ toast('✗ Không xóa được: '+((e&&e.message)||e),'var(--danger)'); }
+    }, null, 'Xóa văn bản');
+}
+
+// ── Sửa số liệu của 1 văn bản ──
+function ppEditStart(preset){
+  if(!_ppCanEdit() || _PP.docId==='all') return;
+  var v = {};
+  _PP.lines.forEach(function(l){ if(l.doc_id===_PP.docId) v[l.to_unit_id+'|'+_normStr(l.drug)] = Number(l.qty)||0; });
+  if(preset) Object.keys(preset).forEach(function(k){ v[k] = preset[k]; });
+  _PP.edit = {v:v};
+  ppRender();
+}
+function ppEditCancel(){ _PP.edit = null; ppRender(); }
+function ppEditInput(inp){
+  if(!_PP.edit) return;
+  var n = _ppNum(inp.value);
+  if(inp.value !== '' && String(n) !== inp.value.replace(/[.,\s]/g,'')) inp.style.background = '#fee2e2'; else inp.style.background = '';
+  _PP.edit.v[inp.getAttribute('data-k')] = n;
+  var j = inp.getAttribute('data-j'), s = 0;
+  document.querySelectorAll('#pp-root .pp-inp[data-j="'+j+'"]').forEach(function(e){ s += _ppNum(e.value); });
+  var te = document.getElementById('pp-tot-'+j); if(te) te.textContent = s ? fmtNum(s) : '-';
+}
+async function ppEditSave(){
+  if(!_PP.edit || _PP.docId==='all') return;
+  var docId = _PP.docId, v = _PP.edit.v, drugName = {};
+  _ppDrugs().forEach(function(d){ drugName[_normStr(d)] = d; });
+  var old = {}; _PP.lines.forEach(function(l){ if(l.doc_id===docId) old[l.to_unit_id+'|'+_normStr(l.drug)] = l; });
+  var up = [], del = [];
+  Object.keys(v).forEach(function(k){
+    var q = v[k]||0, o = old[k], i = k.indexOf('|'), uid = k.slice(0,i), nd = k.slice(i+1);
+    if(q>0){ if(!o || Number(o.qty)!==q) up.push({doc_id:docId, to_unit_id:uid, drug:(o?o.drug:(drugName[nd]||nd)), qty:q}); }
+    else if(o) del.push(o.id);
+  });
+  if(!up.length && !del.length){ _PP.edit = null; ppRender(); toast('Không có thay đổi','#64748b'); return; }
+  try{
+    for(var i=0;i<up.length;i+=300){
+      var r = await fetch(SUPA_URL+'/rest/v1/pp_lines?on_conflict=doc_id,to_unit_id,drug', {method:'POST',
+        headers:_ppHd({'Prefer':'resolution=merge-duplicates,return=minimal'}), body:JSON.stringify(up.slice(i,i+300))});
+      if(!r.ok) throw new Error(await _ppErr(r));
+    }
+    for(var j=0;j<del.length;j+=100){
+      var r2 = await fetch(SUPA_URL+'/rest/v1/pp_lines?id=in.('+del.slice(j,j+100).join(',')+')', {method:'DELETE', headers:_ppHd({'Prefer':'return=minimal'})});
+      if(!r2.ok) throw new Error(await _ppErr(r2));
+    }
+    _PP.edit = null;
+    toast('✓ Đã lưu bảng phân phối ('+up.length+' ô ghi, '+del.length+' ô xóa)','var(--success)');
+    await ppReload(true);
+  }catch(e){ toast('✗ Chưa lưu được: '+((e&&e.message)||e)+' — số trên màn hình vẫn giữ, bấm Lưu bảng để thử lại.','var(--danger)'); }
+}
+
+// ── Excel: file mẫu / tải lên / xuất ──
+function _ppFlatUnits(){
+  var out = [];
+  _ppGroups(_PP.issuer).forEach(function(g){ g.units.forEach(function(u){ out.push({u:u, self:!!g.self, label:_ppUnitLabel(u, g.self), group:g.label}); }); });
+  return out;
+}
+function ppTemplate(){
+  if(typeof XLSX==='undefined'){ toast('Chưa tải được thư viện Excel','var(--danger)'); return; }
+  var drugs = _ppDrugs(), issuer = UNIT_BY_ID[_PP.issuer];
+  var aoa = [['BẢNG PHÂN PHỐI THUỐC — '+_keyToLabel(_ppPeriod())+' — '+(issuer?issuer.name:'')],
+             ['Điền số lượng (viên) vào các ô. KHÔNG đổi tên đơn vị và tên thuốc. Ô trống = không phân.'], [],
+             ['Stt','Tỉnh / Đơn vị'].concat(drugs)];
+  _ppFlatUnits().forEach(function(x, i){ aoa.push([i+1, x.label].concat(drugs.map(function(){ return ''; }))); });
+  var ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = [{wch:5},{wch:38}].concat(drugs.map(function(){ return {wch:16}; }));
+  var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Phân phối');
+  XLSX.writeFile(wb, 'Mau_PhanPhoiThuoc_'+_ppPeriod()+'.xlsx');
+}
+function ppImport(inp){
+  var f = inp.files && inp.files[0]; inp.value = '';
+  if(!f) return;
+  if(_PP.docId==='all' || !_ppCanEdit()){ toast('Chọn 1 văn bản trước khi tải Excel','var(--warning)'); return; }
+  var rd = new FileReader();
+  rd.onload = function(e){
+    try{
+      var wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+      var aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:''});
+      var hi = -1;
+      for(var i=0;i<Math.min(aoa.length,30);i++){ if(aoa[i].some(function(c){ return /t[ỉi]nh\s*\/\s*[đd][ơo]n\s*v[ịi]/i.test(String(c)); })){ hi = i; break; } }
+      if(hi<0){ toast('⛔ Không tìm thấy dòng tiêu đề có cột "Tỉnh / Đơn vị" — dùng File mẫu.','var(--danger)'); return; }
+      var head = aoa[hi], uc = -1;
+      head.forEach(function(c, j){ if(uc<0 && /t[ỉi]nh\s*\/\s*[đd][ơo]n\s*v[ịi]/i.test(String(c))) uc = j; });
+      var dmap = {}; _ppDrugs().forEach(function(d){ dmap[_normStr(d)] = d; });
+      var dcol = [], badDrug = [];
+      head.forEach(function(c, j){ if(j<=uc) return; var s=_normStr(c); if(!s) return; if(dmap[s]) dcol.push({j:j, d:dmap[s]}); else badDrug.push(String(c)); });
+      var key = function(s){ return _cpNoMark(String(s||'').replace(/\s+/g,' ')); };
+      var umap = {}; _ppFlatUnits().forEach(function(x){ umap[key(x.label)] = x.u.id; if(!x.self && !(key(x.u.name) in umap)) umap[key(x.u.name)] = x.u.id; });
+      var preset = {}, badUnit = [], badNum = [], n = 0;
+      for(var r=hi+1;r<aoa.length;r++){
+        var nm = String(aoa[r][uc]||'').trim(); if(!nm || /^t[ổo]ng/i.test(nm)) continue;
+        var uid = umap[key(nm)];
+        var any = dcol.some(function(c){ return String(aoa[r][c.j]).trim() !== '' && String(aoa[r][c.j]).trim() !== '-'; });
+        if(!uid){ if(any) badUnit.push(nm); continue; }
+        dcol.forEach(function(c){
+          var raw = String(aoa[r][c.j]).trim(); if(raw==='' || raw==='-') return;
+          var cl = raw.replace(/[.,\s]/g,'');
+          if(!/^\d+$/.test(cl)){ badNum.push(nm+' / '+c.d+': '+raw); return; }
+          preset[uid+'|'+_normStr(c.d)] = parseInt(cl,10); n++;
+        });
+      }
+      if(badUnit.length || badNum.length || badDrug.length){
+        _confirmModal('⛔ File chưa nhập được', '<div style="line-height:1.7;font-size:12.5px">'
+          + (badDrug.length ? '<b>Tên thuốc không có trong danh mục:</b> '+badDrug.slice(0,8).map(_ppEsc).join(', ')+'<br>' : '')
+          + (badUnit.length ? '<b>Tên đơn vị không khớp:</b> '+badUnit.slice(0,8).map(_ppEsc).join(', ')+'<br>' : '')
+          + (badNum.length ? '<b>Ô không phải số nguyên ≥ 0:</b> '+badNum.slice(0,8).map(_ppEsc).join('; ')+'<br>' : '')
+          + '<br>Chưa ghi gì. Tải <b>File mẫu</b> (đúng tên đơn vị và tên thuốc), điền lại rồi tải lên.</div>', function(){}, null, 'Đã hiểu');
+        return;
+      }
+      if(!n){ toast('File không có số lượng nào','var(--warning)'); return; }
+      ppEditStart(preset);
+      toast('Đã đọc '+n+' ô từ Excel — KIỂM TRA lại trên bảng rồi bấm "Lưu bảng".','#1a5276');
+    }catch(err){ toast('⛔ Không đọc được file Excel: '+((err&&err.message)||err),'var(--danger)'); }
+  };
+  rd.readAsArrayBuffer(f);
+}
+function ppExport(){
+  if(typeof XLSX==='undefined'){ toast('Chưa tải được thư viện Excel','var(--danger)'); return; }
+  var cols = window._ppCols || _ppDrugs(), issuer = UNIT_BY_ID[_PP.issuer], one = (_PP.docId!=='all'), d = one ? _ppDocById(_PP.docId) : null;
+  var aoa = [['BẢNG PHÂN PHỐI THUỐC CHƯƠNG TRÌNH CHỐNG LAO — '+_keyToLabel(_ppPeriod()).toUpperCase()],
+             ['Kho lập bảng: '+(issuer?issuer.name:'')+' · '+(d ? _ppDocLabel(d)+(d.title?' — '+d.title:'') : 'Cộng các văn bản trong quý')], [],
+             ['Stt','Tỉnh / Đơn vị'].concat(cols)];
+  var tot = cols.map(function(){ return 0; }), stt = 0;
+  _ppFlatUnits().forEach(function(x){
+    if(!_ppCanSeeUnit(x.u.id)) return;
+    var vals = cols.map(function(dn){ return _ppQty(x.u.id, dn, 'view'); });
+    if(!vals.some(function(v){ return v>0; })) return;
+    vals.forEach(function(v, j){ tot[j] += v; });
+    aoa.push([++stt, x.label].concat(vals.map(function(v){ return v || ''; })));
+  });
+  aoa.push(['', 'TỔNG CỘNG'].concat(tot));
+  if(!one){
+    aoa.push([]); aoa.push(['ĐỐI CHIẾU CẢ QUÝ (chỉ các ô lệch hoặc đơn vị chưa nhập)']);
+    aoa.push(['Đơn vị','Thuốc','Phân phối','Kho khai xuất','Đơn vị đã nhập','Chênh (nhập − phân phối)','Tình trạng']);
+    _ppFlatUnits().forEach(function(x){ if(x.self || !_ppCanSeeUnit(x.u.id)) return; _ppDrugs().forEach(function(dn){
+      var c = _ppCmp(x.u.id, dn, false); if(c.st==='ok' || c.st==='none') return;
+      aoa.push([x.label, dn, c.ppAll, c.kx||'', c.nh, c.nh-c.ppAll, c.st==='bad'?'Lệch':'Đơn vị chưa nhập']); }); });
+  }
+  var ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = [{wch:6},{wch:38}].concat(cols.map(function(){ return {wch:16}; }));
+  var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Phân phối');
+  XLSX.writeFile(wb, 'PhanPhoiThuoc_'+_ppPeriod()+(d&&d.so_vb?'_VB'+String(d.so_vb).replace(/[^0-9A-Za-z]/g,''):'')+'.xlsx');
+}
+
+// ── Chi tiết 1 ô: từng văn bản + từng lô đơn vị đã nhập; đơn vị gắn lô ↔ văn bản, đánh dấu đã nhận đủ ──
+function ppDetail(unitId, j){
+  var drug = (window._ppCols||[])[j]; if(!drug) return;
+  _ppDetailOpen(unitId, drug);
+}
+function _ppDetailOpen(unitId, drug){
+  var u = UNIT_BY_ID[unitId]; if(!u) return;
+  var old = document.getElementById('pp_ov'); if(old) old.remove();
+  var nd = _normStr(drug), c = _ppCmp(unitId, drug, false), canRec = (isAdmin() || canWriteUnit(unitId));
+  var TH='padding:6px 8px;background:#f1f5f9;font-size:11px;font-weight:700;color:#475569;text-align:left;border-bottom:1px solid #cbd5e1', TD='padding:6px 8px;border-bottom:1px solid #eef2f7;font-size:12px';
+  var dl = [];   // văn bản có phân thuốc này cho đơn vị (mọi kho)
+  _PP.docs.forEach(function(d){
+    var q = 0; _PP.lines.forEach(function(l){ if(l.doc_id===d.id && l.to_unit_id===unitId && _normStr(l.drug)===nd) q += Number(l.qty)||0; });
+    if(q>0) dl.push({d:d, q:q});
+  });
+  var t1 = dl.map(function(x){
+    var lk = _ppLinked(x.d.id, unitId, drug), dn = _ppDone(x.d.id, unitId);
+    return '<tr><td style="'+TD+';font-weight:700">'+_ppEsc(x.d.so_vb||'—')+'</td><td style="'+TD+'">'+_ppEsc(x.d.ngay_vb?_fmtDate(x.d.ngay_vb):'—')+'</td><td style="'+TD+'">'+_ppEsc(_displayUnit(unitNameById(x.d.from_unit_id))||'')+'</td>'
+      + '<td style="'+TD+';text-align:right;font-weight:800;color:#0d6632">'+fmtNum(x.q)+'</td>'
+      + '<td style="'+TD+';text-align:right;font-weight:700;color:'+(lk===x.q?'#16a34a':(lk>0?'#dc2626':'#94a3b8'))+'">'+(lk?fmtNum(lk):'—')+(lk===x.q?' ✓':'')+'</td>'
+      + '<td style="'+TD+'">'+(dn ? '<span style="color:#16a34a;font-weight:700">✓ '+(dn.received_date?_fmtDate(dn.received_date):'đã nhận')+'</span>' : '<span style="color:#94a3b8">chưa đánh dấu</span>')
+      + (canRec ? ' <button class="pp-mini'+(dn?'':' pri')+'" onclick="ppMarkDone(\''+x.d.id+'\',\''+unitId+'\','+(dn?'false':'true')+',\''+_jsEsc(drug)+'\')">'+(dn?'Bỏ':'Đã nhận đủ VB')+'</button>' : '')+'</td></tr>'; }).join('');
+  var lots = ((_PP.n1[unitId+'|'+nd]||{}).lots||[]).slice().sort(function(a,b){ return String(a.period).localeCompare(String(b.period)) || String(a.lot).localeCompare(String(b.lot)); });
+  var t2 = lots.map(function(L, i){
+    var cur = _PP.recs.filter(function(x){ return x.kind==='link' && x.unit_id===unitId && _normStr(x.drug)===nd && x.period===L.period && x.lot===L.lot && (x.exp||'')===(L.exp||''); })[0];
+    var sel = canRec
+      ? '<select onchange="ppLinkLot(\''+unitId+'\',\''+_jsEsc(drug)+'\','+i+',this.value)" style="padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;max-width:190px"><option value="">— chưa ghi —</option>'
+        + dl.map(function(x){ return '<option value="'+x.d.id+'"'+(cur && cur.doc_id===x.d.id?' selected':'')+'>'+_ppEsc(_ppDocLabel(x.d))+'</option>'; }).join('')+'</select>'
+      : (cur ? _ppEsc(_ppDocLabel(_ppDocById(cur.doc_id)||{})) : '<span style="color:#94a3b8">chưa ghi</span>');
+    return '<tr><td style="'+TD+'">'+_ppEsc(_keyToLabel(L.period))+'</td><td style="'+TD+'">'+_ppEsc(L.lot)+'</td><td style="'+TD+'">'+_ppEsc(expToMMYYYY(L.exp))+'</td>'
+      + '<td style="'+TD+';text-align:right;font-weight:800;color:#b91c1c">'+fmtNum(L.qty)+'</td><td style="'+TD+'">'+sel+'</td></tr>'; }).join('');
+  window._ppDetLots = lots;
+  var stTxt = {ok:'<span style="color:#16a34a">✓ KHỚP</span>', bad:'<span style="color:#dc2626">⚠ LỆCH '+fmtNum(c.nh-c.ppAll)+'</span>', wait:'<span style="color:#b45309">Đơn vị chưa nhập</span>', none:'—'}[c.st] || '';
+  var box = function(lbl, v, col){ return '<div style="flex:1;min-width:120px;border:1px solid #e2e8f0;border-radius:10px;padding:8px 10px"><div style="font-size:11px;color:#64748b">'+lbl+'</div><div style="font-size:17px;font-weight:800;color:'+col+'">'+v+'</div></div>'; };
+  var ov = document.createElement('div'); ov.id='pp_ov'; ov.className='app-popup';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999999;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML = '<div onclick="event.stopPropagation()" style="background:#fff;border-radius:14px;width:min(820px,95vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+    + '<div style="padding:14px 18px;background:#1a5276;color:#fff;display:flex;justify-content:space-between;gap:10px"><div><div style="font-size:15px;font-weight:800">'+_ppEsc(drug)+'</div>'
+    + '<div style="font-size:12px;opacity:.9;margin-top:2px">'+_ppEsc(_unitDistinctName(u)||u.name)+' · '+_ppEsc(_keyToLabel(_ppPeriod()))+'</div></div>'
+    + '<button onclick="document.getElementById(\'pp_ov\').remove()" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer;line-height:1">&times;</button></div>'
+    + '<div style="padding:14px 18px;overflow:auto">'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'+box('Phân phối (mọi văn bản)', fmtNum(c.ppAll), '#0d6632')+box('Kho khai xuất (Cấp phát)', c.kx?fmtNum(c.kx):'chưa khai', '#1a5276')+box('Đơn vị đã nhập', fmtNum(c.nh), '#b91c1c')+box('Kết quả cả quý', stTxt, '#1e293b')+'</div>'
+    + '<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:6px">1. Văn bản phân phối</div>'
+    + '<div style="border:1px solid #e2e8f0;border-radius:10px;overflow:auto;margin-bottom:14px"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="'+TH+'">Số VB</th><th style="'+TH+'">Ngày</th><th style="'+TH+'">Kho lập</th><th style="'+TH+';text-align:right">SL phân</th><th style="'+TH+';text-align:right">ĐV ghi nhận</th><th style="'+TH+'">Nhận đủ văn bản</th></tr></thead>'
+    + '<tbody>'+(t1||'<tr><td colspan="6" style="'+TD+';text-align:center;color:#94a3b8">Không có văn bản nào phân thuốc này cho đơn vị trong quý</td></tr>')+'</tbody></table></div>'
+    + '<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:6px">2. Đơn vị đã nhập <span style="font-weight:500;color:#64748b">(cột Nhập tuyến trên trong báo cáo — theo lô, hạn dùng)</span></div>'
+    + '<div style="border:1px solid #e2e8f0;border-radius:10px;overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="'+TH+'">Kỳ báo cáo</th><th style="'+TH+'">Số lô</th><th style="'+TH+'">Hạn dùng</th><th style="'+TH+';text-align:right">SL nhập</th><th style="'+TH+'">Nhận theo văn bản</th></tr></thead>'
+    + '<tbody>'+(t2||'<tr><td colspan="5" style="'+TD+';text-align:center;color:#94a3b8">Đơn vị chưa nhập thuốc này trong quý</td></tr>')+'</tbody></table></div>'
+    + '</div></div>';
+  ov.onclick = function(){ ov.remove(); };
+  document.body.appendChild(ov);
+}
+async function ppLinkLot(unitId, drug, i, docId){
+  var L = (window._ppDetLots||[])[i]; if(!L) return;
+  var nd = _normStr(drug);
+  try{
+    var olds = _PP.recs.filter(function(x){ return x.kind==='link' && x.unit_id===unitId && _normStr(x.drug)===nd && x.period===L.period && x.lot===L.lot && (x.exp||'')===(L.exp||''); });
+    if(olds.length){
+      var rd = await fetch(SUPA_URL+'/rest/v1/pp_receipts?id=in.('+olds.map(function(x){ return x.id; }).join(',')+')', {method:'DELETE', headers:_ppHd({'Prefer':'return=minimal'})});
+      if(!rd.ok) throw new Error(await _ppErr(rd));
+      _PP.recs = _PP.recs.filter(function(x){ return olds.indexOf(x)<0; });
+    }
+    if(docId){
+      var r = await fetch(SUPA_URL+'/rest/v1/pp_receipts', {method:'POST', headers:_ppHd({'Prefer':'return=representation'}),
+        body:JSON.stringify([{doc_id:docId, unit_id:unitId, kind:'link', period:L.period, drug:drug, lot:L.lot, exp:L.exp||'', qty:L.qty}])});
+      if(!r.ok) throw new Error(await _ppErr(r));
+      var rows = await r.json(); if(rows && rows[0]) _PP.recs.push(rows[0]);
+    }
+    toast(docId ? '✓ Đã ghi nhận lô theo văn bản' : 'Đã bỏ ghi nhận','var(--success)');
+  }catch(e){ toast('✗ Chưa ghi được: '+((e&&e.message)||e),'var(--danger)'); }
+  ppRender(); _ppDetailOpen(unitId, drug);
+}
+async function ppMarkDone(docId, unitId, on, drugForDetail){
+  try{
+    if(on){
+      var r = await fetch(SUPA_URL+'/rest/v1/pp_receipts?on_conflict=doc_id,unit_id,kind,period,drug,lot,exp', {method:'POST',
+        headers:_ppHd({'Prefer':'resolution=merge-duplicates,return=representation'}),
+        body:JSON.stringify([{doc_id:docId, unit_id:unitId, kind:'done', period:'', drug:'', lot:'', exp:'', qty:0, received_date:_isoLocalPP(new Date())}])});
+      if(!r.ok) throw new Error(await _ppErr(r));
+      var rows = await r.json();
+      _PP.recs = _PP.recs.filter(function(x){ return !(x.kind==='done' && x.doc_id===docId && x.unit_id===unitId); });
+      if(rows && rows[0]) _PP.recs.push(rows[0]);
+      toast('✓ Đã đánh dấu nhận đủ văn bản','var(--success)');
+    } else {
+      var r2 = await fetch(SUPA_URL+'/rest/v1/pp_receipts?doc_id=eq.'+encodeURIComponent(docId)+'&unit_id=eq.'+encodeURIComponent(unitId)+'&kind=eq.done', {method:'DELETE', headers:_ppHd({'Prefer':'return=minimal'})});
+      if(!r2.ok) throw new Error(await _ppErr(r2));
+      _PP.recs = _PP.recs.filter(function(x){ return !(x.kind==='done' && x.doc_id===docId && x.unit_id===unitId); });
+      toast('Đã bỏ đánh dấu','var(--warning)');
+    }
+  }catch(e){ toast('✗ Chưa ghi được: '+((e&&e.message)||e),'var(--danger)'); }
+  ppRender(); if(drugForDetail) _ppDetailOpen(unitId, drugForDetail);
+}
+function _isoLocalPP(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+
+// ── Ngay lúc đơn vị gõ số vào ô Nhập tuyến trên ở tab Báo cáo: hỏi "nhận theo văn bản nào" ──
+//   Chỉ hỏi khi quý đó có văn bản phân thuốc này cho đơn vị và lô chưa được ghi nhận. Có nút Bỏ qua (không hỏi lại lô đó trong phiên).
+var _ppAskSkip = {}, _ppAskCache = {};
+async function _ppDocsForUnit(unitId, period){
+  var ck = unitId+'|'+period, c = _ppAskCache[ck];
+  if(c && Date.now()-c.ts < 120000) return c.v;
+  var out = {docs:[], lines:[], recs:[]};
+  try{
+    var rd = await fetch(SUPA_URL+'/rest/v1/pp_lines?to_unit_id=eq.'+encodeURIComponent(unitId)+'&select=doc_id,drug,qty', {headers:_supaHdr, cache:'no-store'});
+    if(!rd.ok){ _ppAskCache[ck] = {ts:Date.now(), v:null}; return null; }
+    var lines = await rd.json(), ids = {}; lines.forEach(function(l){ ids[l.doc_id]=1; });
+    var list = Object.keys(ids);
+    if(list.length){
+      var r2 = await fetch(SUPA_URL+'/rest/v1/pp_docs?id='+_ppIn(list)+'&period=eq.'+encodeURIComponent(period)+'&select=*', {headers:_supaHdr, cache:'no-store'});
+      out.docs = r2.ok ? await r2.json() : [];
+      var ok = {}; out.docs.forEach(function(d){ ok[d.id]=1; });
+      out.lines = lines.filter(function(l){ return ok[l.doc_id]; });
+      if(out.docs.length){
+        var r3 = await fetch(SUPA_URL+'/rest/v1/pp_receipts?unit_id=eq.'+encodeURIComponent(unitId)+'&kind=eq.link&doc_id='+_ppIn(out.docs.map(function(d){ return d.id; }))+'&select=*', {headers:_supaHdr, cache:'no-store'});
+        out.recs = r3.ok ? await r3.json() : [];
+      }
+    }
+  }catch(e){ return null; }
+  _ppAskCache[ck] = {ts:Date.now(), v:out};
+  return out;
+}
+async function _ppAskLink(row, qty){
+  try{
+    if(!_supaOnline || !row || !(qty>0)) return;
+    var uid = _rowUid(row); if(!uid || !(isAdmin() || canWriteUnit(uid))) return;
+    var per = row.bcMonth || _currentPeriodKey(); if(!per) return;
+    var qk = _isQKey(per) ? per : (String(per).slice(0,4)+'-Q'+(Math.floor((parseInt(String(per).slice(5,7),10)-1)/3)+1));
+    var sk = uid+'|'+per+'|'+_normStr(row.drug)+'|'+row.lot+'|'+(row.exp||'');
+    if(_ppAskSkip[sk]) return;
+    var D = await _ppDocsForUnit(uid, qk); if(!D || !D.docs.length) return;
+    var nd = _normStr(row.drug);
+    var cand = D.docs.filter(function(d){ return D.lines.some(function(l){ return l.doc_id===d.id && _normStr(l.drug)===nd; }); });
+    if(!cand.length) return;
+    var cur = D.recs.filter(function(x){ return _normStr(x.drug)===nd && x.period===per && x.lot===row.lot && (x.exp||'')===(row.exp||''); })[0];
+    if(cur && Number(cur.qty)===qty) return;
+    if(document.getElementById('pp_ask')) return;
+    var ov = document.createElement('div'); ov.id='pp_ask'; ov.className='app-popup';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999999;display:flex;align-items:center;justify-content:center';
+    ov.innerHTML = '<div style="background:#fff;border-radius:14px;width:min(440px,94vw);padding:18px 20px;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+      + '<div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:6px">Nhập theo văn bản phân phối nào?</div>'
+      + '<div style="font-size:12.5px;color:#475569;line-height:1.6;margin-bottom:10px">Vừa nhập <b>'+fmtNum(qty)+'</b> · <b>'+_ppEsc(row.drug)+'</b> · lô <b>'+_ppEsc(row.lot)+'</b> ('+_ppEsc(_keyToLabel(per))+').</div>'
+      + '<select id="pp-ask-sel" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;margin-bottom:14px">'
+      + cand.map(function(d){ var q=0; D.lines.forEach(function(l){ if(l.doc_id===d.id && _normStr(l.drug)===nd) q+=Number(l.qty)||0; });
+          return '<option value="'+d.id+'"'+(cur&&cur.doc_id===d.id?' selected':'')+'>'+_ppEsc(_ppDocLabel(d))+' — phân '+fmtNum(q)+'</option>'; }).join('')
+      + '</select><div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-outline" id="pp-ask-no" style="font-size:13px;padding:8px 16px;border-radius:18px">Bỏ qua</button>'
+      + '<button class="btn btn-primary" id="pp-ask-ok" style="font-size:13px;padding:8px 16px;border-radius:18px">Ghi nhận</button></div></div>';
+    document.body.appendChild(ov);
+    document.getElementById('pp-ask-no').onclick = function(){ _ppAskSkip[sk]=1; ov.remove(); };
+    document.getElementById('pp-ask-ok').onclick = async function(){
+      var docId = document.getElementById('pp-ask-sel').value; ov.remove();
+      try{
+        var olds = D.recs.filter(function(x){ return _normStr(x.drug)===nd && x.period===per && x.lot===row.lot && (x.exp||'')===(row.exp||''); });
+        if(olds.length){ await fetch(SUPA_URL+'/rest/v1/pp_receipts?id=in.('+olds.map(function(x){ return x.id; }).join(',')+')', {method:'DELETE', headers:_ppHd({'Prefer':'return=minimal'})}); }
+        var r = await fetch(SUPA_URL+'/rest/v1/pp_receipts', {method:'POST', headers:_ppHd({'Prefer':'return=minimal'}),
+          body:JSON.stringify([{doc_id:docId, unit_id:uid, kind:'link', period:per, drug:row.drug, lot:row.lot, exp:row.exp||'', qty:qty}])});
+        if(!r.ok) throw new Error(await _ppErr(r));
+        delete _ppAskCache[uid+'|'+qk]; _PP.key = '';
+        toast('✓ Đã ghi nhận theo văn bản','var(--success)');
+      }catch(e){ toast('✗ Chưa ghi nhận được theo văn bản: '+((e&&e.message)||e),'var(--danger)'); }
+    };
+  }catch(e){ console.warn('[phân phối] hỏi văn bản lỗi', e); }
+}
+(function(){
+  if(typeof window.updField !== 'function' || window.updField._pp) return;
+  var orig = window.updField;
+  var wrapped = function(prefix, rowIdx, field, val){
+    var row = null, before = null;
+    if(field === 'n1'){ try{ var arr = prefix==='bvph' ? bvphData : bcData, i = getReal(prefix, rowIdx); if(i>=0){ row = arr[i]; before = Number(row.n1)||0; } }catch(e){} }
+    var res = orig.apply(this, arguments);
+    if(row){ var after = Number(row.n1)||0; if(after>0 && after!==before) setTimeout(function(){ _ppAskLink(row, after); }, 300); }
+    return res;
+  };
+  wrapped._pp = true; window.updField = wrapped;
+})();
 </script>
 </body>
 </html>
