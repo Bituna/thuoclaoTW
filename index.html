@@ -241,6 +241,7 @@ body{font-family:'Be Vietnam Pro',sans-serif;background:var(--bg);color:var(--te
 .pp-tbl .pp-n{text-align:right;font-weight:700;white-space:nowrap}
 .pp-tbl .pp-n.ok{background:#dcfce7;color:#166534}.pp-tbl .pp-n.bad{background:#fee2e2;color:#b91c1c}.pp-tbl .pp-n.wait{background:#fef9c3;color:#854d0e}
 .pp-tbl .pp-grp{background:#eef2f7;font-weight:800;color:#334155;font-size:11.5px;text-align:left}
+.pp-tbl .pp-sub td{background:#f8fafc;font-weight:800;color:#1a5276;border-bottom:2px solid #cbd5e1}.pp-tbl .pp-sub .pp-u{background:#f8fafc;color:#1a5276}
 .pp-tbl .pp-tot td{background:#f1f5f9;font-weight:800}.pp-tbl .pp-tot .pp-u{background:#f1f5f9}
 .pp-vh{white-space:normal;line-height:1.3;text-align:center;font-size:11.5px}
 .pp-inp{width:74px;box-sizing:border-box;padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;text-align:right;font-weight:700}
@@ -26886,11 +26887,14 @@ function _ppGroups(issuerId){
   var kids = (_UNIT_CHILDREN[issuerId]||[]).filter(function(u){ return u.active!==false; }).sort(byPath);
   var groups = [{label:'Kho riêng', units:[me], self:true}];
   if(me.utype === 'kho_tq'){
-    groups.push({label:'Kho miền / đơn vị trực thuộc Trung ương', units:kids});
-    kids.filter(function(k){ return k.utype==='kho_mien'; }).forEach(function(k){
-      var gk = (_UNIT_CHILDREN[k.id]||[]).filter(function(u){ return u.active!==false; }).sort(byPath);
-      if(gk.length) groups.push({label:'Các tỉnh thuộc '+(_displayUnit(k.name)||k.name), units:gk});
+    // Miền KHÔNG phải dòng nhập số: mỗi miền là 1 nhóm các tỉnh, cuối nhóm có dòng "Cộng miền" tự tính.
+    var direct = [];   // đơn vị trực thuộc TW không phải kho miền, hoặc kho miền chưa có tỉnh nào
+    kids.forEach(function(k){
+      var gk = (k.utype==='kho_mien') ? (_UNIT_CHILDREN[k.id]||[]).filter(function(u){ return u.active!==false; }).sort(byPath) : [];
+      if(gk.length) groups.push({label:(_displayUnit(k.name)||k.name), units:gk, sub:true});
+      else direct.push(k);
     });
+    if(direct.length) groups.push({label:'Đơn vị trực thuộc Trung ương', units:direct});
   } else groups.push({label:'Đơn vị trực thuộc', units:kids});
   return groups;
 }
@@ -27115,6 +27119,7 @@ function ppRender(){
       return ed ? true : cols.some(function(d){ return hasQty(u,d); });
     });
     if(!us.length) return;
+    var gi = groups.indexOf(g), subTot = cols.map(function(){ return 0; });
     t += '<tr><td colspan="'+(cols.length+2)+'" class="pp-grp">'+_ppEsc(g.label)+'</td></tr>';
     us.forEach(function(u){
       stt++; nRow++;
@@ -27122,11 +27127,11 @@ function ppRender(){
         + ((one && !ed && !g.self && _ppDone(_PP.docId, u.id)) ? ' <span class="pp-tag ok" title="Đơn vị đã đánh dấu nhận đủ văn bản này">✓ đã nhận</span>' : '')+'</td>';
       cols.forEach(function(d, j){
         if(ed){
-          var k = u.id+'|'+_normStr(d), v = ed.v[k]||0; colTot[j] += v;
-          t += '<td class="pp-n"><input class="pp-inp" inputmode="numeric" value="'+(v?v:'')+'" data-k="'+_ppEsc(k)+'" data-j="'+j+'" oninput="ppEditInput(this)"></td>';
+          var k = u.id+'|'+_normStr(d), v = ed.v[k]||0; colTot[j] += v; subTot[j] += v;
+          t += '<td class="pp-n"><input class="pp-inp" inputmode="numeric" value="'+(v?v:'')+'" data-k="'+_ppEsc(k)+'" data-j="'+j+'" data-g="'+gi+'" oninput="ppEditInput(this)"></td>';
           return;
         }
-        var q = _ppQty(u.id, d, 'view'); colTot[j] += q;
+        var q = _ppQty(u.id, d, 'view'); colTot[j] += q; subTot[j] += q;
         var c = _ppCmp(u.id, d, g.self), cls = '', mark = '', tip = '';
         if(!one){
           if(c.st==='ok'){ cls=' ok'; mark=' ✓'; nOk++; } else if(c.st==='bad'){ cls=' bad'; mark=' ⚠'; nBad++; } else if(c.st==='wait' && c.ppAll>0){ cls=' wait'; nWait++; }
@@ -27142,6 +27147,8 @@ function ppRender(){
       });
       t += '</tr>';
     });
+    if(g.sub) t += '<tr class="pp-sub"><td></td><td class="pp-u">Cộng '+_ppEsc(g.label)+'</td>'
+      + subTot.map(function(v, j){ return '<td class="pp-n" id="pp-sub-'+gi+'-'+j+'">'+(v?fmtNum(v):'-')+'</td>'; }).join('')+'</tr>';
   });
   t += '<tr class="pp-tot"><td></td><td class="pp-u">TỔNG CỘNG</td>'+colTot.map(function(v, j){ return '<td class="pp-n" id="pp-tot-'+j+'">'+(v?fmtNum(v):'-')+'</td>'; }).join('')+'</tr></tbody></table>';
   window._ppCols = cols;
@@ -27228,6 +27235,8 @@ function ppEditInput(inp){
   var j = inp.getAttribute('data-j'), s = 0;
   document.querySelectorAll('#pp-root .pp-inp[data-j="'+j+'"]').forEach(function(e){ s += _ppNum(e.value); });
   var te = document.getElementById('pp-tot-'+j); if(te) te.textContent = s ? fmtNum(s) : '-';
+  var g = inp.getAttribute('data-g'), se = document.getElementById('pp-sub-'+g+'-'+j);
+  if(se){ var s2 = 0; document.querySelectorAll('#pp-root .pp-inp[data-j="'+j+'"][data-g="'+g+'"]').forEach(function(e){ s2 += _ppNum(e.value); }); se.textContent = s2 ? fmtNum(s2) : '-'; }
 }
 async function ppEditSave(){
   if(!_PP.edit || _PP.docId==='all') return;
@@ -27378,12 +27387,19 @@ function ppExport(){
              ['Kho lập bảng: '+(issuer?issuer.name:'')+' · '+(d ? _ppDocLabel(d)+(d.title?' — '+d.title:'') : 'Cộng các văn bản trong quý')], [],
              ['Stt','Tỉnh / Đơn vị'].concat(cols)];
   var tot = cols.map(function(){ return 0; }), stt = 0;
-  _ppFlatUnits().forEach(function(x){
-    if(!_ppCanSeeUnit(x.u.id)) return;
-    var vals = cols.map(function(dn){ return _ppQty(x.u.id, dn, 'view'); });
-    if(!vals.some(function(v){ return v>0; })) return;
-    vals.forEach(function(v, j){ tot[j] += v; });
-    aoa.push([++stt, x.label].concat(vals.map(function(v){ return v || ''; })));
+  var gs = _ppGroups(_PP.issuer), kn = {}; gs.forEach(function(g){ g.units.forEach(function(u){ kn[u.id]=1; }); });
+  var ex = _ppExtraUnits(kn); if(ex.length) gs.push({label:'Đơn vị thêm', units:ex});
+  gs.forEach(function(g){
+    var sub = cols.map(function(){ return 0; }), n = 0;
+    g.units.forEach(function(u){
+      if(!_ppCanSeeUnit(u.id)) return;
+      var vals = cols.map(function(dn){ return _ppQty(u.id, dn, 'view'); });
+      if(!vals.some(function(v){ return v>0; })) return;
+      if(!n && g.sub) aoa.push(['', g.label.toUpperCase()]);
+      n++; vals.forEach(function(v, j){ tot[j] += v; sub[j] += v; });
+      aoa.push([++stt, _ppUnitLabel(u, g.self)].concat(vals.map(function(v){ return v || ''; })));
+    });
+    if(n && g.sub) aoa.push(['', 'Cộng '+g.label].concat(sub));
   });
   aoa.push(['', 'TỔNG CỘNG'].concat(tot));
   if(!one){
